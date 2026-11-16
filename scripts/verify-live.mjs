@@ -1,0 +1,4 @@
+import {gateway} from '../server/gateway.js';
+const paths=['markets','global','sentiment','news','chains','instruments?venue=binance','instruments?venue=coinbase','exchange-markets','candles?venue=binance&symbol=BTCUSDT&interval=1h','book?venue=binance&symbol=BTCUSDT','ticker?venue=binance&symbol=BTCUSDT','candles?venue=coinbase&symbol=ETH-USD&interval=4h'];
+const results=await Promise.all(paths.map(async p=>{const start=Date.now();const r=await gateway(new Request('http://localhost/api/'+p));const b=await r.json();const count=Array.isArray(b.data)?b.data.length:b.data?.bars?.length??b.data?.items?.length??b.data?.bids?.length;return {route:p,status:r.status,provider:b.provider,count,cache:b.cache,error:b.error,ms:Date.now()-start,fetchedAt:b.fetchedAt};}));
+console.log(JSON.stringify(results,null,2));if(results.some(r=>r.status!==200))process.exitCode=1;

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.superpowers/
+.openai/*local*
+test-results/
+*.log
+.env*
+!.env.example
