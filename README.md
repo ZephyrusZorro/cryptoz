@@ -18,7 +18,7 @@ Open http://127.0.0.1:5187. The Windows `START-CRYPTOZ.cmd` launcher uses the in
 
 - Searchable USD asset directory (2,000 quotes returned during verification), watchlist, sorting and CSV exports.
 - Separate exchange instrument identities: Binance spot USDT and Coinbase spot USD.
-- Selected-market WebSocket, real OHLCV history, REST recovery, reconnect/gap reconciliation and visible stale/unavailable states.
+- Selected-market WebSocket, real OHLCV history, REST recovery, reconnect/gap reconciliation and visible stale/unavailable states. Browser-direct public API fallback recovers from shared-host egress restrictions where the provider permits it. Global statistics can fall back to separately attributed Coinpaprika data.
 - Candles, OHLC, line and Heikin-Ashi; configurable EMA/SMA, Bollinger, UTC-session VWAP; RSI, MACD and volume pane.
 - Persistent horizontal levels, trendlines, Fibonacci levels and annotations. Place anchors with chart tools; edit anchor prices, UTC times and labels in Drawings. Pan/zoom and PNG/OHLCV exports.
 - Closed-candle technical context and fee-aware position risk calculator.

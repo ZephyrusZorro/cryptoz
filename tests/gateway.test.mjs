@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGateway, parseNews } from '../server/gateway.js';
+import { createGateway, parseNews, relevantHeadline } from '../server/gateway.js';
 
 const req=(s)=>new Request('http://localhost/api/'+s);
 test('rejects arbitrary upstreams, invalid symbols and invalid intervals before fetching',async()=>{
@@ -31,3 +31,5 @@ test('exchange screen excludes inactive tickers and instruments outside the spot
  const r=await (await g(req('exchange-markets'))).json();assert.deepEqual(r.data.map(x=>x.id),['BTCUSDT']);
 });
 test('Coinbase quotes preserve the actual last-trade timestamp',async()=>{const when='2026-11-17T10:00:00Z';const g=createGateway({fetcher:async url=>Response.json(url.endsWith('/ticker')?{price:'100',time:when}:{last:'99',open:'90',high:'101',low:'89',volume:'1000'})});const r=await (await g(req('ticker?venue=coinbase&symbol=BTC-USD'))).json();assert.equal(r.data.observedAt,when);assert.equal(r.data.last,'100');});
+test('global statistics fall back to an explicitly attributed independent provider',async()=>{const g=createGateway({fetcher:async url=>url.includes('coingecko')?new Response('',{status:429}):Response.json({market_cap_usd:1000,volume_24h_usd:100,bitcoin_dominance_percentage:50,market_cap_change_24h:1,cryptocurrencies_number:2000,last_updated:100000})});const r=await (await g(req('global'))).json();assert.equal(r.provider,'Coinpaprika');assert.equal(r.data.marketCap,1000);});
+test('news stays relevant to crypto and macro market catalysts',()=>{assert.equal(relevantHeadline('Bitcoin miner rewards disrupted'),true);assert.equal(relevantHeadline('Fed interest rate decision'),true);assert.equal(relevantHeadline('Alibaba launches a downloadable AI assistant'),false);});

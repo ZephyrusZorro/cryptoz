@@ -18,3 +18,6 @@ Provider gateway: allowlisted fixed upstream origins, validated route parameters
 
 ## Verification and limits
 Unit tests cover indicator values, warmup, no lookahead, invalid risk plans, schemas, provider routing, errors, cache and hostile news. Live checks contact actual APIs. Browser checks cover real network rendering, instrument/timeframe changes, drawings, persistence and mobile layout. Public deployment and upstream access are checked separately. Universal coin coverage, global low-latency service levels, accessibility certification, investment returns and superiority over established platforms are not claims this build can establish.
+
+## Hosted verification refinement
+Shared hosting egress received rate-limited/restricted exchange responses despite successful local checks. A lazy client adapter reuses the exact validated gateway and connects directly to the public provider from the user's browser when needed. CSP explicitly allowlists only those API origins. Its response is labeled Browser direct. Global statistics can fall back to Coinpaprika with its provider attribution intact; no data are substituted under a different provider label.

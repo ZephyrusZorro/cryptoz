@@ -11,3 +11,5 @@ Task 2 complete: live 12-route gateway check succeeded; first check returned 2,0
 Task 3 in verification: desktop browser received WebSocket messages and rendered actual Binance/USDT charts/book, editable drawing anchor persisted, risk calculation and note save succeeded.
 Final review: fresh read-only reviewer identified reconnect candle gaps, unsafe imported drawing IDs, out-of-order alert prices and racing studio view responses. Each has been addressed; unit regressions for state/chart/gateway pass. Studio request generation guards follow every asynchronous boundary.
 Ruling: Profitability, source truth, worldwide latency, universal coverage and institutional readiness remain unestablished; expose provider timestamps/limits and document these boundaries rather than claim them.
+
+Task 4 hosted refinement: initial private deployment succeeded but provider egress returned HTTP 429/restriction. Added a tested browser-direct fallback with same allowlisted schema adapters, plus separately attributed Coinpaprika global fallback and crypto/macro-only RSS headline filtering. Suite now 25 tests passing; final hosted recheck follows republishing.
