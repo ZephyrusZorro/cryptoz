@@ -3,7 +3,7 @@
 17 November 2026, Asia/Calcutta. This is an engineering verification record, not a financial or market-data accuracy audit.
 
 ## Automated checks
-- 25 Node tests pass: mathematical reference values and warmup, causal MACD, OHLC validation, risk sizing/fees, chart lifecycle/reconnect reconciliation, gateway validation/coalescing/stale states, active-instrument filtering, RSS parsing, Coinbase last-trade timestamps, workspace import validation, crossing alerts and out-of-order observations.
+- 26 Node tests pass: mathematical reference values and warmup, causal MACD, OHLC validation, risk sizing/fees, chart lifecycle/reconnect reconciliation, gateway validation/coalescing/stale states, active-instrument filtering, RSS parsing, Coinbase last-trade timestamps, workspace import validation, crossing alerts and out-of-order observations.
 - Production client and self-contained Fetch API Worker build succeeded.
 - npm audit: zero known vulnerabilities after upgrading ECharts, fast-xml-parser and Vite to patched versions.
 - Twelve live route checks succeeded against actual upstream providers: markets, global, sentiment, news, chains, both venue registries, exchange tickers, candles, book and ticker. Original observed coverage: 2,000 Coinpaprika quotes, 518 Binance USDT instruments and 402 Coinbase USD instruments (before final crypto-scope filters), 75 RSS headlines, 285 positive-TVL chains. Counts change with providers.
@@ -27,3 +27,5 @@ Deployment status and final hosted checks are recorded in the accompanying relea
 
 ## Hosted provider recovery
 The first hosted check exposed exchange REST restrictions/rate limits on shared hosting egress (Binance/Coinbase) and CoinGecko HTTP 429. The gateway now attributes an independent Coinpaprika global fallback. The client lazily loads the same validated public-data adapters for direct browser-origin requests when a hosted route fails, with a 60-second hosted-route cooldown. News remains server-side RSS and filters unrelated technology headlines out of the crypto/macro feed. This is ordinary direct access to public market data from the user's network; no proxy evasion or account credentials are used. Browser-direct connections remain subject to provider CORS, quotas and regional availability.
+
+Hosted browser confirmation after the provider-recovery release: Binance selected chart rendered genuine candles and received WebSocket messages; configurable Bollinger/MACD settings applied; OHLCV CSV and PNG exports completed. Ordinary fiat base instruments are filtered from the crypto venue directory.

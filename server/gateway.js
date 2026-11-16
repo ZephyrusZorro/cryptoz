@@ -2,6 +2,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { normalizeCandles } from '../src/analytics.js';
 
 const B='https://data-api.binance.vision/api/v3', C='https://api.exchange.coinbase.com';
+const fiat=new Set(['USD','EUR','GBP','AUD','CAD','CHF','JPY','CNY','CNH','KRW','INR','BRL','TRY','RUB','UAH','PLN','ARS','IDR','MXN','ZAR']);
 const intervals={'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400};
 const headers={'User-Agent':'CRYPTOZ/1.0 public research terminal','Accept':'application/json, application/rss+xml, text/xml'};
 const sources=[{name:'CoinDesk',url:'https://www.coindesk.com/arc/outboundfeeds/rss/'},{name:'Decrypt',url:'https://decrypt.co/feed'},{name:'Cointelegraph',url:'https://cointelegraph.com/rss'}];
@@ -23,7 +24,7 @@ export function createGateway({fetcher=fetch,now=Date.now}={}) {
  async function upstream(url,xml=false) {
   const r=await fetcher(url,{headers,signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error(`Upstream HTTP ${r.status}`);const data=xml?await r.text():await r.json();return data;
  }
- async function loadInstruments(venue){return cached(`instruments:${venue}`,venue==='binance'?'Binance':'Coinbase',3600000,async()=>{const d=await upstream(venue==='binance'?`${B}/exchangeInfo`:`${C}/products`);if(venue==='binance'){if(!Array.isArray(d.symbols))throw Error('Invalid instruments');return d.symbols.filter(x=>x.status==='TRADING'&&x.quoteAsset==='USDT'&&x.isSpotTradingAllowed!==false).map(x=>({symbol:x.symbol,base:x.baseAsset,quote:x.quoteAsset,venue}));}if(!Array.isArray(d))throw Error('Invalid instruments');return d.filter(x=>x.quote_currency==='USD'&&x.status==='online').map(x=>({symbol:x.id,base:x.base_currency,quote:'USD',venue}));});}
+ async function loadInstruments(venue){return cached(`instruments:${venue}`,venue==='binance'?'Binance':'Coinbase',3600000,async()=>{const d=await upstream(venue==='binance'?`${B}/exchangeInfo`:`${C}/products`);if(venue==='binance'){if(!Array.isArray(d.symbols))throw Error('Invalid instruments');return d.symbols.filter(x=>x.status==='TRADING'&&x.quoteAsset==='USDT'&&!fiat.has(x.baseAsset)&&x.isSpotTradingAllowed!==false).map(x=>({symbol:x.symbol,base:x.baseAsset,quote:x.quoteAsset,venue}));}if(!Array.isArray(d))throw Error('Invalid instruments');return d.filter(x=>x.quote_currency==='USD'&&!fiat.has(x.base_currency)&&x.status==='online').map(x=>({symbol:x.id,base:x.base_currency,quote:'USD',venue}));});}
  return async function handle(request) {
   const u=new URL(request.url),route=u.pathname.replace(/^\/api\//,''),p=u.searchParams;
   if(request.method!=='GET')return Response.json({error:'Read-only API'},{status:405});
@@ -31,7 +32,7 @@ export function createGateway({fetcher=fetch,now=Date.now}={}) {
    let result;
    if(['candles','book','ticker'].includes(route)) {
     const venue=p.get('venue')??'binance',symbol=p.get('symbol')??'BTCUSDT',interval=p.get('interval')??'1h';
-    if(!['binance','coinbase'].includes(venue)||!(venue==='binance'?/^[A-Z0-9]{3,25}$/:/^[A-Z0-9]{1,20}-USD$/).test(symbol)||!intervals[interval])return Response.json({error:'Invalid venue, instrument or interval'},{status:400});
+    if(!['binance','coinbase'].includes(venue)||!(venue==='binance'?/^[\p{L}\p{N}]{3,30}$/u:/^[A-Z0-9]{1,20}-USD$/).test(symbol)||!intervals[interval])return Response.json({error:'Invalid venue, instrument or interval'},{status:400});
     const provider=venue==='binance'?'Binance':'Coinbase',path=venue==='binance'?`${B}/${route==='candles'?'klines':route==='book'?'depth':'ticker/24hr'}?symbol=${symbol}${route==='candles'?`&interval=${interval}&limit=500`:route==='book'?'&limit=50':''}`:`${C}/products/${symbol}/${route==='candles'?`candles?granularity=${interval==='4h'?3600:intervals[interval]}`:route==='book'?'book?level=2':'ticker'}`;
     result=await cached(`${route}:${venue}:${symbol}:${route==='candles'?interval:''}`,provider,route==='candles'?15000:route==='book'?5000:10000,async()=>{
      const d=await upstream(path);
