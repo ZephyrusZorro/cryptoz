@@ -8,6 +8,8 @@ const catalog = [
     meaning: 'Two averages that give more weight to recent closes.', check: 'Compare price with both averages. Crossovers can lag or reverse quickly in a range.', warmup: 'The chosen lookback and 50 candles, one line at a time.'},
   {id: 'sma', label: 'Simple moving average', group: 'Trend', placement: 'overlay',
     meaning: 'The average close over the chosen number of candles.', check: 'Look at the slope and where price sits relative to the line.', warmup: 'One full lookback of closes.'},
+  {id: 'wma', label: 'Weighted moving average', group: 'Trend', placement: 'overlay', proOnly: true,
+    meaning: 'An average of closes with linearly increasing weights for recent candles.', check: 'Compare the slope with price and a simple average of the same length.', warmup: 'One full lookback of closes.'},
   {id: 'donchian', label: 'Donchian channel', group: 'Trend', placement: 'overlay',
     meaning: 'The high and low of the latest 20 candles.', check: 'Compare this candle with the prior channel to identify a new range extreme.', warmup: '20 candles.'},
   {id: 'levels', label: 'Recent high and low', group: 'Trend', placement: 'overlay',
@@ -20,12 +22,16 @@ const catalog = [
     meaning: 'Shows where the close sits within its 14-candle range, smoothed twice.', check: 'Compare %K with %D around the 20 and 80 guides.', warmup: '16 candles for %K and 18 for %D, with a nonzero range.'},
   {id: 'roc', label: 'Rate of change', group: 'Momentum', placement: 'pane',
     meaning: 'The percent change from the close 12 candles ago.', check: 'Compare the sign and size with the current move in price.', warmup: '13 closes.'},
+  {id: 'cci', label: 'Commodity Channel Index', group: 'Momentum', placement: 'pane', proOnly: true,
+    meaning: 'Expresses typical price’s distance from its 20-candle average using mean absolute deviation.', check: 'Read ±100 as reference levels. The index can extend in either direction.', warmup: '20 candles with variation in typical price.'},
   {id: 'bb', label: 'Bollinger Bands', group: 'Volatility', placement: 'overlay',
     meaning: 'A moving average plus and minus twice the standard deviation of closes.', check: 'Watch for bands that widen or narrow as volatility changes.', warmup: 'One full lookback of closes.'},
   {id: 'keltner', label: 'Keltner channel', group: 'Volatility', placement: 'overlay',
     meaning: 'A 20-candle EMA with bands set at twice the 10-candle average true range.', check: 'Compare channel width across periods of quiet and wider trading ranges.', warmup: '20 candles.'},
   {id: 'atr', label: 'Average true range', group: 'Volatility', placement: 'pane',
     meaning: 'The smoothed size of candle ranges, including gaps, in quote currency.', check: 'Compare the current 14-candle range measure with its earlier values.', warmup: '14 candles.'},
+  {id: 'bbw', label: 'Bollinger Bandwidth', group: 'Volatility', placement: 'pane', proOnly: true,
+    meaning: 'The width of the Bollinger Bands as a percentage of their middle band.', check: 'Compare recent widths to see whether volatility is expanding or contracting.', warmup: 'One full lookback of closes.'},
   {id: 'vwap', label: 'VWAP (UTC)', group: 'Volume', placement: 'overlay',
     meaning: 'An intraday, volume-weighted average of candle prices that resets at midnight UTC.', check: 'Compare price with the weighted average. The first loaded session may be partial.', warmup: 'At least one candle with volume in the UTC session. Use an intraday interval.'},
   {id: 'volume', label: 'Volume', group: 'Volume', placement: 'pane',
@@ -33,7 +39,11 @@ const catalog = [
   {id: 'obv', label: 'On-balance volume', group: 'Volume', placement: 'pane',
     meaning: 'Adds candle volume on a higher close and subtracts it on a lower close.', check: 'Compare the direction with price. The total starts at zero in the first loaded candle.', warmup: 'The first close sets the baseline. Changes start at the second candle.'},
   {id: 'mfi', label: 'Money flow index', group: 'Volume', placement: 'pane',
-    meaning: 'A 0 to 100 measure of positive and negative price movement weighted by volume.', check: 'Compare the value with the 20 and 80 guides and check recent volume.', warmup: '15 candles and some volume-weighted price movement.'}
+    meaning: 'A 0 to 100 measure of positive and negative price movement weighted by volume.', check: 'Compare the value with the 20 and 80 guides and check recent volume.', warmup: '15 candles and some volume-weighted price movement.'},
+  {id: 'rvol', label: 'Relative volume', group: 'Volume', placement: 'pane', proOnly: true,
+    meaning: 'Candle volume divided by average volume over the previous 20 candles on this venue.', check: 'A reading of 1.5 means volume is 1.5 times the prior average. An open candle’s volume is still building.', warmup: '20 earlier candles with a positive average volume.'},
+  {id: 'cmf', label: 'Chaikin Money Flow', group: 'Volume', placement: 'pane', proOnly: true,
+    meaning: 'Combines candle volume with where each close falls in its range over 20 candles.', check: 'Positive readings mean higher-in-range closes carried more weight.', warmup: '20 candles with some total volume.'}
 ];
 
 export const STUDIES = Object.freeze(Object.fromEntries(catalog.map(study => [study.id, Object.freeze(study)])));
@@ -123,6 +133,49 @@ function moneyFlow(bars) {
   });
 }
 
+function weightedAverage(closes, period) {
+  const totalWeight = period * (period + 1) / 2;
+  return closes.map((_, i) => {
+    if (i + 1 < period) return null;
+    return closes.slice(i - period + 1, i + 1).reduce((sum, close, j) => sum + close * (j + 1), 0) / totalWeight;
+  });
+}
+
+function commodityChannel(bars) {
+  const period = 20;
+  const typical = bars.map(bar => (bar.high + bar.low + bar.close) / 3);
+  return sma(typical, period).map((average, i) => {
+    if (average === null) return null;
+    const gap = typical[i] - average;
+    const deviation = typical.slice(i - period + 1, i + 1).reduce((sum, price) => sum + Math.abs(price - average), 0) / period;
+    return deviation > average * Number.EPSILON * period ? gap / (0.015 * deviation) : null;
+  });
+}
+
+function relativeVolume(bars) {
+  const period = 20;
+  return bars.map((bar, i) => {
+    if (i < period) return null;
+    const average = bars.slice(i - period, i).reduce((sum, previous) => sum + previous.volume, 0) / period;
+    return average > 0 ? bar.volume / average : null;
+  });
+}
+
+function chaikinFlow(bars) {
+  const period = 20;
+  const multipliers = bars.map(bar => bar.high > bar.low ? 2 * ((bar.close - bar.low) / (bar.high - bar.low)) - 1 : 0);
+  return bars.map((_, i) => {
+    if (i + 1 < period) return null;
+    let volume = 0;
+    let flow = 0;
+    for (let j = i - period + 1; j <= i; j++) {
+      volume += bars[j].volume;
+      flow += multipliers[j] * bars[j].volume;
+    }
+    return volume > 0 ? flow / volume : null;
+  });
+}
+
 const line = (key, title, values, color, options = {}) => ({key, title, values, color, kind: 'line', ...options});
 const histogram = (key, title, values, coloring, format) => ({key, title, values, coloring, format, kind: 'histogram'});
 const bands = (title, values, color) => [
@@ -137,7 +190,13 @@ const calculate = {
     ...(period === 50 ? [] : [line('slow', 'EMA 50', ema(closes, 50), 'violet')])
   ]}),
   sma: ({closes, period}) => ({series: [line('main', `SMA ${period}`, sma(closes, period), 'accent')]}),
+  wma: ({closes, period}) => ({series: [line('main', `WMA ${period}`, weightedAverage(closes, period), 'gold', {dashed: true})]}),
   bb: ({closes, period}) => ({series: bands('BB', bollinger(closes, period), 'cyan')}),
+  bbw: ({closes, period}) => {
+    const {middle, upper, lower} = bollinger(closes, period);
+    const widths = middle.map((value, i) => value > 0 ? 100 * (upper[i] - lower[i]) / value : null);
+    return {series: [line('main', `Bandwidth ${period}`, widths, 'cyan', {format: 'percent'})]};
+  },
   vwap: ({bars, interval}) => interval === '1d'
     ? {note: 'Choose an intraday interval for UTC VWAP.'}
     : {series: [line('main', 'VWAP UTC', vwap(bars), 'up', {utcSession: true})]},
@@ -178,7 +237,10 @@ const calculate = {
       return total;
     }), 'cyan', {format: 'volume'})]};
   },
-  mfi: ({bars}) => ({series: [line('main', 'MFI 14', moneyFlow(bars), 'up')], guides: [20, 80], bounds: [0, 100]})
+  mfi: ({bars}) => ({series: [line('main', 'MFI 14', moneyFlow(bars), 'up')], guides: [20, 80], bounds: [0, 100]}),
+  cci: ({bars}) => ({series: [line('main', 'CCI 20', commodityChannel(bars), 'gold')], guides: [-100, 0, 100]}),
+  rvol: ({bars}) => ({series: [line('main', 'Relative volume', relativeVolume(bars), 'cyan')], guides: [1]}),
+  cmf: ({bars}) => ({series: [line('main', 'CMF 20', chaikinFlow(bars), 'up')], guides: [0], bounds: [-1, 1]})
 };
 
 export function calculateStudies(bars, ids, {period = 20, rsiPeriod = 14, interval, completedBefore = Infinity} = {}) {
@@ -226,12 +288,12 @@ function seriesOptions(plot, result, colors, priceFormat) {
   if (result.bounds) {
     const [minValue, maxValue] = result.bounds;
     options.autoscaleInfoProvider = original => original() && ({priceRange: {minValue, maxValue}});
-  } else if (result.guides.includes(0)) {
+  } else if (result.guides.length) {
     options.autoscaleInfoProvider = original => {
       const scale = original();
       if (!scale?.priceRange) return scale;
       const {minValue, maxValue} = scale.priceRange;
-      return {...scale, priceRange: {minValue: Math.min(0, minValue), maxValue: Math.max(0, maxValue)}};
+      return {...scale, priceRange: {minValue: Math.min(...result.guides, minValue), maxValue: Math.max(...result.guides, maxValue)}};
     };
   }
   return options;

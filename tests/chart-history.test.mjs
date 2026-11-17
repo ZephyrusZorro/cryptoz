@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGateway} from '../server/gateway.js';
 import {TerminalChart} from '../src/chart.js';
+import {historyCursor} from '../src/chart-window.js';
 const NOW=1794873600000,B=1794787200;
 const k=t=>[t*1000,10,12,9,11,3];
 const c=t=>[t,9,12,10,11,3];
@@ -42,4 +43,23 @@ test('older failed requests can retry and obsolete responses cannot alter the ne
  chart.fetch=async()=>{throw Error('temporary');};await chart.loadOlder();assert.equal(chart.historyStatus,'error');
  let resolve;chart.fetch=()=>new Promise(r=>resolve=r);const old=chart.loadOlder();chart.generation++;chart.bars=[bar(B+3600)];resolve({data:{bars:[bar(B-3600)]}});await old;
  assert.deepEqual(chart.bars,[bar(B+3600)]);
+});
+
+test('UTC archive dates validate calendar, future and timeframe boundaries',()=>{
+ assert.equal(historyCursor('2024-02-30',3600,NOW/1000),null);
+ assert.equal(historyCursor('2028-01-01',3600,NOW/1000),null);
+ assert.equal(historyCursor('2024-01-15',14400,NOW/1000),Date.parse('2024-01-16T00:00:00Z')/1000);
+});
+test('archive load is isolated from the stream and only retains closed evidence',async()=>{
+ const chart=terminal(),paths=[];let opened=0,s='';chart.status=x=>{s=x;};chart.build=()=>{};chart.connect=()=>opened++;
+ chart.fetch=async url=>{paths.push(url);return {data:{bars:[bar(B-3600),bar(B)]},cache:'miss',fetchedAt:new Date(NOW).toISOString()};};
+ await chart.load(chart.instrument,'1h',{before:B});
+ assert.match(paths[0],new RegExp('before='+B));assert.equal(s,'archive');assert.equal(opened,0);
+ assert.deepEqual(chart.studyBars.map(b=>b.time),[B-3600]);chart.dispose();
+});
+test('crossing a close while an upstream request is in flight does not confirm that candle',()=>{
+ const chart=terminal(),start=(B+3599)*1000;
+ const cut=chart.snapshotCutoff({fetchedAt:new Date((B+3601)*1000).toISOString()},start);
+ chart.observeStudyBars([bar(B-3600),bar(B)],cut);
+ assert.deepEqual(chart.studyBars.map(b=>b.time),[B-3600]);chart.dispose();
 });

@@ -2,13 +2,15 @@ export const PRIMARY=[
  {id:'home',label:'Home',icon:'layout-dashboard',route:'overview'},
  {id:'markets',label:'Markets',icon:'globe',route:'markets'},
  {id:'research',label:'Charts',icon:'chart-no-axes-combined',route:'terminal'},
- {id:'workspace',label:'Workspace',icon:'bookmark',route:'workspace'}
+ {id:'practice',label:'Practice',icon:'layers',route:'practice'},
+ {id:'learn',label:'Learn',icon:'book-open',route:'learn'}
 ];
 export const GROUPS={
- home:[{route:'overview',label:'Overview'},{route:'news',label:'News'}],
- markets:[{route:'markets',label:'Prices'},{route:'studio',label:'Market maps'}],
- research:[{route:'terminal',label:'Chart'},{route:'compare',label:'Compare'},{route:'learn',label:'Learn'}],
- workspace:[{route:'workspace',label:'Watchlist',target:'workspace-watchlist'},{route:'workspace',label:'Alerts',target:'workspace-alerts'},{route:'workspace',label:'Journal & notes',target:'workspace-journal'}]
+ home:[{route:'overview',label:'Overview'},{route:'news',label:'News'},{route:'analysts',label:'Analyst views'}],
+ markets:[{route:'markets',label:'Explore'},{route:'studio',label:'Market maps'},{route:'workspace',label:'Watchlist & alerts'}],
+ research:[{route:'terminal',label:'Chart'},{route:'compare',label:'Compare'}],
+ practice:[{route:'practice',label:'Simulator'},{route:'practice',label:'Position calculator',target:'risk-tools'}],
+ learn:[{route:'learn',label:'Learning desk'}]
 };
 const paths=new Map(Object.entries(GROUPS).flatMap(([group,items])=>items.map(x=>[x.route,group])));
 export function resolveRoute(hash=''){const path=String(hash).replace(/^#/,'').split('?')[0];return paths.has(path)?path:'overview';}

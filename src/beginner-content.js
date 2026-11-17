@@ -2,8 +2,8 @@ export const GETTING_STARTED=[
  {id:'identity',title:'Know the asset',text:'Check its name, venue and quote currency. Matching tickers can represent different tokens.',href:'#markets',action:'Find an asset',icon:'search'},
  {id:'candles',title:'Read the chart',text:'Choose an interval. Compare the current unfinished candle with completed history.',href:'#terminal',action:'Open charts',icon:'chart-no-axes-combined'},
  {id:'indicators',title:'Understand the readings',text:'Read what EMA, RSI and MACD measure, including their limitations.',href:'#learn?view=readings',action:'View signal readings',icon:'activity'},
- {id:'risk',title:'Plan a scenario',text:'Enter your own entry, stop, target and fees. Compare loss, position size and capital.',href:'#terminal?section=risk-tools',action:'Open risk calculator',icon:'target'},
- {id:'notes',title:'Record your reasoning',text:'Save your evidence and invalidation conditions in an instrument note. Export backups regularly.',href:'#terminal?section=research-note',action:'Open chart notes',icon:'file-text'}
+ {id:'risk',title:'Plan a scenario',text:'Enter your own entry, stop, target and fees. Compare loss, position size and capital.',href:'#practice?section=risk-tools',action:'Open risk calculator',icon:'target'},
+ {id:'notes',title:'Test your reasoning',text:'Practice how order size, fees, and price movement affect the result with virtual funds.',href:'#practice',action:'Open simulator',icon:'file-text'}
 ];
 const glossary=[
  ['Venue','exchange','The exchange supplying this chart or order book.'],
@@ -28,7 +28,7 @@ const glossary=[
 const normalize=value=>String(value??'').slice(0,100).normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 export function searchGlossary(query=''){const tokens=normalize(query).split(' ').filter(Boolean);return glossary.filter(item=>tokens.every(t=>normalize([item.term,item.aliases,item.definition].join(' ')).includes(t)));}
 const help={
- chart:{title:'Chart guide',items:[['Read the identity','Confirm venue, instrument, quote and candle interval.'],['Navigate history','Drag to pan, pinch or wheel to zoom. All history fits the loaded bars.'],['Understand the candle','The latest candle is provisional. Indicators describe observed history.'],['Add context','Indicators adds overlays and oscillators. Drawing tools save per instrument and interval.']]},
+ chart:{title:'Chart guide',items:[['Read the identity','Confirm venue, instrument, quote and candle interval.'],['Navigate history','Drag to pan, pinch or wheel to zoom. Older candles requests the preceding exchange page. Latest returns to the current market.'],['Understand the candle','The latest candle is provisional. Indicators describe observed history.'],['Add context','Indicators adds overlays and oscillators. Drawing tools save per instrument and interval.']]},
  risk:{title:'Risk calculator guide',items:[['Equity and risk','Equity is your scenario balance in quote units. Risk % defines the modeled loss budget.'],['Choose your levels','Long: stop < entry < target. Short: target < entry < stop.'],['Include costs','Enter the fee charged per side. Slippage and funding are excluded.'],['Read the outcome','Position size differs from money at risk. No order is placed.']]}
 };
 export const helpFor=context=>Object.hasOwn(help,context)?help[context]:null;

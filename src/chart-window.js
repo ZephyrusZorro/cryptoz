@@ -1,3 +1,10 @@
+export function historyCursor(date,step,now=Math.floor(Date.now()/1000)){
+ if(typeof date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isSafeInteger(step)||step<=0)return null;
+ const utc=Date.parse(date+'T00:00:00Z');
+ if(!Number.isFinite(utc)||new Date(utc).toISOString().slice(0,10)!==date||utc/1000<1230768000||utc/1000>now)return null;
+ const anchor=Math.floor(Math.min(now,utc/1000+86400)/step)*step;
+ return anchor>1230768000?anchor:null;
+}
 export function rangeForPreset(count,preset='all'){
  if(!Number.isSafeInteger(count)||count<1)return null;
  return {from:preset==='recent'?Math.max(0,count-100):-1,to:count+3};

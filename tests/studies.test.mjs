@@ -11,6 +11,58 @@ const study = (id, candles = rising, options) => studies.calculateStudies(candle
 const values = (id, key, candles, options) => study(id, candles, options).series.find(s => s.key === key).values;
 const near = (value, expected) => assert.ok(Number.isFinite(value) && Math.abs(value - expected) < 1e-9, `${value} != ${expected}`);
 
+test('Pro studies retain explicit pane and overlay placements', () => {
+  const pro = ['wma', 'cci', 'bbw', 'rvol', 'cmf'];
+  assert.ok(pro.every(id => studies.STUDIES[id]?.proOnly));
+  assert.equal(study('wma').placement, 'overlay');
+  assert.ok(pro.slice(1).every(id => study(id).placement === 'pane'));
+  assert.deepEqual(studies.normalizeStudyIds(['wma', 'rvol', 'cci']), ['wma', 'cci']);
+});
+
+test('weighted averages emphasize recent closes and wait for a full lookback', () => {
+  const weighted = values('wma', 'main', bars([10, 12, 20]), {period: 2});
+  assert.equal(weighted[0], null);
+  near(weighted[1], 34 / 3);
+  near(weighted[2], 52 / 3);
+});
+
+test('CCI uses typical-price mean absolute deviation and leaves zero deviation blank', () => {
+  const asymmetric = rising.map(bar => ({...bar, high: bar.high + 6}));
+  asymmetric[19].high += 3;
+  const strength = values('cci', 'main', asymmetric);
+  assert.equal(strength[18], null);
+  near(strength[19], 10.45 / (0.015 * 5.05));
+  assert.equal(values('cci', 'main', bars(Array(25).fill(100)))[24], null);
+});
+
+test('Bollinger Bandwidth reports the spread as a percentage of the middle band', () => {
+  const bandwidth = study('bbw', bars([10, 12, 20]), {period: 2}).series[0];
+  assert.equal(bandwidth.format, 'percent');
+  assert.equal(bandwidth.values[0], null);
+  near(bandwidth.values[1], 400 / 11);
+  near(bandwidth.values[2], 100);
+});
+
+test('relative volume benchmarks the prior 20 candles and handles a zero-volume baseline', () => {
+  const activity = values('rvol', 'main');
+  assert.equal(activity[19], null);
+  near(activity[20], 2);
+  const quiet = rising.map((bar, i) => ({...bar, volume: i === 20 ? 5 : 0}));
+  assert.equal(values('rvol', 'main', quiet)[20], null);
+  assert.equal(values('rvol', 'main', quiet)[21], 0);
+});
+
+test('Chaikin Money Flow weights closes by location and counts flat bars as neutral', () => {
+  const sample = Array.from({length: 20}, (_, i) => ({...rising[i], low: 100, open: 101, high: 104, close: 104, volume: 1}));
+  sample[19] = {...sample[19], low: 104, open: 104};
+  const flow = values('cmf', 'main', sample);
+  assert.equal(flow[18], null);
+  near(flow[19], 19 / 20);
+  assert.equal(values('cmf', 'main', sample.map(bar => ({...bar, volume: 0})))[19], null);
+  const tradesThenQuiet = [...sample.map(bar => ({...bar, volume: 0.3})), ...sample.map(bar => ({...bar, time: bar.time + 72000, volume: 0}))];
+  assert.equal(values('cmf', 'main', tradesThenQuiet).at(-1), null);
+});
+
 test('chart selections cap active overlays and prefer the latest selected pane', () => {
   assert.deepEqual(studies.normalizeStudyIds(['rsi', 'ema', 'sma', 'bb', 'vwap', 'levels', 'macd', 'levels', 'constructor']), ['sma', 'bb', 'vwap', 'macd', 'levels']);
   assert.deepEqual(studies.normalizeStudyIds(undefined), []);

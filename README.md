@@ -1,14 +1,14 @@
 # CRYPTOZ
 
-Crypto charts, news and market research. Four fixed compact LEFT navigation groups: Home, Markets, Charts and Workspace. The rail can hide/reveal but never expands. A transparent breadcrumb/search header, contextual tabs and direct Home sections keep the workspace organized.
+Crypto charts, news and market research. Five compact left destinations: Home, Markets, Charts, Practice and Learn. The rail can hide/reveal but never expands. A transparent breadcrumb/search header, contextual tabs and direct Home sections keep the workspace organized.
 
-Home gives access to News, Charts, Market maps and Signals, with compact real stats and news/chart previews. Phones omit the inline chart preview and show two headlines to avoid deep scrolling. Full news is one attributed feed with topic filters, including CoinDesk, Decrypt, Cointelegraph and The Block.
+Home has a Basic/Pro switch, a live spot tape, news topics, real market stats, and a separate Analyst views tab. Basic Markets presents grouped cards; Pro uses the research table. Full news is one attributed feed with topic filters, including CoinDesk, Decrypt, Cointelegraph and The Block.
 
 Search normalizes names and punctuation, handles verified Fetch.ai/FET/Artificial Superintelligence Alliance identities, and queries the wider active provider catalog on demand. Price and exchange-chart coverage vary; an identity result does not imply live price/history availability. The bulk quote endpoint is provider-limited (2,000 assets observed); supported exchange charts use Binance USDT and Coinbase USD listings.
 
 Appearance provides dark/light, System/Glass/Solid surfaces, a stable background and reduced motion. Explicit Glass is useful when the device otherwise requests reduced transparency. Continuous particles and pointer lighting have been removed. Existing local research state is preserved.
 
-Start with **Home → Start here**, choose **Basic** for guided reading or **Pro** for the full chart tools. **Older candles** requests another provider page; scroll or pan near the left edge to fetch without jumping. Use **Latest** to return to the most recent 100 bars. See [2.7 research and architecture](docs/GUIDED-TERMINAL.md) and [operations](docs/OPERATIONS.md).
+Choose **Basic** or **Pro** on Home. **Learn** opens crypto foundations and the glossary. Charts has one-click auto guides, an evidence sidebar, **Older candles**, a **Jump to date** archive, and **Latest**. **Practice** contains the simulator and position calculator. Read the [adaptive study method](docs/ADAPTIVE-FORECAST.md), [market group coverage](docs/market-groups.md), and [operations](docs/OPERATIONS.md).
 
 A crypto research terminal with real public market data, editable financial charts, market visualizations and publisher-linked news. This rebuild replaces the supplied single-file app's unsupported quantitative claims and hardcoded market narratives.
 
@@ -29,9 +29,9 @@ Open http://127.0.0.1:5187. The Windows `START-CRYPTOZ.cmd` launcher uses the in
 - Searchable USD asset directory (2,000 quotes returned during verification), watchlist, sorting and CSV exports.
 - Separate exchange instrument identities: Binance spot USDT and Coinbase spot USD.
 - Selected-market WebSocket, real OHLCV history, REST recovery, reconnect/gap reconciliation and visible stale/unavailable states. Browser-direct public API fallback recovers from shared-host egress restrictions where the provider permits it. Global statistics can fall back to separately attributed Coinpaprika data.
-- Candles, OHLC, line and Heikin-Ashi; 15 chart studies with automatic presets, one lower study pane and up to four overlays.
+- Candles, OHLC, line and Heikin-Ashi; 20 chart studies in Pro with automatic presets, one lower study pane and up to four overlays.
 - Persistent horizontal levels, trendlines, Fibonacci levels and annotations. Place anchors with chart tools; edit anchor prices, UTC times and labels in Drawings. Pan/zoom and PNG/OHLCV exports.
-- Plain-language technical context, local historical analogs, attributed analyst notes, a fee-aware position calculator, and simulated spot fills with a browser-local ledger.
+- Plain-language technical context, a local adaptive study with scored historical evidence and an outcome ledger, attributed analyst notes, a fee-aware position calculator, and simulated spot fills with a browser-local ledger.
 - Market-cap treemap, liquidity/momentum scatter, DeFi TVL bars and cumulative exchange-depth visualization.
 - Home-page and dedicated CoinDesk, Decrypt and Cointelegraph news, with titles, timestamps, filters and original links.
 - Browser-local notes, journal, backups and one-shot price-crossing alerts. Alerts need an open tab and fresh quotes; maximum 10 active alerts.
