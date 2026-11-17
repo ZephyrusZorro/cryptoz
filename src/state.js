@@ -11,6 +11,7 @@ export function validateWorkspace(data) {
  if(data.drawings&&typeof data.drawings==='object'){for(const [k,v] of Object.entries(data.drawings).slice(0,100)){if(!/^[\p{L}\p{N}_:-]{1,100}$/u.test(k)||!Array.isArray(v))continue;out.drawings[k]=v.filter(drawingValid).slice(0,40).map(d=>({id:d.id.slice(0,80),type:d.type,points:d.points,label:typeof d.label==='string'?d.label.slice(0,100):''}));}}
  if(Array.isArray(data.alerts))out.alerts=data.alerts.filter(a=>a&&typeof a.id==='string'&&/^[a-zA-Z0-9_-]{1,80}$/.test(a.id)&&['binance','coinbase'].includes(a.venue)&&/^[\p{L}\p{N}-]{2,30}$/u.test(a.symbol)&&['above','below'].includes(a.direction)&&Number.isFinite(a.target)&&a.target>0).slice(0,100).map(a=>({...a,active:a.active!==false,last:null,triggeredAt:a.triggeredAt??null}));
  if(Array.isArray(data.journal))out.journal=data.journal.filter(j=>j&&typeof j.text==='string'&&typeof j.id==='string'&&/^[a-zA-Z0-9_-]{1,80}$/.test(j.id)).slice(0,200).map(j=>({id:j.id.slice(0,80),text:j.text.slice(0,4000),createdAt:typeof j.createdAt==='string'?j.createdAt:''}));
+ let armed=0;out.alerts=out.alerts.map(a=>({...a,active:a.active&&++armed<=10}));
  out.preferences=normalizePreferences(data.preferences);
  if(Array.isArray(data.layouts))out.layouts=data.layouts.filter(x=>x&&typeof x.id==='string'&&/^[a-zA-Z0-9_-]{1,80}$/.test(x.id)&&typeof x.name==='string').slice(0,8).map(x=>({id:x.id,name:x.name.slice(0,60),settings:normalizePreferences(x.settings)}));
  return out;
@@ -19,3 +20,10 @@ export function readState(storage) {try{return validateWorkspace(JSON.parse(stor
 export function writeState(storage,state) {try{storage.setItem(STORAGE_KEY,JSON.stringify(state));return true;}catch{return false;}}
 export function crossed(previous,current,target,direction) {return Number.isFinite(previous)&&Number.isFinite(current)&&(direction==='above'?previous<target&&current>=target:previous>target&&current<=target);}
 export function freshObservation(previous,price,observedAt,now=Date.now()){const time=Date.parse(observedAt);if(!Number.isFinite(price)||price<=0||!Number.isFinite(time)||now-time>30000||time-now>5000||previous&&time<=previous.time)return null;return {price,time};}
+
+export function replaceWorkspace(storage,current,incoming,{backup=true}={}){
+ const next=validateWorkspace(incoming);
+ if(backup)try{storage.setItem(RECOVERY_KEY,JSON.stringify(current));}catch{throw Error('Cannot persist recovery backup. Export your workspace before importing.');}
+ if(!writeState(storage,next))throw Error('Cannot persist imported workspace: browser storage is unavailable or full. Current workspace retained.');
+ return next;
+}

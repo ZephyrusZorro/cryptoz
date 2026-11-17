@@ -6,9 +6,9 @@ Home gives access to News, Charts, Market maps and Signals, with compact real st
 
 Search normalizes names and punctuation, handles verified Fetch.ai/FET/Artificial Superintelligence Alliance identities, and queries the wider active provider catalog on demand. Price and exchange-chart coverage vary; an identity result does not imply live price/history availability. The bulk quote endpoint is provider-limited (2,000 assets observed); supported exchange charts use Binance USDT and Coinbase USD listings.
 
-Appearance provides dark/light, System/Glass/Solid surfaces, bounded ambient particles/static background and reduced motion. Explicit Glass is useful when the device otherwise requests reduced transparency. Particles pause in hidden tabs; density/FPS is bounded. Existing local research state is preserved.
+Appearance provides dark/light, System/Glass/Solid surfaces, a stable background and reduced motion. Explicit Glass is useful when the device otherwise requests reduced transparency. Continuous particles and pointer lighting have been removed. Existing local research state is preserved.
 
-See [current design](docs/superpowers/specs/2026-11-17-flagship-polish-design.md), [visual QA](design-qa.md), and [verification](docs/FLAGSHIP-VERIFICATION.md). Older design reports describe earlier revisions.
+See [reliability design](docs/superpowers/specs/2026-11-17-reliability-design.md), [visual QA](design-qa.md), and [verification](docs/RELIABILITY-VERIFICATION.md). Older design reports describe earlier revisions.
 
 A crypto research terminal with real public market data, editable financial charts, market visualizations and publisher-linked news. This rebuild replaces the supplied single-file app's unsupported quantitative claims and hardcoded market narratives.
 
@@ -40,9 +40,8 @@ Open http://127.0.0.1:5187. The Windows `START-CRYPTOZ.cmd` launcher uses the in
 ## Verify
 
 ```powershell
-npm test
+npm run check
 npm run verify:live
-npm audit
 ```
 
 Live tests depend on third-party availability and quotas. See [verification evidence](docs/VERIFICATION.md), [architecture](docs/DESIGN.md), [research](docs/RESEARCH.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
@@ -52,3 +51,5 @@ Live tests depend on third-party availability and quotas. See [verification evid
 `npm run build` generates the client and a self-contained Worker ES module at `dist/server/index.js`; the same handler is served by the included Node launcher. `.openai/hosting.json` holds the owner-private Sites identity. No API key or exchange account is needed for the configured public data endpoints. Public APIs can rate-limit or be regionally restricted; production-scale licensed data may require paid provider plans.
 
 No assets are held and no orders are placed. Technical metrics describe historical prices; they do not establish profitable signals. No guarantee of universal coin coverage, uninterrupted service, institutional latency or superiority over TradingView/CoinDCX. Local research state is unencrypted and is not account-synchronized.
+
+Release checks run unit/integration tests, the production build, dependency audit and portable Worker smoke checks. `/healthz` identifies the running release without contacting market providers; it does not certify upstream availability. Journal and risk drafts survive navigation/reload on the same browser. Workspace JSON backups include saved research, not unfinished drafts.
