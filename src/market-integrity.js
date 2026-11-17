@@ -18,11 +18,15 @@ export function parseLiveQuote(data,instrument,previous,now=Date.now()){
  const previousTime=previous?.source==='candle'?NaN:Date.parse(previous?.updatedAt);
  if(value===null||value<=0||!Number.isSafeInteger(time)||time<=0||now-time>30000||time-now>5000||Number.isFinite(previousTime)&&time<=previousTime)return null;
  const open=finite(data.open_24h),change=finite(data.P),high=finite(binance?data.h:data.high_24h),low=finite(binance?data.l:data.low_24h);
- return {price:value,change:change??(open>0?(value/open-1)*100:previous?.change??null),high:high>0?high:null,low:low>0?low:null,updatedAt:new Date(time).toISOString(),stale:false,source:'WebSocket'};
+ return {venue:instrument.venue,symbol:instrument.symbol,price:value,change:change??(open>0?(value/open-1)*100:previous?.change??null),high:high>0?high:null,low:low>0?low:null,updatedAt:new Date(time).toISOString(),stale:false,source:'WebSocket'};
 }
 export function normalizeBook(data,limit=50){
  const read=levels=>Array.isArray(levels)&&levels.length>0?levels.slice(0,limit).map(x=>[finite(x?.[0]),finite(x?.[1])]):null;
  const bids=read(data?.bids),asks=read(data?.asks);
  if(!bids||!asks||[...bids,...asks].some(x=>x.some(v=>v===null||v<=0))||bids.some((x,i)=>i&&x[0]>=bids[i-1][0])||asks.some((x,i)=>i&&x[0]<=asks[i-1][0])||bids[0][0]>=asks[0][0])return null;
  return {bids,asks};
+}
+
+export function usableQuote(quote,instrument,now=Date.now()){
+ const time=Date.parse(quote?.updatedAt);return quote&&quote.venue===instrument.venue&&quote.symbol===instrument.symbol&&quote.stale===false&&['WebSocket','REST'].includes(quote.source)&&Number.isFinite(quote.price)&&quote.price>0&&Number.isFinite(time)&&now-time<=30000&&time-now<=5000?quote:null;
 }

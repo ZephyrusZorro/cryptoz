@@ -2,7 +2,7 @@ import {serializeCSV,capturePNG,downloadBlob} from './exports.js';
 import {pricePrecision} from './numbers.js';
 import {rangeForPreset,zoomRange,windowInfo,classifyRange} from './chart-window.js';
 import {palette,chartOptions} from './theme.js';
-import {mergeCandleHistory,parseLiveQuote} from './market-integrity.js';
+import {mergeCandleHistory,parseLiveQuote,usableQuote} from './market-integrity.js';
 import {parsePartialBook} from './live-market.js';
 import {createChart,CandlestickSeries,BarSeries,LineSeries,HistogramSeries,ColorType,CrosshairMode,createSeriesMarkers} from 'lightweight-charts';
 import {ema,sma,rsi,bollinger,macd,vwap,heikinAshi,technicalSummary,normalizeCandles} from './analytics.js';
@@ -17,6 +17,7 @@ export class TerminalChart {
  get key(){return `${this.instrument.venue}:${this.instrument.symbol}:${this.interval}`;}
  status(s){this.streamState=s;this.onStatus(s);}
  fetch(path){return api(path,{signal:this.networkController?.signal});}
+ currentQuote(now=Date.now()){return usableQuote(this.quote,this.instrument,now);}
  freshStream(){return this.lastStream>0&&Date.now()-this.lastStream<20000;}
  async refresh(){if(this.disposed)return;if(!this.bars.length)return this.load();return Promise.allSettled([this.poll(this.generation),this.reconcile(this.generation)]);}
  async load(instrument=this.instrument,interval=this.interval){
@@ -59,7 +60,7 @@ export class TerminalChart {
   const current=()=>gen===this.generation&&!this.disposed;
   this.pollingPromise=Promise.allSettled([
    this.fetch(`book?venue=${venue}&symbol=${symbol}`).then(r=>{if(current()&&Date.now()-(this.lastBookAt??0)>5000)this.onBook(r);}).catch(()=>{if(current()&&Date.now()-(this.lastBookAt??0)>5000)this.onBook(null);}),
-   this.fetch(`ticker?venue=${venue}&symbol=${symbol}`).then(r=>{if(!current()||this.freshStream())return;const d=r.data,value=+(d.lastPrice??d.last),open=+(d.openPrice??d.open),time=Date.parse(d.observedAt??r.fetchedAt),previous=Date.parse(this.quote?.updatedAt);if(!Number.isFinite(value)||value<=0||!Number.isFinite(time)||Number.isFinite(previous)&&time<=previous)return;this.quote={price:value,change:d.priceChangePercent!==null&&d.priceChangePercent!==''&&Number.isFinite(+d.priceChangePercent)?+d.priceChangePercent:open>0?(value/open-1)*100:null,high:+(d.highPrice??d.high)||null,low:+(d.lowPrice??d.low)||null,updatedAt:new Date(time).toISOString(),stale:r.cache==='stale',source:'REST'};this.onQuote(this.quote);}),
+   this.fetch(`ticker?venue=${venue}&symbol=${symbol}`).then(r=>{if(!current()||this.freshStream())return;const d=r.data,value=+(d.lastPrice??d.last),open=+(d.openPrice??d.open),time=Date.parse(d.observedAt??r.fetchedAt),previous=Date.parse(this.quote?.updatedAt);if(!Number.isFinite(value)||value<=0||!Number.isFinite(time)||Number.isFinite(previous)&&time<=previous)return;this.quote={venue,symbol,price:value,change:d.priceChangePercent!==null&&d.priceChangePercent!==''&&Number.isFinite(+d.priceChangePercent)?+d.priceChangePercent:open>0?(value/open-1)*100:null,high:+(d.highPrice??d.high)||null,low:+(d.lowPrice??d.low)||null,updatedAt:new Date(time).toISOString(),stale:r.cache==='stale',source:'REST'};this.onQuote(this.quote);}),
    (!this.freshStream()||venue==='coinbase'||Date.now()-(this.lastKlineReceived??0)>15000)?this.fetch(`candles?venue=${venue}&symbol=${symbol}&interval=${this.interval}`).then(r=>{if(current())this.applyHistory(r,revision);}).catch(()=>{if(current()&&!this.freshStream())this.status('delayed');}):Promise.resolve()
   ]).finally(()=>{if(this.pollToken===token){this.polling=false;this.pollingPromise=null;}});
   return this.pollingPromise;

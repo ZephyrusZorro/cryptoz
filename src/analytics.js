@@ -35,8 +35,9 @@ export function normalizeCandles(bars) {
 export function planRisk({equity,riskPercent,entry,stop,target,side='long',feePercent=0.1}) {
  if(![equity,riskPercent,entry,stop,target,feePercent].every(Number.isFinite)||[equity,riskPercent,entry,stop,target].some(v=>v<=0)||riskPercent>100||feePercent<0||feePercent>10)throw Error('Enter positive values; risk 0–100% and fee 0–10%.');
  if(!['long','short'].includes(side)||(side==='long'&&!(stop<entry&&target>entry))||(side==='short'&&!(stop>entry&&target<entry)))throw Error('Long: stop < entry < target. Short: target < entry < stop.');
- const fees=(entry+stop)*feePercent/100,riskPerUnit=Math.abs(entry-stop)+fees,rewardPerUnit=Math.abs(target-entry)-(entry+target)*feePercent/100,budget=equity*riskPercent/100,quantity=budget/riskPerUnit;
- return {budget,quantity,notional:quantity*entry,rewardRisk:rewardPerUnit/riskPerUnit,potentialLoss:budget,potentialGain:quantity*rewardPerUnit,capitalExceeded:quantity*entry>equity};
+ const fees=(entry+stop)*feePercent/100,riskPerUnit=Math.abs(entry-stop)+fees,rewardPerUnit=Math.abs(target-entry)-(entry+target)*feePercent/100,budget=equity*(riskPercent/100),quantity=budget/riskPerUnit,notional=quantity*entry,entryCost=notional*(1+feePercent/100),potentialGain=quantity*rewardPerUnit;
+ if(![fees,riskPerUnit,rewardPerUnit,budget,quantity,notional,entryCost,potentialGain,rewardPerUnit/riskPerUnit].every(Number.isFinite)||budget<=0||quantity<=0)throw Error('Values exceed the supported calculation range. Use smaller finite amounts.');
+ return {budget,quantity,notional,entryCost,rewardRisk:rewardPerUnit/riskPerUnit,potentialLoss:budget,potentialGain,capitalExceeded:entryCost>equity,breakEvenWinRate:rewardPerUnit>0?100/(1+rewardPerUnit/riskPerUnit):null};
 }
 export function technicalSummary(bars) {
  if(bars.length<50)return {ready:false};const c=bars.map(b=>b.close),last=c.at(-1),e20=ema(c,20).at(-1),e50=ema(c,50).at(-1),strength=rsi(c,14).at(-1),a=atr(bars,14).at(-1),m=macd(c).histogram.at(-1);

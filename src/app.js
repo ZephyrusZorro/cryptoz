@@ -21,7 +21,7 @@ import {api} from './api.js';import {TerminalChart} from './chart.js';import {mo
 
 import {normalizePreferences,selectVenueInstrument,drawingValid} from './preferences.js';
 
-import {planRisk} from './analytics.js';import {readState,writeState,validateWorkspace,crossed,freshObservation,RECOVERY_KEY,replaceWorkspace} from './state.js';
+import {mountRiskCalculator} from './risk-calculator.js';import {readState,writeState,validateWorkspace,crossed,freshObservation,RECOVERY_KEY,replaceWorkspace} from './state.js';
 
 import {esc,num,compact,price,pct,tone,ago,stamp,icon,download,toast,safeStorage} from './ui.js';
 
@@ -31,7 +31,7 @@ const icons={LayoutDashboard,ChartNoAxesCombined,Globe,Newspaper,Bookmark,Databa
 
 const $=s=>document.querySelector(s);const storage=safeStorage();const drafts=createDraftStore(storage);let workspace=readState(storage);const data={markets:null,global:null,sentiment:null,news:null,chains:null,exchange:null};const errors={};let instruments={binance:[],coinbase:[]};let page='overview',terminal=null,mini=null,visuals=[],pageGeneration=0,marketPage=0,marketQuery='',marketSort='rank',marketUniverse='aggregate',onlyWatch=false,newsQuery='',newsTopic='all',loading=false;
 
-let selected=workspace.preferences.lastInstrument;let selectedInterval=workspace.preferences.interval;let comparison=null,noteTimer=null,studioViewName='map';let modalGeneration=0,studioGeneration=0;const alertPrices=new Map();let learning=null,marketStream=null,miniSeries=null;let appearance=applyAppearance(readAppearance(storage),storage);
+let selected=workspace.preferences.lastInstrument;let selectedInterval=workspace.preferences.interval;let comparison=null,noteTimer=null,studioViewName='map';let riskCalculator;let modalGeneration=0,studioGeneration=0;const alertPrices=new Map();let learning=null,marketStream=null,miniSeries=null;let appearance=applyAppearance(readAppearance(storage),storage);
 
 let dockMode=readDock(storage),newsLimit=20;let searchTimer,marketSearchTimer,remoteAssets=[],marketRemoteAssets=[],remoteLoading=false,remoteError='',marketRemoteLoading=false,marketRemoteError='';const assetLookup=new Map();let dialogController,manualRefreshing=false,operationError='';
 let benchmarkTask=null;
@@ -91,7 +91,7 @@ async function refreshCurrent(){
 
 async function loadInstruments(){await Promise.allSettled(['binance','coinbase'].map(async v=>{try{instruments[v]=(await api('instruments?venue='+v)).data;}catch(e){errors['instruments-'+v]=e.message;}}));if(page==='terminal')updateInstrumentOptions();if(page==='compare')comparison?.updateInstruments();learning?.updateInstruments();marketStream?.setRegistry(instruments.binance);}
 
-function cleanPage(){clearTimeout(marketSearchTimer);marketCatalogSearch.cancel();document.body.classList.remove('chart-focus');flushNote();learning?.dispose();learning=null;miniSeries=null;comparison?.dispose();comparison=null;terminal?.dispose();terminal=null;mini?.remove();mini=null;for(const v of visuals)v.dispose();visuals=[];}
+function cleanPage(){riskCalculator?.dispose();riskCalculator=null;clearTimeout(marketSearchTimer);marketCatalogSearch.cancel();document.body.classList.remove('chart-focus');flushNote();learning?.dispose();learning=null;miniSeries=null;comparison?.dispose();comparison=null;terminal?.dispose();terminal=null;mini?.remove();mini=null;for(const v of visuals)v.dispose();visuals=[];}
 
 function route(){closeModal({restoreFocus:false});operationError='';page=resolveRoute(location.hash);marketPage=0;document.body.classList.remove('menu-open');renderPage();window.scrollTo({top:0,behavior:'instant'});$('.main-shell')?.scrollTo({top:0,behavior:'instant'});$('#main').focus({preventScroll:true});}
 function renderPage(){
@@ -179,9 +179,7 @@ function renderTerminal(){
  $('#chart-view').addEventListener('change',e=>{terminal.setViewPreset(e.target.value);capturePreferences();});$('#compact-interval').addEventListener('change',e=>{selectedInterval=e.target.value;capturePreferences();document.querySelectorAll('[data-action="timeframe"]').forEach(b=>b.classList.toggle('selected',b.dataset.time===selectedInterval));terminal.load(selected,selectedInterval);});
  $('#chart-style').addEventListener('change',e=>{terminal.style=e.target.value;capturePreferences();if(terminal.bars.length)terminal.build();});
 
- resetRisk();$('#risk-form').addEventListener('input',saveRiskDraft);$('#risk-form').addEventListener('change',saveRiskDraft);
- $('#risk-form').addEventListener('submit',e=>{e.preventDefault();const values=Object.fromEntries(new FormData(e.target));for(const k of Object.keys(values))if(k!=='side')values[k]=+values[k];try{const r=planRisk(values);$('#risk-result').innerHTML=`<div class="risk-metrics"><span>Position size<strong>${num(r.quantity,8)} ${esc(selected.base)}</strong></span><span>Risk budget<strong>${num(r.budget)} ${esc(selected.quote)}</strong></span><span>Reward / risk<strong>${num(r.rewardRisk)} : 1</strong></span><span>Notional<strong>${num(r.notional)} ${esc(selected.quote)}</strong></span></div><p>${r.capitalExceeded?'<span class="negative">Notional exceeds equity. This plan requires leverage or a smaller position.</span>':'Fee-inclusive estimate at your chosen levels.'} Short positions require a suitable borrowing or derivative facility. No order is placed.</p>`;}catch(error){$('#risk-result').textContent=error.message;}});
-
+ resetRisk();riskCalculator=mountRiskCalculator({form:$('#risk-form'),output:$('#risk-result'),getInstrument:()=>selected,onDraft:saveRiskDraft});
  $('#research-note').addEventListener('input',()=>{workspace.notes[`${selected.venue}:${selected.symbol}`]=$('#research-note').value;$('#note-status').textContent='Saving…';clearTimeout(noteTimer);noteTimer=setTimeout(()=>{const ok=save();if($('#note-status'))$('#note-status').textContent=ok?'Saved on this browser':'Not saved · export a backup';},400);});
 
 }
@@ -341,7 +339,7 @@ document.addEventListener('click',e=>{
 
  if(a==='delete-drawing'){workspace.drawings[terminal.key]=(workspace.drawings[terminal.key]??[]).filter(x=>x.id!==b.dataset.id);save();terminal.draw();$('#drawings-count').textContent=workspace.drawings[terminal.key].length;drawingModal();return;}
 
- if(a==='use-price'){if(terminal?.quote?.price){$('#risk-form [name="entry"]').value=terminal.quote.price;saveRiskDraft();}else toast('Wait for a valid quote.');return;}
+ if(a==='use-price'){const quote=terminal?.currentQuote();if(quote){$('#risk-form [name="entry"]').value=quote.price;saveRiskDraft();riskCalculator?.invalidate();}else toast('No fresh quote for this instrument. Refresh or enter a price manually.');return;}
 
  if(a==='save-note'){workspace.notes[`${selected.venue}:${selected.symbol}`]=$('#research-note').value;const ok=save();$('#note-status').textContent=ok?'Saved on this browser':'Not saved · export a backup';if(ok)toast('Research note saved.');return;}
 
