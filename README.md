@@ -1,4 +1,6 @@
-# CRYPTOZ v2
+# CRYPTOZ 2.1 — Glass research desk
+
+2.1 adds midnight blue/violet glass and lavender day themes, device-aware reduced motion, a shared live Binance mini-ticker stream, selected-market live partial depth and a learning desk with completed-candle conditions. Appearance changes preserve research inputs. See [glass design](docs/GLASS-DESIGN.md) and [release research and verification](docs/GLASS-RELEASE.md).
 
 V2 adds saved chart layouts, automatic note saving, restored studies/instruments, EMA crossover markers and a common-window comparison lab with return/drawdown/volatility/correlation. Existing v1 browser research migrates into a separate v2 storage key. Import has a recovery backup. See [v2 research](docs/V2-RESEARCH.md), [design](docs/V2-DESIGN.md) and [feature verification](docs/V2-VERIFICATION.md).
 

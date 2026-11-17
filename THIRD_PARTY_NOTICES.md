@@ -12,3 +12,5 @@ Market data: Binance public market data, Coinbase Exchange, CoinGecko, DeFiLlama
 News: CoinDesk, Decrypt and Cointelegraph retain rights to their reporting. The app displays RSS headline titles, dates and original links; it does not reproduce article bodies.
 
 CCXT, OpenBB, Hummingbot, Freqtrade and rotki are research references only; their source code and runtime are not incorporated.
+
+The original blue/violet glass wallpaper was generated for CRYPTOZ. The supplied WhatsApp videos were used as visual inspiration only; their branding, figures and code were not incorporated.
