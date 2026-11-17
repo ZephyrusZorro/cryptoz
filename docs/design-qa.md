@@ -1,21 +1,19 @@
-# CRYPTOZ navigation visual QA
+# CRYPTOZ left-rail liquid-glass visual QA
 
-Target: supplied glass-sidebar video (rounded translucent panel, edge collapse control, highlighted active row, floating icons). The user's refinement asks for four simple primary groups, contextual tabs, concise labels and news-first Home. Reference branding and example data are not copied.
+Latest brief: LEFT taskbar on every device, fewer grouped controls, brighter light mode, polished dark mode, video-inspired glass/motion, actual financial data, and zoomed-out charts. This supersedes the earlier bottom-dock design.
 
-Current audit: navigation-evidence/01-before-terminal.jpg was captured from the hosted terminal at 733 px. It shows a long scrolling sidebar, clipped brand and narrow chart. DOM measurements: sidebar 208 px, chart approximately 400 px. That capture did not establish a DOM intersection; final checks explicitly verify dock/content separation.
+Reference: inspected original supplied-video frames at 0.4–4.2 seconds. They show a rounded frosted sidebar, fine rim, circular collapse control and highlighted hover rows. The clip does not specify every application form or proprietary material physics. Combined reference-comparison.jpg places the supplied-video frame and both actual rendered themes in one image; it was opened and reviewed.
 
-Combined comparison: navigation-evidence/reference-comparison.jpg places the actual supplied-video region beside the rendered expanded dock and Home. This single image was opened and reviewed. Viewport and product content differ intentionally; no pixel-identity claim is made.
+Checked corrections:
 
-Corrections checked:
+1. Four primary destinations: Home, Markets, Charts, Workspace. Related tools remain in contextual tabs. A compact captioned LEFT rail is used on phones; desktop has expanded labels. Width is reserved, including chart focus. Hide/reveal restores content space. No bottom dock.
+2. Home has one ordered news-reading surface, five headlines, clear publisher/time/link metadata, followed by market data. Full news renders 20 at a time; Show more and filtering were exercised. Markets has simpler asset/price/change rows; a legacy 145px price minimum that clipped the change column at 320px was removed.
+3. Light mode uses original compressed ice-blue glass artwork, dark text and cobalt controls; dark mode keeps blue/violet. Glass rims, blur and limited pointer sheen sit around legible charts. Motion uses finite transform/opacity easing; small/touch/reduced-motion devices skip pointer sheen.
+4. All history opens the chart at the full available range. Recent 100 bars, +/- zoom, visible/total candle counts and date range, focus mode and a grouped Tools menu reduce clutter. Range selection reflects manual panning. Named windows reapply on resize; custom windows persist. Gesture listeners use capture phase so the first wheel event is detected before chart-library range changes.
+5. Landscape focus at 640x360 keeps a 198px plot, Exit focus control and Live/Snapshot/Delayed status. Phone indicator modal fits at 320px. Risk calculation and menu navigation were exercised.
 
-1. Four primary groups with related feature tabs; no version/PRO badges, slogans, Sources or diagnostics. Home begins with news, then market data. Duplicate news navigation action removed.
-2. Desktop compact/expanded dock reserves its width; hidden mode restores space. At narrow sizes the app scroll viewport ends 14 px above the dock, preventing chart overlap.
-3. Sticky tools positioning moved to the wrapper, so tabs stay accessible while scrolling.
-4. Programmatic main-container focus no longer draws a large border. Interactive keyboard focus remains visible; hidden dock is inert and Show navigation receives focus.
-5. Footer notices remain reachable at narrow sizes.
+Actual layout checks: 320, 390, 733, 901 and 1440px widths; light/dark; 640x360 landscape. No page-width overflow or rail/content overlap was observed. A loaded phone chart showed 500/500 candles after resize. Tests are finite and do not certify every physical device, accessibility criterion, exact proprietary effects or sustained frame rate.
 
-Evidence: 02-chart-compact.jpg, 03-home-expanded.jpg, 04-home-compact.jpg, 05-home-light.jpg, 06-mobile-home.jpg and responsive-geometry.json. Checked dark/day themes, collapse/expand/hide/reveal, icon transforms and zero-duration reduced motion. Widths 320, 390, 733, 901 and 1440 showed no page overflow or dock/content intersection. Revised chart width at 733 px was approximately 639 px. Filters/refresh and section jumps preserved entered values. Real quote, chart, indicator and book data remained visible.
-
-No remaining actionable P0/P1/P2 difference against the revised brief was found in these finite checks. This does not certify every device, accessibility criterion or sustained frame rate.
+No remaining actionable P0/P1/P2 finding against this scoped brief was identified after the documented fixes.
 
 final result: passed

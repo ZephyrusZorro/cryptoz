@@ -1,8 +1,10 @@
 # CRYPTOZ
 
-Crypto charts, news and market research. Navigation has four groups: Home, Markets, Research and Workspace. The glass dock can show icons, expand labels or hide; smaller screens use a reserved bottom dock. Related features sit in contextual tabs. Home starts with current publisher headlines, with market charts and prices below.
+Crypto charts, news and market research. Four primary groups: Home, Markets, Charts and Workspace. A floating LEFT glass rail reserves its space on desktop and phones; desktop can expand labels, and every size can hide/reveal it. Related features use contextual tabs. Home starts with publisher headlines, followed by market charts and prices.
 
-See [navigation design](docs/NAVIGATION-DESIGN.md) and [navigation verification](docs/NAVIGATION-VERIFICATION.md).
+The light and dark glass themes use compressed original wallpapers, bounded pointer sheen and finite motion with reduced-motion support. Charts open with all available candles, show the actual visible/available window, and provide a recent 100-bar preset, zoom controls and focus mode. Tools groups style, layouts, drawings and exports.
+
+See [current design](docs/LIQUID-LEFT-DESIGN.md), [visual QA](docs/design-qa.md) and [latest verification](docs/LIQUID-VERIFICATION.md). Older navigation documents describe earlier revisions.
 
 A crypto research terminal with real public market data, editable financial charts, market visualizations and publisher-linked news. This rebuild replaces the supplied single-file app's unsupported quantitative claims and hardcoded market narratives.
 

@@ -1,13 +1,13 @@
 export const PRIMARY=[
  {id:'home',label:'Home',icon:'layout-dashboard',route:'overview'},
  {id:'markets',label:'Markets',icon:'globe',route:'markets'},
- {id:'research',label:'Research',icon:'chart-no-axes-combined',route:'terminal'},
+ {id:'research',label:'Charts',icon:'chart-no-axes-combined',route:'terminal'},
  {id:'workspace',label:'Workspace',icon:'bookmark',route:'workspace'}
 ];
 export const GROUPS={
  home:[{route:'overview',label:'Home'},{route:'news',label:'All news'}],
  markets:[{route:'markets',label:'Prices'},{route:'studio',label:'Market maps'}],
- research:[{route:'terminal',label:'Chart'},{route:'compare',label:'Compare'},{route:'learn',label:'Signals & guides'}],
+ research:[{route:'terminal',label:'Chart'},{route:'compare',label:'Compare'},{route:'learn',label:'Signals'}],
  workspace:[{route:'workspace',label:'Watchlist',target:'workspace-watchlist'},{route:'workspace',label:'Alerts',target:'workspace-alerts'},{route:'workspace',label:'Journal & notes',target:'workspace-journal'}]
 };
 const paths=new Map(Object.entries(GROUPS).flatMap(([group,items])=>items.map(x=>[x.route,group])));

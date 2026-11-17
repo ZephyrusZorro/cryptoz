@@ -1,6 +1,6 @@
 const palettes={
  dark:{panel:'#11182d',text:'#b6c2df',grid:'#25314e',border:'#344264',accent:'#8aa4ff',up:'#51d9b0',down:'#ff8999',violet:'#b9a2ff',gold:'#f1c28a',cyan:'#65cde6'},
- light:{panel:'#ffffff',text:'#506080',grid:'#e6e8f2',border:'#cfd3e6',accent:'#365bd6',up:'#087b60',down:'#c83953',violet:'#8052c9',gold:'#ab650e',cyan:'#077c9d'}
+ light:{panel:'#f8fbff',text:'#536d88',grid:'#dde8f3',border:'#c4d5e9',accent:'#2863da',up:'#087b60',down:'#c83953',violet:'#8052c9',gold:'#ab650e',cyan:'#077c9d'}
 };
 export function palette(theme=globalThis.document?.documentElement.dataset.theme){return palettes[theme]??palettes.dark;}
 export function normalizeAppearance(x={}){return {theme:x?.theme==='light'?'light':'dark',motion:x?.motion==='reduced'?'reduced':'auto'};}
