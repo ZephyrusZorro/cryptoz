@@ -28,3 +28,5 @@ input,select,textarea{background:var(--surface-deep);border-color:var(--border);
 @media(max-width:650px){.market-table{table-layout:fixed}.market-table td:nth-child(3){min-width:0}.market-table th:nth-child(2){width:32%}.market-table th:nth-child(3){width:43%}.market-table .col-change{width:25%}.market-table td,.market-table th{padding-left:5px;padding-right:5px}.market-table .asset-name{min-width:0;width:100%}.market-table .asset-name>span{min-width:0}.market-table .asset-name strong{max-width:100%;font-size:10px}.market-table td .price-value{font-size:10px}.market-table .col-change{font-size:9px}}
 
 @media(max-width:650px){.terminal-heading #stream-status{display:none}.instrument-bar .select-wrap select{padding-left:7px;padding-right:4px}}
+
+@media(max-width:650px) and (min-height:481px){.instrument-quote{flex-wrap:wrap;gap:4px 9px}.instrument-quote>strong{flex-basis:100%}}
