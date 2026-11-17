@@ -24,7 +24,8 @@ import {createDraftStore} from './draft-store.js';
 import {createDialogController} from './dialog.js';
 import {refreshPage} from './page-refresh.js';
 import {matchesAsset,rankAssets,catalogQuery,normalizeSearch,createLatestSearch,mergeAssets,assetIdentity,isFetchAsset} from './asset-search.js';
-import {newsWindow,classifyHeadline} from './news-window.js';
+import {newsWindow} from './news-window.js';
+import {renderNewsCards} from './news-view.js';
 import {PRIMARY,GROUPS,resolveRoute,groupFor,normalizeDock,readDock,saveDock} from './navigation.js';
 import {createDataLoader} from './data-loader.js';
 import {palette,chartOptions,readAppearance,applyAppearance} from './theme.js';
@@ -327,7 +328,7 @@ function updateBook(r){if(!$('#orderbook'))return;const now=Date.now();if(r?.cac
 function updateWatchPanel(){if(!$('#terminal-watchlist'))return;const list=(data.markets?.data??[]).filter(a=>workspace.watchlist.includes(a.id));$('#terminal-watchlist').innerHTML=list.length?list.slice(0,8).map(a=>`<button class="watch-row" data-action="asset-chart" data-id="${esc(a.id)}"><span>${esc(a.symbol)} <small>USD</small></span><span>${price(a.price)}<small class="${tone(a.change)}">${pct(a.change)}</small></span></button>`).join(''):empty('Watchlist empty','Star an asset in Markets to save it.');}
 
 function renderNews(){$('#main').innerHTML=header('News','Crypto, regulation and macro market headlines.')+newsToolbar()+'<div id="news-results" class="news-reading-panel"></div><div class="news-update-note">'+stateBadge('news')+'</div>';bindNewsSearch();renderNewsResults();}
-function renderNewsResults(){if(!$('#news-results'))return;for(const id of ['#news-data-meta','#home-news-meta'])if($(id))$(id).innerHTML=stateBadge('news');const result=newsWindow(data.news?.data.items??[],{topic:page==='overview'?homeNewsTopic:newsTopic,query:page==='overview'?'':newsQuery,limit:page==='overview'?4:newsLimit});$('#news-results').innerHTML=result.items.length?newsCards(result.items)+(page==='news'?`<div class="news-load"><span>${result.items.length} of ${result.total} headlines</span>${result.remaining?`<button class="button" data-action="news-more">Show more (${Math.min(20,result.remaining)})</button>`:''}</div>`:''):data.news?empty('No matching headlines','Try another topic or search.'):errorOrLoading('news');hydrate();}
+function renderNewsResults(){if(!$('#news-results'))return;for(const id of ['#news-data-meta','#home-news-meta'])if($(id))$(id).innerHTML=stateBadge('news');const result=newsWindow(data.news?.data?.items??[],{topic:page==='overview'?homeNewsTopic:newsTopic,query:page==='overview'?'':newsQuery,limit:page==='overview'?4:newsLimit});$('#news-results').innerHTML=result.items.length?renderNewsCards(result.items)+(page==='news'?`<div class="news-load"><span>${result.items.length} of ${result.total} headlines</span>${result.remaining?`<button class="button" data-action="news-more">Show more (${Math.min(20,result.remaining)})</button>`:''}</div>`:''):data.news?empty('No matching headlines','Try another topic or search.'):errorOrLoading('news');hydrate();}
 
 async function renderStudio(){
 
