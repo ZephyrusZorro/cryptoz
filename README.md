@@ -1,4 +1,6 @@
-# CRYPTOZ
+# CRYPTOZ v2
+
+V2 adds saved chart layouts, automatic note saving, restored studies/instruments, EMA crossover markers and a common-window comparison lab with return/drawdown/volatility/correlation. Existing v1 browser research migrates into a separate v2 storage key. Import has a recovery backup. See [v2 research](docs/V2-RESEARCH.md), [design](docs/V2-DESIGN.md) and [feature verification](docs/V2-VERIFICATION.md).
 
 A crypto research terminal with real public market data, editable financial charts, market visualizations and publisher-linked news. This rebuild replaces the supplied single-file app's unsupported quantitative claims and hardcoded market narratives.
 

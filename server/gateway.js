@@ -32,14 +32,14 @@ export function createGateway({fetcher=fetch,now=Date.now}={}) {
    let result;
    if(['candles','book','ticker'].includes(route)) {
     const venue=p.get('venue')??'binance',symbol=p.get('symbol')??'BTCUSDT',interval=p.get('interval')??'1h';
-    if(!['binance','coinbase'].includes(venue)||!(venue==='binance'?/^[\p{L}\p{N}]{3,30}$/u:/^[A-Z0-9]{1,20}-USD$/).test(symbol)||!intervals[interval])return Response.json({error:'Invalid venue, instrument or interval'},{status:400});
+    if(!['binance','coinbase'].includes(venue)||!(venue==='binance'?/^[\p{L}\p{N}]{3,30}$/u:/^[A-Z0-9]{1,20}-USD$/).test(symbol)||!Object.hasOwn(intervals,interval))return Response.json({error:'Invalid venue, instrument or interval'},{status:400});
     const provider=venue==='binance'?'Binance':'Coinbase',path=venue==='binance'?`${B}/${route==='candles'?'klines':route==='book'?'depth':'ticker/24hr'}?symbol=${symbol}${route==='candles'?`&interval=${interval}&limit=500`:route==='book'?'&limit=50':''}`:`${C}/products/${symbol}/${route==='candles'?`candles?granularity=${interval==='4h'?3600:intervals[interval]}`:route==='book'?'book?level=2':'ticker'}`;
     result=await cached(`${route}:${venue}:${symbol}:${route==='candles'?interval:''}`,provider,route==='candles'?15000:route==='book'?5000:10000,async()=>{
      const d=await upstream(path);
      if(route==='candles') {
       if(!Array.isArray(d))throw Error('Invalid candle response');
       let bars=normalizeCandles(d.map(x=>venue==='binance'?{time:Math.floor(+x[0]/1000),open:+x[1],high:+x[2],low:+x[3],close:+x[4],volume:+x[5]}:{time:+x[0],low:+x[1],high:+x[2],open:+x[3],close:+x[4],volume:+x[5]}));
-      if(venue==='coinbase'&&interval==='4h'){const m=new Map();for(const b of bars){const t=Math.floor(b.time/14400)*14400,prev=m.get(t);m.set(t,prev?{...prev,high:Math.max(prev.high,b.high),low:Math.min(prev.low,b.low),close:b.close,volume:prev.volume+b.volume}:{...b,time:t});}bars=[...m.values()];}
+      if(venue==='coinbase'&&interval==='4h'){const m=new Map();for(const b of bars){const t=Math.floor(b.time/14400)*14400,prev=m.get(t);m.set(t,prev?{...prev,high:Math.max(prev.high,b.high),low:Math.min(prev.low,b.low),close:b.close,volume:prev.volume+b.volume}:{...b,time:t});}const currentBucket=Math.floor(now()/1000/14400)*14400;const counts=new Map();for(const b of bars){const t=Math.floor(b.time/14400)*14400;counts.set(t,(counts.get(t)??0)+1);}bars=[...m.values()].filter(b=>counts.get(b.time)===4||b.time===currentBucket);}
       if(!bars.length)throw Error('No valid candles for this instrument');return {venue,symbol,interval,bars};
      }
      if(route==='book') {if(!Array.isArray(d.bids)||!Array.isArray(d.asks))throw Error('Invalid order book');return {venue,symbol,bids:d.bids.slice(0,50).map(x=>[+x[0],+x[1]]).filter(x=>x.every(Number.isFinite)),asks:d.asks.slice(0,50).map(x=>[+x[0],+x[1]]).filter(x=>x.every(Number.isFinite))};}

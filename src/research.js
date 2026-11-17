@@ -1,0 +1,14 @@
+import {normalizeCandles,ema} from './analytics.js';
+import {validInstrument} from './preferences.js';
+export function correlation(a,b){if(a.length!==b.length||a.length<2)return null;const ma=a.reduce((s,x)=>s+x,0)/a.length,mb=b.reduce((s,x)=>s+x,0)/b.length;let ab=0,aa=0,bb=0;for(let i=0;i<a.length;i++){ab+=(a[i]-ma)*(b[i]-mb);aa+=(a[i]-ma)**2;bb+=(b[i]-mb)**2;}return aa>1e-20&&bb>1e-20?Math.max(-1,Math.min(1,ab/Math.sqrt(aa*bb))):null;}
+export function compareSeries(inputs,intervalSeconds,nowSeconds=Date.now()/1000){
+ if(!Array.isArray(inputs)||inputs.length<2||inputs.length>4||!Number.isFinite(intervalSeconds)||intervalSeconds<=0)throw Error('Choose two to four instruments and a valid interval.');
+ const first=inputs[0].instrument,seen=new Set();for(const {instrument:i} of inputs){if(!validInstrument(i)||i.venue!==first.venue||i.quote!==first.quote||seen.has(i.symbol))throw Error('Use distinct instruments from the same venue and quote currency.');seen.add(i.symbol);}
+ const maps=inputs.map(x=>new Map(normalizeCandles(x.bars).filter(b=>b.time+intervalSeconds<=nowSeconds).map(b=>[b.time,b.close])));
+ const times=[...maps[0].keys()].filter(t=>maps.every(m=>m.has(t))).sort((a,b)=>a-b);if(times.length<3)throw Error('At least three shared completed candles are required.');
+ const contiguous=times.flatMap((t,i)=>i&&t-times[i-1]===intervalSeconds?[i]:[]);
+ const returns=maps.map(m=>contiguous.map(i=>Math.log(m.get(times[i])/m.get(times[i-1]))));
+ const assets=inputs.map((x,n)=>{const values=times.map(t=>maps[n].get(t)),points=values.map((v,i)=>({time:times[i],value:v/values[0]*100}));let peak=values[0],drawdown=0;for(const v of values){peak=Math.max(peak,v);drawdown=Math.min(drawdown,v/peak-1);}const r=returns[n],mean=r.reduce((a,b)=>a+b,0)/(r.length||1),sd=r.length>1?Math.sqrt(r.reduce((s,v)=>s+(v-mean)**2,0)/(r.length-1)):null;return {instrument:x.instrument,points,returnPct:(values.at(-1)/values[0]-1)*100,drawdownPct:drawdown*100,volatilityPct:sd===null?null:sd*Math.sqrt(365*86400/intervalSeconds)*100};});
+ return {times,assets,returnSamples:contiguous.length,gapCount:Math.max(0,Math.round((times.at(-1)-times[0])/intervalSeconds)+1-times.length),correlation:returns.map(a=>returns.map(b=>correlation(a,b)))};
+}
+export function emaCrossovers(bars,fast=20,slow=50,cutoff=Infinity){const values=bars.map(b=>b.close),f=ema(values,fast),s=ema(values,slow),out=[];for(let i=1;i<bars.length;i++){if(bars[i].time>=cutoff||f[i-1]===null||s[i-1]===null)continue;if(f[i]>s[i]&&f[i-1]<=s[i-1])out.push({time:bars[i].time,position:'belowBar',color:'#c8f36b',shape:'arrowUp',text:`EMA ${fast} crossed above ${slow}`});else if(f[i]<s[i]&&f[i-1]>=s[i-1])out.push({time:bars[i].time,position:'aboveBar',color:'#ed857c',shape:'arrowDown',text:`EMA ${fast} crossed below ${slow}`});}return out;}
