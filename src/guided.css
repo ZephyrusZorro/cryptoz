@@ -1,0 +1,38 @@
+/* The terminal stays on one canvas when the workspace mode changes. */
+body[data-desk=basic] .pro-only,body[data-desk=pro] .basic-only{display:none!important}
+.desk-switch{display:inline-flex;align-items:center;gap:3px;white-space:nowrap;padding:4px;border:1px solid var(--nav-edge);border-radius:100px;background:var(--header-glass);box-shadow:inset 0 1px 0 var(--glass-shine);width:max-content}
+.desk-switch button{padding:7px 15px;min-height:34px;border-radius:100px;color:var(--muted);font-weight:650;border:1px solid transparent}
+.desk-switch button[aria-pressed=true]{background:var(--nav-highlight);color:var(--text);border-color:var(--nav-edge);box-shadow:0 3px 9px #0917311c,inset 0 1px 0 var(--glass-shine)}
+.hero-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px}
+.overview-hero{--hero-accent:#6b75ff68;isolation:isolate;position:relative;overflow:hidden;border:1px solid var(--nav-edge);border-radius:26px 26px 26px 8px;padding:clamp(16px,3vw,36px);margin:0 0 19px;background:linear-gradient(125deg,var(--header-glass) 16%,var(--glass) 80%);box-shadow:var(--shadow),inset 0 1px 0 var(--glass-shine)}
+.overview-hero::before{content:"";position:absolute;z-index:-1;inset:-32% -13% -42% 27%;pointer-events:none;background:radial-gradient(ellipse at 65% 24%,var(--hero-accent),transparent 50%),radial-gradient(ellipse at 49% 65%,#558cff36,transparent 56%);transform:translate3d(0,0,0)}
+.overview-hero::after{content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;background:linear-gradient(113deg,transparent 49%,var(--glass-shine) 51%,transparent 55%);opacity:.36}
+.overview-hero .page-heading{margin:0;align-items:center}.overview-hero h1{font-size:clamp(30px,4vw,54px);letter-spacing:-.055em}
+.hero-brief p,.guided-hint p{margin:0;color:var(--muted);font-size:13px;line-height:1.55}.hero-brief p{margin-top:14px}.hero-brief strong,.guided-hint strong{color:var(--text)}
+.guided-hint{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:0 0 16px;padding:13px 16px;border:1px solid var(--nav-edge);border-radius:14px;background:var(--glass)}
+[data-theme=light] .overview-hero{--hero-accent:#a6bdff9c;background:linear-gradient(115deg,#f9fcffee,#eef5ff9c)}
+#app .sidebar nav a.active{box-shadow:0 6px 18px #182b6832,inset 0 1px 0 var(--glass-shine)}
+.history-bar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 13px;border-top:1px solid var(--border)}
+.history-bar .button{font-size:11px;min-height:36px;gap:5px}.history-bar .button svg{width:14px}.history-bar small{color:var(--muted);font-size:11px}
+body[data-desk=basic] .terminal-layout,body[data-desk=basic] .terminal-lower{grid-template-columns:minmax(0,1fr)}
+body[data-desk=basic] .guided-risk{max-width:800px}.chart-focus .history-bar{flex-shrink:0}
+.guided-risk .panel-top p{color:var(--muted);font-size:13px;margin:6px 0 0}
+.risk-example,.risk-assumptions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.risk-example{padding:10px 0 16px}.risk-example small,.risk-inputs small{color:var(--muted);font-size:11px;line-height:1.5}
+.guided-risk fieldset{margin:0 0 12px;padding:10px 12px 13px;border:1px solid var(--border);border-radius:14px;min-inline-size:0}
+.guided-risk legend{padding:0 5px;display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700}
+.guided-risk legend span{display:inline-grid;place-items:center;border-radius:50%;width:22px;height:22px;background:var(--nav-highlight);color:var(--text)}
+.guided-risk .risk-inputs{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.guided-risk .risk-levels{grid-template-columns:repeat(3,minmax(0,1fr))}.risk-assumptions label{width:min(180px,100%)}.guided-risk input,.guided-risk select{width:100%;min-width:0}
+.guided-risk fieldset .text-link{padding:6px 0 1px;margin-top:4px;font-size:12px}
+.study-group{margin:14px 0 0}.study-group h3{margin:0 0 8px}.study-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.study-choice{display:flex;align-items:flex-start;gap:8px;padding:9px;border:1px solid var(--border);background:var(--surface-deep);border-radius:11px}
+.study-choice input{margin:3px 0 0;width:auto;flex:none;accent-color:var(--lime)}.study-choice strong,.study-choice small{display:block}.study-choice small{margin-top:3px;line-height:1.4;color:var(--muted)}
+.study-presets{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}.study-feedback{min-height:1.4em;color:var(--muted);font-size:12px}
+.pov-notes{display:grid;gap:8px;padding-left:17px}.pov-notes li{line-height:1.5}.pov-notes p{color:var(--muted);margin:3px 0}
+.guided-sources{display:grid;gap:9px;padding:0;list-style:none}.guided-sources li{border:1px solid var(--border);border-radius:12px;padding:10px}.guided-sources small{display:block;color:var(--muted);margin:3px 0}
+@media(prefers-reduced-motion:no-preference){:root:not([data-motion=reduced]):not([data-material=solid]) .overview-hero::before{animation:guided-aurora 11s cubic-bezier(.36,0,.3,1) 2 alternate both}:root:not([data-motion=reduced]) .desk-switch button,:root:not([data-motion=reduced]) .section-card{transition:background-color .2s ease, border-color .2s ease, transform .25s cubic-bezier(.22,1,.36,1)}}
+@keyframes guided-aurora{0%{transform:translate3d(-6%,3%,0) rotate(-4deg);opacity:.68}100%{transform:translate3d(7%,-4%,0) rotate(4deg);opacity:1}}
+@media(hover:hover){.section-card:hover{transform:translateY(-2px)}}
+@media(max-width:650px){body:not(.chart-focus) .chart-section-links{display:flex;gap:5px;margin-bottom:11px}.chart-section-links button{min-height:35px;padding:5px 8px}.chart-section-links [data-target="terminal-chart"]{display:none}.chart-section-links button svg{width:13px;height:13px}.hero-actions{justify-content:flex-start}.overview-hero{padding:16px}.overview-hero h1{font-size:31px}.overview-hero .page-heading,.terminal-heading{align-items:flex-start}.history-bar{gap:6px;padding:8px 10px}.history-bar .button{min-height:38px}.history-bar small{flex-basis:100%}.guided-risk .risk-levels{grid-template-columns:repeat(2,minmax(0,1fr))}.study-grid{grid-template-columns:1fr}}
+@media(max-height:490px){.chart-focus .history-bar small{display:none}.chart-focus .history-bar{padding:2px 8px}.chart-focus .history-bar .button{min-height:29px}}
+@media(prefers-reduced-transparency:reduce){.overview-hero{background:var(--panel)}.overview-hero::before,.overview-hero::after{display:none}}
+[data-material=solid] .overview-hero{background:var(--panel)}[data-material=solid] .overview-hero::before,[data-material=solid] .overview-hero::after{display:none}

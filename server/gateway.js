@@ -31,14 +31,18 @@ export function createGateway({fetcher=fetch,now=Date.now}={}) {
    if(['candles','book','ticker'].includes(route)) {
     const venue=p.get('venue')??'binance',symbol=p.get('symbol')??'BTCUSDT',interval=p.get('interval')??'1h';
     if(!['binance','coinbase'].includes(venue)||!(venue==='binance'?/^[\p{L}\p{N}]{3,30}$/u:/^[A-Z0-9]{1,20}-USD$/).test(symbol)||!Object.hasOwn(intervals,interval))return Response.json({error:'Invalid venue, instrument or interval'},{status:400});
-    const provider=venue==='binance'?'Binance':'Coinbase',path=venue==='binance'?`${B}/${route==='candles'?'klines':route==='book'?'depth':'ticker/24hr'}?symbol=${symbol}${route==='candles'?`&interval=${interval}&limit=500`:route==='book'?'&limit=50':''}`:`${C}/products/${symbol}/${route==='candles'?`candles?granularity=${interval==='4h'?3600:intervals[interval]}`:route==='book'?'book?level=2':'ticker'}`;
-    result=await cached(`${route}:${venue}:${symbol}:${route==='candles'?interval:''}`,provider,route==='candles'?15000:route==='book'?5000:10000,async signal=>{
+    const rawBefore=route==='candles'?p.get('before'):null,before=rawBefore===null?null:Number(rawBefore);
+    if(before!==null&&(!/^\d{9,10}$/.test(rawBefore)||p.getAll('before').length!==1||before<1230768000||before>Math.floor(now()/1000)||before%intervals[interval]!==0))return Response.json({error:'Invalid candle history cursor'},{status:400});
+    const page=before!==null,step=interval==='4h'?3600:intervals[interval],pageStart=page?Math.max(1230768000,before-step*(interval==='4h'?296:299)):0;
+    const provider=venue==='binance'?'Binance':'Coinbase',path=venue==='binance'?`${B}/${route==='candles'?'klines':route==='book'?'depth':'ticker/24hr'}?symbol=${symbol}${route==='candles'?`&interval=${interval}&limit=500${page?'&endTime='+(before*1000-1):''}`:route==='book'?'&limit=50':''}`:`${C}/products/${symbol}/${route==='candles'?`candles?granularity=${step}${page?`&start=${encodeURIComponent(new Date(pageStart*1000).toISOString())}&end=${encodeURIComponent(new Date((before-1)*1000).toISOString())}`:''}`:route==='book'?'book?level=2':'ticker'}`;
+    result=await cached(`${route}:${venue}:${symbol}:${route==='candles'?interval+':'+(before??'latest'):''}`,provider,route==='candles'?(page?300000:15000):route==='book'?5000:10000,async signal=>{
      const d=await upstream(path,false,signal);
      if(route==='candles') {
       if(!Array.isArray(d))throw Error('Invalid candle response');
       let bars=normalizeCandles(d.map(x=>venue==='binance'?{time:Math.floor(+x[0]/1000),open:+x[1],high:+x[2],low:+x[3],close:+x[4],volume:+x[5]}:{time:+x[0],low:+x[1],high:+x[2],open:+x[3],close:+x[4],volume:+x[5]}));
+      if(page)bars=bars.filter(b=>b.time<before&&(venue!=='coinbase'||b.time>=pageStart));
       if(venue==='coinbase'&&interval==='4h'){const m=new Map();for(const b of bars){const t=Math.floor(b.time/14400)*14400,prev=m.get(t);m.set(t,prev?{...prev,high:Math.max(prev.high,b.high),low:Math.min(prev.low,b.low),close:b.close,volume:prev.volume+b.volume}:{...b,time:t});}const currentBucket=Math.floor(now()/1000/14400)*14400;const counts=new Map();for(const b of bars){const t=Math.floor(b.time/14400)*14400;counts.set(t,(counts.get(t)??0)+1);}bars=[...m.values()].filter(b=>counts.get(b.time)===4||b.time===currentBucket);}
-      if(!bars.length)throw Error('No valid candles for this instrument');return {venue,symbol,interval,bars};
+      if(!bars.length&&!page)throw Error('No valid candles for this instrument');return {venue,symbol,interval,bars,...(page?{before}: {})};
      }
      if(route==='book') {if(!Array.isArray(d.bids)||!Array.isArray(d.asks))throw Error('Invalid order book');const book=normalizeBook(d);if(!book)throw Error('Invalid order book levels');return {venue,symbol,...book};}
      if(venue==='coinbase'){if(!Number.isFinite(+d.price)||+d.price<=0||!Number.isFinite(Date.parse(d.time)))throw Error('Invalid last-trade quote');const stats=await runCached(`stats:coinbase:${symbol}`,'Coinbase',60000,s=>upstream(`${C}/products/${symbol}/stats`,false,s),signal).catch(()=>({data:{}}));return {...stats.data,last:d.price,observedAt:d.time};}

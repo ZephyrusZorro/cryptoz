@@ -1,14 +1,14 @@
 import {asNumber} from './numbers.js';
 import {normalizeCandles} from './analytics.js';
 
-export function mergeCandleHistory(current,snapshot,revisions=new Map(),requestRevision=0,{stale=false}={}){
+export function mergeCandleHistory(current,snapshot,revisions=new Map(),requestRevision=0,{stale=false,limit=600}={}){
  const incoming=normalizeCandles(snapshot),existing=normalizeCandles(current);
- if(!incoming.length)return existing.slice(-600);
+ if(!incoming.length)return existing.slice(-limit);
  const merged=new Map(existing.map(b=>[b.time,b]));
  for(const bar of incoming)if(!stale||(merged.has(bar.time)===false)){
   if((revisions.get(bar.time)??0)<=requestRevision)merged.set(bar.time,bar);
  }
- return [...merged.values()].sort((a,b)=>a.time-b.time).slice(-600);
+ return [...merged.values()].sort((a,b)=>a.time-b.time).slice(-limit);
 }
 const finite=asNumber;
 export function parseLiveQuote(data,instrument,previous,now=Date.now()){

@@ -1,0 +1,145 @@
+.paper-panel {
+  display: grid;
+  gap: 18px;
+  padding: 18px 22px 22px;
+}
+
+.paper-market {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+.paper-market p, .paper-market-quote, .paper-order p, .paper-ledger p {
+  font-size: 12px;
+}
+
+.paper-market-quote {
+  display: grid;
+  gap: 4px;
+}
+
+.paper-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--border);
+}
+
+.paper-metrics > div {
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--surface-deep);
+}
+
+.paper-metrics dt {
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.paper-metrics dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.paper-order, .paper-ledger {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.paper-fields {
+  display: grid;
+  grid-template-columns: minmax(0, .65fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.paper-fields label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: var(--muted);
+}
+
+.paper-fields input, .paper-fields select, .paper-fields .button {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  margin: 0;
+}
+
+.paper-order-status {
+  min-height: 1.6em;
+  color: var(--text);
+}
+
+.paper-ledger {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.paper-ledger-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.paper-ledger-scroll {
+  max-height: 230px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted) var(--surface-deep);
+}
+
+.paper-ledger-scroll:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.paper-ledger table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--surface-deep);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.paper-ledger th, .paper-ledger td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.paper-ledger thead th {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.paper-ledger tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+@media (max-width: 520px) {
+  .paper-panel { gap: 14px; padding: 15px; }
+  .paper-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .paper-fields { grid-template-columns: minmax(0, .65fr) minmax(0, 1fr); }
+  .paper-fields .button { grid-column: 1 / -1; }
+  .paper-fields input, .paper-fields select, .paper-fields .button { min-height: 44px; }
+}
