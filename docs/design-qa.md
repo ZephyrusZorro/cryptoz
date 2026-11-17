@@ -1,15 +1,21 @@
-# CRYPTOZ 2.1 visual QA
+# CRYPTOZ navigation visual QA
 
-Source targets: two user-provided WhatsApp clips. Six frames were extracted from each; the dashboard and glass-navigation regions were opened and inspected. They are inspiration for an existing crypto product, not exact screen/content specifications. Reference dimensions and product content differ from the implementation, so no pixel-identity claim is made.
+Target: supplied glass-sidebar video (rounded translucent panel, edge collapse control, highlighted active row, floating icons). The user's refinement asks for four simple primary groups, contextual tabs, concise labels and news-first Home. Reference branding and example data are not copied.
 
-Comparison input: `outputs/glass-evidence/reference-comparison.jpg` in the delivery workspace combines both reference regions and both rendered CRYPTOZ overview themes in one image. Final implementation captures are 1440×1000. The final combined image was opened and reviewed after capture.
+Current audit: navigation-evidence/01-before-terminal.jpg was captured from the hosted terminal at 733 px. It shows a long scrolling sidebar, clipped brand and narrow chart. DOM measurements: sidebar 208 px, chart approximately 400 px. That capture did not establish a DOM intersection; final checks explicitly verify dock/content separation.
 
-Round one found a navigation issue: a new route could retain the previous route's vertical scroll position, weakening the intended heading/data hierarchy. Route navigation now returns to the top; background refresh retains position. The final comparison uses new, settled viewport captures with the heading, floating sidebar and charts visible.
+Combined comparison: navigation-evidence/reference-comparison.jpg places the actual supplied-video region beside the rendered expanded dock and Home. This single image was opened and reviewed. Viewport and product content differ intentionally; no pixel-identity claim is made.
 
-Round two: no remaining actionable P0/P1/P2 style differences against the selected direction. Dark theme uses the reference's blue/violet glass vocabulary, fine borders and softly highlighted navigation. Day theme uses lavender, white cards and orange primary actions. Both keep dark/light solid chart canvases, legible scales and distinct semantic gain/loss colors. The original generated backdrop is present; logos and sample reference data are not copied.
+Corrections checked:
 
-Additional checks: mobile learning at 390×844, overview and terminal at 320/390 widths; mobile drawer and wrapping controls; two themes; focus controls and explicit reduced motion. No sampled page-wide overflow; market tables intentionally scroll internally. Chart studies, book rows and learning cards were inspected alongside real data. Readability review is manual and scoped, not an accessibility certification or all-device guarantee.
+1. Four primary groups with related feature tabs; no version/PRO badges, slogans, Sources or diagnostics. Home begins with news, then market data. Duplicate news navigation action removed.
+2. Desktop compact/expanded dock reserves its width; hidden mode restores space. At narrow sizes the app scroll viewport ends 14 px above the dock, preventing chart overlap.
+3. Sticky tools positioning moved to the wrapper, so tabs stay accessible while scrolling.
+4. Programmatic main-container focus no longer draws a large border. Interactive keyboard focus remains visible; hidden dock is inert and Show navigation receives focus.
+5. Footer notices remain reachable at narrow sizes.
 
-Final compositing pass: a frosted-layer edge could extend outside the sidebar in the test browser. Paint containment and rounded clipping now constrain it. Post-fix `08-final-glass-bounds.jpg` shows the full heading and card edges without the bleed.
+Evidence: 02-chart-compact.jpg, 03-home-expanded.jpg, 04-home-compact.jpg, 05-home-light.jpg, 06-mobile-home.jpg and responsive-geometry.json. Checked dark/day themes, collapse/expand/hide/reveal, icon transforms and zero-duration reduced motion. Widths 320, 390, 733, 901 and 1440 showed no page overflow or dock/content intersection. Revised chart width at 733 px was approximately 639 px. Filters/refresh and section jumps preserved entered values. Real quote, chart, indicator and book data remained visible.
+
+No remaining actionable P0/P1/P2 difference against the revised brief was found in these finite checks. This does not certify every device, accessibility criterion or sustained frame rate.
 
 final result: passed

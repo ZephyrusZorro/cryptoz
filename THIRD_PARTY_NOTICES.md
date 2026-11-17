@@ -3,7 +3,7 @@
 TradingView Lightweight Charts™ / Copyright © 2025 TradingView, Inc.
 https://www.tradingview.com/
 
-Lightweight Charts 5.2.0 is distributed under Apache License 2.0. Attribution is visible in charts and the Data & Sources page. Its complete license and NOTICE are included under licenses/.
+Lightweight Charts 5.2.0 is distributed under Apache License 2.0. Attribution is visible through the Licenses link in the footer; chart logos link to TradingView. Its complete license and NOTICE are included under licenses/.
 
 Apache ECharts 6.1.0 and zrender 6.1.0 are Apache 2.0 components. Lucide icons use ISC. fast-xml-parser uses MIT. Manrope and DM Sans fonts use SIL Open Font License 1.1. Complete available package license/notice files and font licenses are included under licenses/.
 

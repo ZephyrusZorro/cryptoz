@@ -1,8 +1,8 @@
-# CRYPTOZ 2.1 — Glass research desk
+# CRYPTOZ
 
-2.1 adds midnight blue/violet glass and lavender day themes, device-aware reduced motion, a shared live Binance mini-ticker stream, selected-market live partial depth and a learning desk with completed-candle conditions. Appearance changes preserve research inputs. See [glass design](docs/GLASS-DESIGN.md) and [release research and verification](docs/GLASS-RELEASE.md).
+Crypto charts, news and market research. Navigation has four groups: Home, Markets, Research and Workspace. The glass dock can show icons, expand labels or hide; smaller screens use a reserved bottom dock. Related features sit in contextual tabs. Home starts with current publisher headlines, with market charts and prices below.
 
-V2 adds saved chart layouts, automatic note saving, restored studies/instruments, EMA crossover markers and a common-window comparison lab with return/drawdown/volatility/correlation. Existing v1 browser research migrates into a separate v2 storage key. Import has a recovery backup. See [v2 research](docs/V2-RESEARCH.md), [design](docs/V2-DESIGN.md) and [feature verification](docs/V2-VERIFICATION.md).
+See [navigation design](docs/NAVIGATION-DESIGN.md) and [navigation verification](docs/NAVIGATION-VERIFICATION.md).
 
 A crypto research terminal with real public market data, editable financial charts, market visualizations and publisher-linked news. This rebuild replaces the supplied single-file app's unsupported quantitative claims and hardcoded market narratives.
 
