@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {createDraftStore} from '../src/draft-store.js';
 import {replaceWorkspace,defaults,STORAGE_KEY,RECOVERY_KEY,validateWorkspace} from '../src/state.js';
-import {price,pct,tone} from '../src/ui.js';
+import {price,pct,tone,num} from '../src/ui.js';
 const memory=()=>{const values=new Map();return {getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v)};};
 test('journal and per-instrument risk drafts survive controller recreation',()=>{
  const storage=memory(),draft=createDraftStore(storage);draft.setJournal('Unfinished research');draft.setRisk('binance:BTCUSDT',{entry:'100',stop:'95',target:'110',side:'long'});
@@ -21,4 +21,8 @@ test('imported alerts exceeding the monitored limit remain present but are pause
 });
 test('missing values and tiny prices are represented truthfully',()=>{
  for(const v of ['',null,undefined,false]){assert.equal(price(v),'—');assert.equal(pct(v),'—');assert.equal(tone(v),'muted');}assert.equal(price(0),'$0.00');assert.notEqual(price(1e-10),'$0');assert.match(price(1e-10),/E-10|0\.0000000001/);
+});
+
+test('small nonzero values stay visible in alerts, studies and drawing labels',()=>{
+ assert.match(num(1e-10,8),/1E-10|0\.0000000001/);assert.notEqual(num(-1e-10,8),'-0');assert.equal(num(0,8),'0');assert.equal(num(42.125,2),'42.13');
 });

@@ -1,7 +1,7 @@
 import {downloadBlob} from './exports.js';
 import {asNumber,formatter} from './numbers.js';
 export const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export const num=(value,digits=2)=>{const n=asNumber(value);return n===null?'—':formatter({maximumFractionDigits:Math.max(0,Math.min(12,Math.trunc(digits)||0))}).format(n);};
+export const num=(value,digits=2)=>{const n=asNumber(value),precision=Math.max(0,Math.min(12,Math.trunc(digits)||0));if(n===null)return '—';return formatter(n!==0&&Math.abs(n)<.5*10**(-precision)?{notation:'scientific',maximumSignificantDigits:6}:{maximumFractionDigits:precision}).format(n);};
 export const compact=value=>{const n=asNumber(value);return n===null?'—':formatter({notation:'compact',maximumFractionDigits:2}).format(n);};
 export const price=(value,quote='$')=>{const n=asNumber(value);if(n===null)return '—';const absolute=Math.abs(n);if(absolute>0&&absolute<1e-8)return quote+formatter({notation:'scientific',maximumSignificantDigits:6}).format(n);return quote+formatter({minimumFractionDigits:absolute>=1||absolute===0?2:0,maximumFractionDigits:absolute>=100?2:absolute>=1?4:8}).format(n);};
 export const pct=value=>{const n=asNumber(value);return n===null?'—':`${n>0?'+':''}${num(n)}%`;};

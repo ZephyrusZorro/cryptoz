@@ -8,7 +8,7 @@ Search normalizes names and punctuation, handles verified Fetch.ai/FET/Artificia
 
 Appearance provides dark/light, System/Glass/Solid surfaces, a stable background and reduced motion. Explicit Glass is useful when the device otherwise requests reduced transparency. Continuous particles and pointer lighting have been removed. Existing local research state is preserved.
 
-See [reliability design](docs/superpowers/specs/2026-11-17-reliability-design.md), [visual QA](design-qa.md), and [verification](docs/RELIABILITY-VERIFICATION.md). Older design reports describe earlier revisions.
+Start with **Home → Start here** or **Charts → Learn** for the five-step guide, signal explanations and searchable glossary. **Tools → Chart guide** also works in focus mode. See [release verification](docs/BEGINNER-QUALITY-VERIFICATION.md) and [operations](docs/OPERATIONS.md).
 
 A crypto research terminal with real public market data, editable financial charts, market visualizations and publisher-linked news. This rebuild replaces the supplied single-file app's unsupported quantitative claims and hardcoded market narratives.
 
@@ -40,7 +40,7 @@ Open http://127.0.0.1:5187. The Windows `START-CRYPTOZ.cmd` launcher uses the in
 ## Verify
 
 ```powershell
-npm run check
+npm run check:production
 npm run verify:live
 ```
 

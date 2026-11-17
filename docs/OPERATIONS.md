@@ -1,6 +1,8 @@
 # Deployment and operations
 
-Requires Node.js 22+ for local use and internet for current market data. Use `npm ci`, `npm run check`, then `npm start`; open http://127.0.0.1:5187. The distributed ZIP includes the prebuilt Worker/client and `START-CRYPTOZ.cmd`, so the launcher does not need dependency installation.
+Requires Node.js 22+ for local use and internet for current market data. Use `npm ci`, `npm run check:production`, then `npm start`; open http://127.0.0.1:5187. The distributed ZIP includes the prebuilt Worker/client and `START-CRYPTOZ.cmd`, so the launcher does not need dependency installation.
+
+Run `npm run check` separately for the full build-tool audit. CRYPTOZ 2.6 flags an unpatched [picomatch advisory](https://github.com/advisories/GHSA-fc5q-39xc-vjpf) in the development tool chain. The production dependency audit reported no findings during verification. The prebuilt Worker does not require the development tool chain.
 
 `GET /healthz` returns status, service and release version without contacting upstream providers. `HEAD` returns no body. This proves the app handler is running, not that all providers are healthy. Check `npm run verify:live` and actual visible chart/news timestamps separately. During provider restrictions, browser-direct recovery can work where CORS and regional access permit. News still requires the gateway.
 

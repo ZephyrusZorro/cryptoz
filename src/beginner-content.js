@@ -31,7 +31,7 @@ const help={
  chart:{title:'Chart guide',items:[['Read the identity','Confirm venue, instrument, quote and candle interval.'],['Navigate history','Drag to pan, pinch or wheel to zoom. All history fits the loaded bars.'],['Understand the candle','The latest candle is provisional. Indicators describe observed history.'],['Add context','Indicators adds overlays and oscillators. Drawing tools save per instrument and interval.']]},
  risk:{title:'Risk calculator guide',items:[['Equity and risk','Equity is your scenario balance in quote units. Risk % defines the modeled loss budget.'],['Choose your levels','Long: stop < entry < target. Short: target < entry < stop.'],['Include costs','Enter the fee charged per side. Slippage and funding are excluded.'],['Read the outcome','Position size differs from money at risk. No order is placed.']]}
 };
-export const helpFor=context=>help[context]??null;
+export const helpFor=context=>Object.hasOwn(help,context)?help[context]:null;
 export const LEARNING_SOURCES=[
  {title:'Coinbase · Reading charts',href:'https://www.coinbase.com/learn/advanced-trading/reading-financial-charts'},
  {title:'Coinbase · Slippage',href:'https://help.coinbase.com/en/coinbase/trading-and-funding/advanced-trade/slippage'},

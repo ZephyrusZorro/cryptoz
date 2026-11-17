@@ -2,8 +2,8 @@ import {GETTING_STARTED,searchGlossary,LEARNING_SOURCES} from './beginner-conten
 import {createLearningProgress} from './beginner-store.js';
 import {esc,icon} from './ui.js';
 const sources=()=>`<details class="learning-sources"><summary>Educational references</summary><div>${LEARNING_SOURCES.map(s=>`<a href="${s.href}" target="_blank" rel="noopener noreferrer">${esc(s.title)} ${icon('external-link')}</a>`).join('')}</div></details>`;
-export function mountBeginner(root,{storage,hydrate,view='start'}){
- const progress=createLearningProgress(storage),events=new AbortController();
+export function mountBeginner(root,{storage,hydrate,view='start',progress=createLearningProgress(storage)}){
+ const events=new AbortController();
  if(view==='glossary'){
   root.innerHTML=`<section class="panel glossary-panel"><div class="panel-top"><div><h2>Crypto glossary</h2><p>Plain explanations for the tools you use.</p></div></div><label class="search-field">${icon('search')}<input type="search" id="glossary-search" aria-label="Search glossary" placeholder="Search a term or abbreviation" maxlength="100"></label><p class="source glossary-count" role="status"></p><dl class="glossary-grid"></dl></section>${sources()}`;
   const render=()=>{const results=searchGlossary(root.querySelector('#glossary-search').value);root.querySelector('.glossary-count').textContent=results.length?`${results.length} ${results.length===1?'term':'terms'}`:'No matching terms. Try another word.';root.querySelector('.glossary-grid').innerHTML=results.map(t=>`<div><dt>${esc(t.term)}</dt><dd>${esc(t.definition)}</dd></div>`).join('');};

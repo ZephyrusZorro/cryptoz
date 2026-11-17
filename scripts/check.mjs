@@ -3,7 +3,9 @@ import {readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const npm=process.env.npm_execpath;
 if(!npm)throw Error('Run through npm run check');
-for(const args of [['test'],['run','build'],['audit','--audit-level=moderate']]){
+const productionOnly=process.argv.includes('--production');
+if(productionOnly)console.log('Production dependency audit only. Review the separate full development audit before release.');
+for(const args of [['test'],['run','build'],['audit','--audit-level=moderate',...(productionOnly?['--omit=dev']:[])]]){
  await new Promise((resolve,reject)=>{const child=spawn(process.execPath,[npm,...args],{stdio:'inherit'});child.once('error',reject);child.once('exit',code=>code===0?resolve():reject(Error(`npm ${args.join(' ')} failed (${code})`)));});
 }
 const {default:worker}=await import('../dist/server/index.js');
