@@ -1,6 +1,6 @@
 export const telemetry=new Map();
 const cooldown=new Map();
-const directRoutes=new Set(['markets','global','sentiment','chains','instruments','exchange-markets','candles','book','ticker']);
+const directRoutes=new Set(['asset-search','asset','markets','global','sentiment','chains','instruments','exchange-markets','candles','book','ticker']);
 export async function api(path,{signal}={}) {
  const key=path.split('?')[0],scope=key+':'+(new URLSearchParams(path.split('?')[1]??'').get('venue')??'aggregate');let serverError;
  try{

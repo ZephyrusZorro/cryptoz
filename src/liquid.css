@@ -16,7 +16,7 @@ input,select,textarea{background:var(--surface-deep);border-color:var(--border);
 @media(prefers-reduced-motion:reduce){.glass-active::after{display:none}}
 [data-motion=reduced] .glass-active::after{display:none}
 @media(prefers-reduced-transparency:reduce){.panel,.stat-card,.news-reading-panel,.sidebar::before,.topbar,.context-nav{background:var(--panel)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}}
-@supports not (backdrop-filter:blur(1px)){.sidebar::before,.panel,.stat-card,.news-reading-panel,.topbar,.context-nav{background:var(--panel)!important}}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.panel,.stat-card,.news-reading-panel{background:var(--panel)!important}.sidebar::before{background:var(--nav-glass)!important}}
 
 @media(prefers-reduced-motion:no-preference){:root:not([data-motion=reduced]) .page-heading,:root:not([data-motion=reduced]) .terminal-heading{animation:liquid-arrive .22s cubic-bezier(.22,1,.36,1)}:root:not([data-motion=reduced]) .chart-menu[open] .chart-menu-body{animation:liquid-arrive .16s cubic-bezier(.22,1,.36,1)}}
 

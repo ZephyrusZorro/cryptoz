@@ -10,9 +10,9 @@ test('route resolution handles old links and rejects unknown or inherited paths'
  assert.equal(resolveRoute('#terminal'),'terminal');assert.equal(resolveRoute('#compare?x=1'),'compare');
  for(const x of ['#sources','#constructor','#__proto__','#unknown',''])assert.equal(resolveRoute(x),'overview');
 });
-test('dock storage accepts only compact, expanded and hidden with safe fallback',()=>{
- for(const x of ['compact','expanded','hidden'])assert.equal(normalizeDock(x),x);
+test('fixed dock migrates expanded preferences to compact and preserves hidden mode',()=>{
+ for(const x of ['compact','hidden'])assert.equal(normalizeDock(x),x);assert.equal(normalizeDock('expanded'),'compact');
  assert.equal(normalizeDock('anything'),'compact');assert.equal(readDock({getItem(){throw Error();}}),'compact');
- let value;const storage={getItem:()=>value,setItem:(_,x)=>{value=x;}};saveDock(storage,'expanded');assert.equal(readDock(storage),'expanded');
+ let value;const storage={getItem:()=>value,setItem:(_,x)=>{value=x;}};saveDock(storage,'expanded');assert.equal(readDock(storage),'compact');
  assert.equal(saveDock({setItem(){throw Error();}},'hidden'),false);
 });

@@ -1,19 +1,20 @@
-# CRYPTOZ left-rail liquid-glass visual QA
+# CRYPTOZ flagship workspace design QA
 
-Latest brief: LEFT taskbar on every device, fewer grouped controls, brighter light mode, polished dark mode, video-inspired glass/motion, actual financial data, and zoomed-out charts. This supersedes the earlier bottom-dock design.
+Target: supplied older Markets header (image3) for transparent breadcrumb/search band, clear title hierarchy, disciplined spacing and aligned controls; older sidebar for clean active state, combined with the explicitly requested compact fixed LEFT rail. This is a redesign using selected references, not a pixel-identical clone of different application states.
 
-Reference: inspected original supplied-video frames at 0.4–4.2 seconds. They show a rounded frosted sidebar, fine rim, circular collapse control and highlighted hover rows. The clip does not specify every application form or proprietary material physics. Combined reference-comparison.jpg places the supplied-video frame and both actual rendered themes in one image; it was opened and reviewed.
+Evidence: current-run captures under outputs/flagship-evidence. reference-comparison.jpg contains the actual supplied heading reference and current Markets render in one image, opened and reviewed together. 07-light-workspace.png, 08-phone-home.png, 09-phone-chart.png and11-dark-workspace.png cover the required themes/phone states. Before captures01–03 show the old screen and reproduced Fetch.ai failure.
 
-Checked corrections:
+Findings corrected:
+- P2: header solid rectangles/cutouts broke the older transparent layout. Header/context strip now align with content and remain transparent. Device reduced-transparency was diagnosed as the cause of opaque material fallbacks. Appearance now exposes System/Glass/Solid; explicit Glass overrides that preference inside the app, while System retains it.
+- P2: expanding rail conflicted with fixed-size requirement. Expanded storage migrates to compact, expand button removed, hide/reveal remains. Desktop width72px, phone56px, reserved margins prevent overlap.
+- P2: Home feed and deep tables made destinations hard to reach. Four destination cards appear immediately, followed by real stats and a compact news/chart split. Phones show destination cards, stats and two headlines; inline preview is omitted, Chart destination remains available. No deep market table on Home.
+- P2: provider tabs fragmented news. One chronological feed and topic tabs now combine publishers with source/time/original links. The Block feed verified alongside existing feeds.
+- P2: body minimum width pushed controls behind reserved scrollbar at320px. Removed minimum; actual client width305px, main edge305px and content edge293px verified. Phone chart focus adapts when scrollbar disappears.
 
-1. Four primary destinations: Home, Markets, Charts, Workspace. Related tools remain in contextual tabs. A compact captioned LEFT rail is used on phones; desktop has expanded labels. Width is reserved, including chart focus. Hide/reveal restores content space. No bottom dock.
-2. Home has one ordered news-reading surface, five headlines, clear publisher/time/link metadata, followed by market data. Full news renders 20 at a time; Show more and filtering were exercised. Markets has simpler asset/price/change rows; a legacy 145px price minimum that clipped the change column at 320px was removed.
-3. Light mode uses original compressed ice-blue glass artwork, dark text and cobalt controls; dark mode keeps blue/violet. Glass rims, blur and limited pointer sheen sit around legible charts. Motion uses finite transform/opacity easing; small/touch/reduced-motion devices skip pointer sheen.
-4. All history opens the chart at the full available range. Recent 100 bars, +/- zoom, visible/total candle counts and date range, focus mode and a grouped Tools menu reduce clutter. Range selection reflects manual panning. Named windows reapply on resize; custom windows persist. Gesture listeners use capture phase so the first wheel event is detected before chart-library range changes.
-5. Landscape focus at 640x360 keeps a 198px plot, Exit focus control and Live/Snapshot/Delayed status. Phone indicator modal fits at 320px. Risk calculation and menu navigation were exercised.
+Fidelity surfaces: existing DM Sans/Manrope match the older type style; title34px and compact kicker10px follow its hierarchy, phone title27px. Shared12/18/28px spacing and aligned header/section edges restore rhythm. Semantic candle colors retained; dark blue/violet and light ice/cobalt tokens remain distinct. Existing compressed original artwork is reused without screenshot-as-UI substitution. Icons are existing Lucide vectors. Copy is labels plus brief function descriptions, no version/PRO/promotional badges. Topic labels are not factual verification of article claims.
 
-Actual layout checks: 320, 390, 733, 901 and 1440px widths; light/dark; 640x360 landscape. No page-width overflow or rail/content overlap was observed. A loaded phone chart showed 500/500 candles after resize. Tests are finite and do not certify every physical device, accessibility criterion, exact proprietary effects or sustained frame rate.
+Interaction checks: fixed rail hide/reveal; launchers; Fetch.ai global/Markets search to live FETUSDT500bars; catalog-only Wrapped Banano quote and explicit unavailable-chart state; topic filters across publishers; chart focus; reduced motion disables particles/transitions; ambient off removes canvas display. Both themes checked. Widths320/390/733/901/1440; no page-width overflow. Core controls remain readable and reachable; full accessibility compliance and physical-device frame rates are not certified.
 
-No remaining actionable P0/P1/P2 finding against this scoped brief was identified after the documented fixes.
+Independent review found search lifecycle and ticker-identity bugs; both corrected and regression tested. No remaining actionable P0/P1/P2 against this scoped brief was found after the documented checks.
 
 final result: passed

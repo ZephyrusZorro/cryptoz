@@ -1,10 +1,14 @@
 # CRYPTOZ
 
-Crypto charts, news and market research. Four primary groups: Home, Markets, Charts and Workspace. A floating LEFT glass rail reserves its space on desktop and phones; desktop can expand labels, and every size can hide/reveal it. Related features use contextual tabs. Home starts with publisher headlines, followed by market charts and prices.
+Crypto charts, news and market research. Four fixed compact LEFT navigation groups: Home, Markets, Charts and Workspace. The rail can hide/reveal but never expands. A transparent breadcrumb/search header, contextual tabs and direct Home sections keep the workspace organized.
 
-The light and dark glass themes use compressed original wallpapers, bounded pointer sheen and finite motion with reduced-motion support. Charts open with all available candles, show the actual visible/available window, and provide a recent 100-bar preset, zoom controls and focus mode. Tools groups style, layouts, drawings and exports.
+Home gives access to News, Charts, Market maps and Signals, with compact real stats and news/chart previews. Phones omit the inline chart preview and show two headlines to avoid deep scrolling. Full news is one attributed feed with topic filters, including CoinDesk, Decrypt, Cointelegraph and The Block.
 
-See [current design](docs/LIQUID-LEFT-DESIGN.md), [visual QA](docs/design-qa.md) and [latest verification](docs/LIQUID-VERIFICATION.md). Older navigation documents describe earlier revisions.
+Search normalizes names and punctuation, handles verified Fetch.ai/FET/Artificial Superintelligence Alliance identities, and queries the wider active provider catalog on demand. Price and exchange-chart coverage vary; an identity result does not imply live price/history availability. The bulk quote endpoint is provider-limited (2,000 assets observed); supported exchange charts use Binance USDT and Coinbase USD listings.
+
+Appearance provides dark/light, System/Glass/Solid surfaces, bounded ambient particles/static background and reduced motion. Explicit Glass is useful when the device otherwise requests reduced transparency. Particles pause in hidden tabs; density/FPS is bounded. Existing local research state is preserved.
+
+See [current design](docs/superpowers/specs/2026-11-17-flagship-polish-design.md), [visual QA](design-qa.md), and [verification](docs/FLAGSHIP-VERIFICATION.md). Older design reports describe earlier revisions.
 
 A crypto research terminal with real public market data, editable financial charts, market visualizations and publisher-linked news. This rebuild replaces the supplied single-file app's unsupported quantitative claims and hardcoded market narratives.
 
