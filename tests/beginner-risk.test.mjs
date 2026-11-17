@@ -13,5 +13,5 @@ test('break-even win rate uses net outcomes and is undefined for a fee-negative 
 test('current-price assistance rejects stale, mismatched and future observations',()=>{
  const chart=new TerminalChart({host:{},workspace:{drawings:{}},save(){},onQuote(){},onSummary(){},onBook(){},onStatus(){},onDrawings(){}}),now=Date.now();
  const quote={price:100,source:'REST',venue:'binance',symbol:'BTCUSDT',updatedAt:new Date(now).toISOString(),stale:false};chart.quote=quote;assert.equal(chart.currentQuote(now)?.price,100);
- for(const change of [{stale:true},{symbol:'ETHUSDT'},{venue:'coinbase'},{updatedAt:new Date(now-31000).toISOString()},{updatedAt:new Date(now+6000).toISOString()},{price:-1}]){chart.quote={...quote,...change};assert.equal(chart.currentQuote(now),null);}
+ for(const change of [{stale:true},{source:'candle'},{symbol:'ETHUSDT'},{venue:'coinbase'},{updatedAt:new Date(now-31000).toISOString()},{updatedAt:new Date(now+6000).toISOString()},{price:-1}]){chart.quote={...quote,...change};assert.equal(chart.currentQuote(now),null);}
 });

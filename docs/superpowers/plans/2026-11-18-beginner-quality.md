@@ -20,15 +20,15 @@ Preserve four compact left navigation groups, selected glass themes, private aud
 ### Task 1: Correct financial and request lifecycle failures
 Files: analytics.js, chart.js, learning.js, comparison.js, app.js; new quote/request helpers only where they provide a shared contract.
 Interfaces: current usable quote requires matching venue/symbol and fresh positive numeric price/time; latest request lifetime supplies AbortSignal and current-generation test.
-- [ ] Reproduce discovered failures with Node regressions; run and observe failure.
-- [ ] Implement finite risk outputs, current-quote guards, active selection/request cancellation and correct derived-result invalidation.
-- [ ] Run targeted regressions and commit this independent correction.
+- [x] Reproduce discovered failures with Node regressions; run and observe failure.
+- [x] Implement finite risk outputs, current-quote guards, active selection/request cancellation and correct derived-result invalidation.
+- [x] Run targeted regressions and commit this independent correction.
 
 ### Task 2: Add integrated beginner tools
 Files: new beginner-content.js, beginner.js, beginner-store.js, beginner.css; app.js and learning.js integration.
 Interfaces: mountBeginner(root,{storage,hydrate,onNavigate}) returns dispose(); help content renders through existing dialog. Store validates a fixed set of five progress IDs and reports failed persistence.
-- [ ] Add failing tests for bounded progress, invalid storage, glossary normalization and fee-aware break-even explanations.
-- [ ] Add three learning subviews, five-step checklist, glossary, Home Start here, Chart guide and concise risk help.
+- [x] Add failing tests for bounded progress, invalid storage, glossary normalization and fee-aware break-even explanations.
+- [x] Add three learning subviews, five-step checklist, glossary, Home Start here, Chart guide and concise risk help.
 - [ ] Verify targeted tests and actual navigation/storage behavior; commit.
 
 ### Task 3: Full review, polish and release

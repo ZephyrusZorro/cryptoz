@@ -7,7 +7,7 @@ export const PRIMARY=[
 export const GROUPS={
  home:[{route:'overview',label:'Overview'},{route:'news',label:'News'}],
  markets:[{route:'markets',label:'Prices'},{route:'studio',label:'Market maps'}],
- research:[{route:'terminal',label:'Chart'},{route:'compare',label:'Compare'},{route:'learn',label:'Signals'}],
+ research:[{route:'terminal',label:'Chart'},{route:'compare',label:'Compare'},{route:'learn',label:'Learn'}],
  workspace:[{route:'workspace',label:'Watchlist',target:'workspace-watchlist'},{route:'workspace',label:'Alerts',target:'workspace-alerts'},{route:'workspace',label:'Journal & notes',target:'workspace-journal'}]
 };
 const paths=new Map(Object.entries(GROUPS).flatMap(([group,items])=>items.map(x=>[x.route,group])));
