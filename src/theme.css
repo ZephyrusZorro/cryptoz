@@ -27,3 +27,6 @@ input,select,textarea{border-radius:8px!important;background:var(--surface-deep)
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
 .interface-health{margin-top:20px}.interface-health output{display:block;padding:0 20px 20px;line-height:1.9}.interface-health .panel-top{flex-wrap:wrap}
+
+/* Clip the frosted layer to its rounded bounds on composited browsers. */
+.sidebar{contain:paint;clip-path:inset(0 round 22px)}

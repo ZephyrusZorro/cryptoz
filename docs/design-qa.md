@@ -10,4 +10,6 @@ Round two: no remaining actionable P0/P1/P2 style differences against the select
 
 Additional checks: mobile learning at 390×844, overview and terminal at 320/390 widths; mobile drawer and wrapping controls; two themes; focus controls and explicit reduced motion. No sampled page-wide overflow; market tables intentionally scroll internally. Chart studies, book rows and learning cards were inspected alongside real data. Readability review is manual and scoped, not an accessibility certification or all-device guarantee.
 
+Final compositing pass: a frosted-layer edge could extend outside the sidebar in the test browser. Paint containment and rounded clipping now constrain it. Post-fix `08-final-glass-bounds.jpg` shows the full heading and card edges without the bleed.
+
 final result: passed
