@@ -11,8 +11,15 @@ import {STUDIES,STUDY_PRESETS,normalizeStudyIds} from './studies.js';
 import {buildStudyPov} from './study-pov.js';
 import './paper.css';
 import './decision-desk.css';
+import './workbench.css';
+import {chartPanelFor,chartWorkbench} from './workbench.js';
+import {initialScreen,screenMarket,screenerControls,sectorPulse,marketBrief} from './screener.js';
+import {renderInsightsDesk} from './insights-desk.js';
+import './insights-desk.css';
+import './practice.css';
+import {usableQuote} from './market-integrity.js';
 import {mountPracticeDesk} from './practice-desk.js';
-import {analystPanel,chartGuide,forecastPanel,forecastJournal,learningPrimer} from './decision-views.js';
+import {analystPanel,chartGuide,forecastPanel,forecastJournal,renderGuideAudit} from './decision-views.js';
 import {assessInWorker} from './forecast-client.js';
 import {createForecastLedger} from './forecast-ledger.js';
 import {filterMarketGroup,renderMarketGroups,renderMarketCards,renderMarketBreadth} from './market-groups.js';
@@ -51,7 +58,7 @@ const $=s=>document.querySelector(s);const storage=safeStorage();const drafts=cr
 let selected=workspace.preferences.lastInstrument;let selectedInterval=workspace.preferences.interval;let comparison=null,studioViewName='map';let riskCalculator;let modalGeneration=0,studioGeneration=0;const alertPrices=new Map();let learning=null,marketStream=null,miniSeries=null;let appearance=applyAppearance(readAppearance(storage),storage);
 
 let dockMode=readDock(storage),newsLimit=20;let searchTimer,marketSearchTimer,remoteAssets=[],marketRemoteAssets=[],remoteLoading=false,remoteError='',marketRemoteLoading=false,marketRemoteError='';const assetLookup=new Map();let dialogController,manualRefreshing=false,operationError='';
-let benchmarkTask=null,practice=null,practiceSelected=null,homeNewsTopic='all',marketGroup='all';
+let benchmarkTask=null,practice=null,practiceSelected=null,homeNewsTopic='all',marketGroup='all',insightsView=null,marketScreen=initialScreen();
 let deskMode=readDesk(storage);document.body.dataset.desk=deskMode;
 let materialMode='auto';try{materialMode=storage.getItem('cryptoz.material.v1')??'auto';}catch{}function applyMaterial(){document.documentElement.dataset.material=materialMode==='glass'?'glass':materialMode==='solid'?'solid':matchMedia('(prefers-reduced-transparency: reduce)').matches?'solid':'glass';}applyMaterial();matchMedia('(prefers-reduced-transparency: reduce)').addEventListener('change',()=>{if(materialMode==='auto')applyMaterial();});
 const catalogSearch=createLatestSearch({request:(q,o)=>api('asset-search?q='+encodeURIComponent(catalogQuery(q)),o),onResult:(r,q)=>{remoteAssets=r.data;remoteLoading=false;remoteAssets.forEach(a=>assetLookup.set(a.id,a));while(assetLookup.size>200)assetLookup.delete(assetLookup.keys().next().value);if($('#command-input')&&$('#command-input').value===q)searchResults(q);},onError:(e,q)=>{remoteLoading=false;remoteError=e.message;if($('#command-input')?.value===q)searchResults(q);}});
@@ -93,7 +100,7 @@ function updateCurrentData(key){
  loading=dataLoader.busy;syncNetworkState();
  if(page==='overview'){
   if(['global','sentiment'].includes(key)&&$('#home-totals'))$('#home-totals').innerHTML=marketStats();
-  if(key==='markets'){loadBenchmark(pageGeneration);if($('#home-breadth'))$('#home-breadth').innerHTML=breadthContent();}
+  if(key==='markets'){loadBenchmark(pageGeneration);if($('#home-breadth'))$('#home-breadth').innerHTML=breadthContent();if($('#home-brief'))$('#home-brief').innerHTML=marketBrief(data.markets?.data??[],workspace.watchlist);}
   if(key==='news'){renderNewsResults();if($('#home-news-meta'))$('#home-news-meta').innerHTML=stateBadge('news');}
  }else if(page==='markets'&&key===(marketUniverse==='exchange'?'exchange':'markets'))renderMarketResults();
  else if(page==='news'&&key==='news')renderNewsResults();
@@ -105,17 +112,17 @@ function updateCurrentData(key){
 async function fetchData(keys=['markets','global','sentiment','news']){const task=dataLoader.load(keys);loading=dataLoader.busy;syncNetworkState();await task;loading=dataLoader.busy;syncNetworkState();}
 async function refreshCurrent(){
  if(manualRefreshing)return;manualRefreshing=true;operationError='';syncNetworkState();
- try{await refreshPage({page,universe:marketUniverse,terminal,comparison,learning,practice,loadData:fetchData,refreshBenchmark:()=>loadBenchmark(pageGeneration),refreshStudio:()=>studioView(studioViewName,pageGeneration,true)});}catch(error){operationError='Refresh failed. Retry when the connection is available.';toast(error.message);}finally{manualRefreshing=false;syncNetworkState();}
+ try{await refreshPage({page,universe:marketUniverse,terminal,comparison,learning,practice,insights:insightsView,loadData:fetchData,refreshBenchmark:()=>loadBenchmark(pageGeneration),refreshStudio:()=>studioView(studioViewName,pageGeneration,true)});}catch(error){operationError='Refresh failed. Retry when the connection is available.';toast(error.message);}finally{manualRefreshing=false;syncNetworkState();}
 }
 
 async function loadInstruments(){await Promise.allSettled(['binance','coinbase'].map(async v=>{try{instruments[v]=(await api('instruments?venue='+v)).data;}catch(e){errors['instruments-'+v]=e.message;}}));if(page==='terminal')updateInstrumentOptions();if(page==='compare')comparison?.updateInstruments();learning?.updateInstruments();practice?.options();marketStream?.setRegistry(instruments.binance);}
 
-function cleanPage(){practice?.dispose();practice=null;resetForecast();riskCalculator?.dispose();riskCalculator=null;clearTimeout(marketSearchTimer);marketCatalogSearch.cancel();document.body.classList.remove('chart-focus');learning?.dispose();learning=null;miniSeries=null;comparison?.dispose();comparison=null;terminal?.dispose();terminal=null;mini?.remove();mini=null;for(const v of visuals)v.dispose();visuals=[];}
+function cleanPage(){calculatorRequest?.abort();calculatorRequest=null;practice?.dispose();practice=null;insightsView?.dispose();insightsView=null;resetForecast();riskCalculator?.dispose();riskCalculator=null;clearTimeout(marketSearchTimer);marketCatalogSearch.cancel();document.body.classList.remove('chart-focus');learning?.dispose();learning=null;miniSeries=null;comparison?.dispose();comparison=null;terminal?.dispose();terminal=null;mini?.remove();mini=null;for(const v of visuals)v.dispose();visuals=[];}
 
-function route(){closeModal({restoreFocus:false});operationError='';if(location.hash==='#terminal?section=risk-tools')history.replaceState(null,'','#practice?section=risk-tools');if(location.hash==='#terminal?section=research-note')history.replaceState(null,'','#workspace');page=resolveRoute(location.hash);marketPage=0;document.body.classList.remove('menu-open');renderPage();window.scrollTo({top:0,behavior:'instant'});$('.main-shell')?.scrollTo({top:0,behavior:'instant'});$('#main').focus({preventScroll:true});}
+function route(){closeModal({restoreFocus:false});operationError='';if(['#terminal?section=risk-tools','#practice?section=risk-tools'].includes(location.hash))history.replaceState(null,'','#risk');if(/^#(?:ai|ai-intelligence)(?:\?|$)/.test(location.hash))history.replaceState(null,'','#terminal?panel=evidence');if(location.hash==='#terminal?section=research-note')history.replaceState(null,'','#workspace');page=resolveRoute(location.hash);marketPage=0;document.body.classList.remove('menu-open');renderPage();window.scrollTo({top:0,behavior:'instant'});$('.main-shell')?.scrollTo({top:0,behavior:'instant'});$('#main').focus({preventScroll:true});}
 function renderPage(){
- cleanPage();pageGeneration++;const group=groupFor(page);if($('#workspace-location'))$('#workspace-location').textContent={overview:'Overview',news:'News',markets:'Markets',terminal:'Charts',compare:'Compare',studio:'Market maps',learn:'Learn',practice:'Practice',analysts:'Analyst views',workspace:'Watchlist & alerts'}[page];document.body.dataset.page=page;document.querySelectorAll('[data-group]').forEach(a=>{const active=a.dataset.group===group;a.classList.toggle('active',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});$('#context-root').innerHTML=secondaryNav();
- ({overview:renderOverview,markets:renderMarkets,terminal:renderTerminal,compare:renderComparison,studio:renderStudio,learn:renderLearning,news:renderNews,analysts:renderAnalystDesk,practice:renderPractice,workspace:renderWorkspace}[page])();hydrate();updateAlertCount();patchLiveQuotes();syncNetworkState();if(document.activeElement===document.body)$('#main').focus({preventScroll:true});const section=new URLSearchParams(location.hash.split('?')[1]??'').get('section');if(page==='practice'&&section==='risk-tools'){const gen=pageGeneration;requestAnimationFrame(()=>{if(gen!==pageGeneration)return;const target=document.getElementById(section);target?.scrollIntoView({behavior:'instant',block:'start'});});}
+ cleanPage();pageGeneration++;const group=groupFor(page);if($('#workspace-location'))$('#workspace-location').textContent={overview:'Overview',news:'News',markets:'Markets',terminal:'Charts',compare:'Compare',studio:'Market maps','market-insights':'Insights',learn:'Learn',practice:'Practice',replay:'Replay',backtest:'Strategy lab',risk:'Calculator',analysts:'Analyst views',workspace:'Watchlist & alerts'}[page];document.body.dataset.page=page;document.querySelectorAll('[data-group]').forEach(a=>{const active=a.dataset.group===group;a.classList.toggle('active',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});$('#context-root').innerHTML=secondaryNav();
+ ({overview:renderOverview,markets:renderMarkets,terminal:renderTerminal,compare:renderComparison,studio:renderStudio,learn:renderLearning,news:renderNews,analysts:renderAnalystDesk,practice:renderPractice,replay:renderPractice,backtest:renderPractice,risk:renderRisk,'market-insights':renderInsights,workspace:renderWorkspace}[page])();hydrate();updateAlertCount();patchLiveQuotes();syncNetworkState();if(document.activeElement===document.body)$('#main').focus({preventScroll:true});const section=new URLSearchParams(location.hash.split('?')[1]??'').get('section');if(page==='practice'&&section==='risk-tools'){const gen=pageGeneration;requestAnimationFrame(()=>{if(gen!==pageGeneration)return;const target=document.getElementById(section);target?.scrollIntoView({behavior:'instant',block:'start'});});}
 }
 
 function liveStrip(){return `<section class="live-strip" aria-label="Live Binance prices"><div class="live-strip-label"><strong>SPOT / USDT</strong><small class="live-status" data-live-status>Connecting to live prices…</small></div>${['BTC','ETH','SOL','BNB','XRP'].map(b=>`<button class="live-quote" data-action="live-chart" data-symbol="${b}USDT" data-live-chip="${b}USDT" aria-label="Open ${b} live chart"><span>${b} / USDT</span><strong>—</strong><small>Awaiting quote</small></button>`).join('')}</section>`;}
@@ -129,7 +136,7 @@ function appearanceModal(){
  $('#appearance-theme').addEventListener('change',update);$('#appearance-motion').addEventListener('change',update);
 }
 
-function renderLearning(){$('#main').innerHTML=header('Learning desk','Start with how crypto markets work, then practice reading and testing your own ideas.')+learningPrimer()+'<div id="learning-root"></div>';learning=mountLearningHub($('#learning-root'),{instruments,hydrate,storage,progress:learningProgress,initialView:new URLSearchParams(location.hash.split('?')[1]??'').get('view')??'start',onViewChange:view=>history.replaceState(null,'','#learn'+(view==='start'?'':'?view='+view)),onChart:i=>{selected=i;location.hash='terminal';}});}
+function renderLearning(){$('#main').innerHTML=header('Learning desk','Start with how crypto markets work, then practice reading and testing your own ideas.')+'<div id="learning-root"></div>';learning=mountLearningHub($('#learning-root'),{instruments,hydrate,storage,progress:learningProgress,initialView:new URLSearchParams(location.hash.split('?')[1]??'').get('view')??'start',onViewChange:view=>history.replaceState(null,'','#learn'+(view==='start'?'':'?view='+view)),onChart:i=>{selected=i;location.hash='terminal';}});}
 
 function newsToolbar(){return `<div class="news-toolbar"><div class="tabs" aria-label="News topics">${['all','MARKETS','POLICY','MACRO','SECURITY','ECOSYSTEM'].map(n=>`<button class="tab ${newsTopic===n?'active':''}" data-action="news-topic" data-topic="${n}" aria-pressed="${newsTopic===n}">${n==='all'?'Latest':n[0]+n.slice(1).toLowerCase()}</button>`).join('')}</div><label class="search-field">${icon('search')}<input id="news-search" aria-label="Search news" placeholder="Search headlines" value="${esc(newsQuery)}"></label></div>`;}
 
@@ -142,29 +149,52 @@ function renderAnalystDesk(){
  const update=()=>{$('#analyst-review').innerHTML=analystPanel(field.value);hydrate();};field.addEventListener('change',update);update();
 }
 function renderPractice(){
- $('#main').innerHTML=header('Paper practice','Virtual spot trading with exchange quotes. Try a scenario, then review the result.')+`<div class="practice-desk"><section class="panel practice-card" id="practice-root"></section>${riskSection((practiceSelected??selected).quote)}</div>`;
- riskCalculator=mountRiskCalculator({form:$('#risk-form'),output:$('#risk-result'),getInstrument:riskInstrument,onDraft:saveRiskDraft});
- practice=mountPracticeDesk({root:$('#practice-root'),instrument:practiceSelected??selected,getInstruments:v=>instruments[v],storage,hydrate,onInstrument:i=>{practiceSelected=i;resetRisk();}});
+ const view={practice:'paper',replay:'replay',backtest:'strategy'}[page],labels={paper:['Paper trading','Practice with virtual balances and fresh venue quotes.'],replay:['Market replay','Step through completed exchange candles and make decisions as each bar appears.'],strategy:['Strategy lab','Test fixed rules on historical candles with fees and next-open execution.']};
+ const [title,description]=labels[view];
+ $('#main').innerHTML=header(title,description)+'<section class="panel practice-card" id="practice-root"></section>';
+ practice=mountPracticeDesk({root:$('#practice-root'),instrument:practiceSelected??selected,getInstruments:v=>instruments[v],storage,hydrate,view,onInstrument:i=>{practiceSelected=i;}});
+}
+let calculatorRequest=null;
+function renderRisk(){
+ const current=riskInstrument();
+ $('#main').innerHTML=header('Position calculator',`Estimate an illustrative position for ${esc(current.base)}/${esc(current.quote)} before using the simulator.`,'<a href="#practice" class="button">Change practice pair</a>')+riskSection(current.quote);
+ resetRisk();riskCalculator=mountRiskCalculator({form:$('#risk-form'),output:$('#risk-result'),getInstrument:riskInstrument,onDraft:saveRiskDraft});
+}
+async function useRiskPrice(button){
+ const i=riskInstrument(),form=$('#risk-form');if(!form||page!=='risk')return;
+ calculatorRequest?.abort();const controller=new AbortController();calculatorRequest=controller;button.disabled=true;
+ try{
+  const r=await api('trade-quote?venue='+i.venue+'&symbol='+encodeURIComponent(i.symbol),{signal:controller.signal});
+  if(controller.signal.aborted||form!==$('#risk-form'))return;
+  const d=r.data??{};
+  const quote=usableQuote({venue:d.venue,symbol:d.symbol,price:d.price,updatedAt:d.observedAt,source:'REST',stale:r.cache==='stale'},i);
+  if(!quote)throw new Error('No fresh price for this pair.');
+  form.elements.entry.value=quote.price;saveRiskDraft();riskCalculator?.invalidate();
+ }catch(error){if(!controller.signal.aborted)toast(error.message??'Price temporarily unavailable.');}
+ finally{if(calculatorRequest===controller){calculatorRequest=null;button.disabled=false;}}
+}
+function renderInsights(){
+ $('#main').innerHTML=header('Market insights','Independent snapshots for derivatives, networks and macro events.')+'<div id="insight-body"></div>';
+ const host=$('#insight-body');let section='derivatives',controller,body,failed='',loading=false,disposed=false;
+ const render=()=>{if(disposed)return;const focused=document.activeElement?.dataset?.tab;host.innerHTML=renderInsightsDesk({mode:deskMode,activeTab:section,result:body,loading,error:failed});hydrate();if(focused===section)host.querySelector('[data-tab="'+section+'"]')?.focus({preventScroll:true});};
+ async function load(next=section){if(disposed||!['derivatives','onchain','macro','tokenomics'].includes(next))return;
+  controller?.abort();section=next;if(next==='tokenomics'){controller=null;loading=false;failed='';body=null;render();return;}const task=new AbortController();controller=task;loading=true;failed='';body=null;render();
+  try{const response=await api('insights?section='+section,{signal:task.signal});if(controller===task&&!task.signal.aborted)body=response;}
+  catch(error){if(controller===task&&!task.signal.aborted)failed=error.message;}
+  finally{if(controller===task&&!task.signal.aborted){loading=false;render();}}
+ }
+ insightsView={load,dispose(){disposed=true;controller?.abort();}};
+ load();
 }
 function renderOverview(){
- $('#main').innerHTML=`<div class="overview-hero desk-hero">`+header('Market desk','Live prices, market activity and the news behind it.',`<div class="hero-actions">${deskSwitch(deskMode)}</div>`)+
- `<div class="hero-brief"><p class="basic-only"><strong>Basic workspace:</strong> clear charts, automatic tools and short explanations as you go.</p><p class="pro-only"><strong>Pro workspace:</strong> market depth, detailed research, advanced studies and manual controls.</p></div>
- <div class="desk-hero-links"><a class="button primary" href="#terminal">${icon('chart-no-axes-combined')} Open charts</a><a class="button" href="#markets">${icon('globe')} Explore markets</a></div></div>
- ${liveStrip()}
- <div class="home-dashboard desk-dashboard">
-   <section class="panel dashboard-news"><div class="panel-top"><div><h2>Market news</h2><span class="source">Crypto, policy and macro headlines</span></div><a href="#news" class="text-link">All headlines ${icon('arrow-right')}</a></div>
-    <div class="home-news-tabs" role="group" aria-label="Home news topics">${[['all','Latest'],['MARKETS','Markets'],['MACRO','Macro'],['POLICY','Policy']].map(([key,label])=>`<button type="button" data-action="home-news-tab" data-topic="${key}" aria-pressed="${homeNewsTopic===key}">${label}</button>`).join('')}</div>
-    <div id="news-results" class="news-reading-panel"></div><div class="panel-bottom" id="home-news-meta">${stateBadge('news')}</div>
-   </section>
-   <div class="home-market-stack">
-    <div id="home-totals">${marketStats()}</div>
-    <section class="panel feature-chart"><div class="panel-top"><h2>${coinMark('BTC')} Bitcoin <span>BTC / USDT</span></h2><a href="#terminal" data-action="default-chart" class="text-link">Chart ${icon('arrow-up-right')}</a></div>
-     <div class="benchmark-quote"><strong id="benchmark-price">—</strong><span id="benchmark-change"></span><div class="range-pills"><span>Binance · 1h</span></div></div>
-     <div id="benchmark-chart" class="benchmark-chart"></div><div class="panel-bottom" id="benchmark-source">Loading chart…</div>
-    </section>
-    <section class="panel home-breadth" id="home-breadth">${breadthContent()}</section>
-   </div>
- </div>`;
+ const tabs=`<div class="home-news-tabs" role="group" aria-label="Home news topics">${[['all','Latest'],['MARKETS','Markets'],['MACRO','Macro'],['POLICY','Policy']].map(([key,label])=>`<button type="button" data-action="home-news-tab" data-topic="${key}" aria-pressed="${homeNewsTopic===key}">${label}</button>`).join('')}</div>`;
+ const news=`<section class="panel dashboard-news wb-news"><div class="panel-top"><div><h2>Market news</h2><span class="source">Crypto, policy and macro headlines</span></div><a href="#news" class="text-link">All headlines ${icon('arrow-right')}</a></div>${tabs}<div id="news-results" class="news-reading-panel"></div><div class="panel-bottom" id="home-news-meta">${stateBadge('news')}</div></section>`;
+ const benchmark=`<section class="panel feature-chart market-feature"><div class="panel-top"><h2>${coinMark('BTC')} Bitcoin <span>BTC / USDT</span></h2><a href="#terminal" data-action="default-chart" class="text-link">Chart ${icon('arrow-up-right')}</a></div><div class="benchmark-quote"><strong id="benchmark-price">—</strong><span id="benchmark-change"></span></div><div id="benchmark-chart" class="benchmark-chart"></div><div class="panel-bottom" id="benchmark-source">Loading chart…</div></section>`;
+ const breadth=`<section class="panel home-breadth" id="home-breadth">${breadthContent()}</section>`;
+ const paths=`<div class="basic-path"><a href="#markets">${icon('globe')}<span><strong>Find a coin</strong><small>Check what it is and how it moved.</small></span></a><a href="#terminal">${icon('chart-no-axes-combined')}<span><strong>Read a chart</strong><small>Explore the price and add a guided drawing.</small></span></a><a href="#practice">${icon('layers')}<span><strong>Practice</strong><small>Learn how fills and fees change a result.</small></span></a></div>`;
+ $('#main').innerHTML=deskMode==='basic'
+  ?`<div class="pro-monitor"><section class="panel overview-hero basic-start">${header('Your crypto guide','Start with one market. See what moved, why it matters and how to test your idea.',deskSwitch(deskMode))}${paths}</section>${news}<div id="home-totals">${marketStats()}</div><div class="monitor-columns">${benchmark}${breadth}</div></div>`
+  :`<div class="pro-monitor"><section class="panel pro-monitor-header">${header('Market monitor','Spot pricing, market breadth and active catalysts.',deskSwitch(deskMode))}</section>${liveStrip()}<div id="home-totals">${marketStats()}</div><div class="monitor-columns"><section id="home-brief" class="panel market-feature">${marketBrief(data.markets?.data??[],workspace.watchlist)}</section>${breadth}</div>${news}${benchmark}</div>`;
  renderNewsResults();loadBenchmark(pageGeneration);
 }
 
@@ -181,20 +211,21 @@ function marketTable(assets,venue=false){return `<div class="table-scroll"><tabl
 
 function renderMarkets(){
 
- $('#main').innerHTML=header('Crypto markets','Find assets, compare prices and open exchange charts.',`<div class="hero-actions"><button class="button pro-only" data-action="export-markets">${icon('download')} Export results</button></div>`)+`<div class="guided-hint"><p class="basic-only"><strong>Start with the asset.</strong> Search its name or ticker. The directory blends prices; an exchange chart shows one specific trading pair.</p><p class="pro-only"><strong>Market scope.</strong> Aggregate USD and venue-specific USDT represent different universes. Compare like with like.</p></div><div id="market-groups"></div><div class="panel"><div class="market-controls"><div class="tabs"><button class="tab ${marketUniverse==='aggregate'?'active':''}" data-action="universe" data-universe="aggregate">Asset directory <span>USD</span></button><button class="tab ${marketUniverse==='exchange'?'active':''}" data-action="universe" data-universe="exchange">Binance spot <span>USDT</span></button></div><label class="search-field">${icon('search')}<input id="market-search" placeholder="Search name, symbol or asset ID" value="${esc(marketQuery)}" aria-label="Search markets"></label></div><div class="filter-row"><button class="chip ${onlyWatch?'selected':''}" data-action="toggle-watch">${icon('star')} Watchlist only</button><label class="sort-label">Sort by <select id="market-sort"><option value="rank">${marketUniverse==='exchange'?'Volume':'Rank'}</option>${marketUniverse==='aggregate'?'<option value="marketCap">Market cap</option>':''}<option value="volume">24h volume</option><option value="gainers">Top gainers</option><option value="losers">Top losers</option></select></label><span id="market-source"></span><span class="live-status" data-live-status></span></div><div id="market-results"></div><div id="market-catalog"></div><div id="market-pagination" class="pagination"></div></div><p class="data-note">Directory prices are aggregate USD snapshots. Binance prices use USDT; live rows show their update time. Sorting updates on refresh or filter change.</p>`;
+ $('#main').innerHTML=header('Crypto markets','Find assets, compare prices and open exchange charts.',`<div class="hero-actions"><button class="button pro-only" data-action="export-markets">${icon('download')} Export results</button></div>`)+`<div class="guided-hint"><p class="basic-only"><strong>Start with the asset.</strong> Search its name or ticker. The directory blends prices; an exchange chart shows one specific trading pair.</p><p class="pro-only"><strong>Market scope.</strong> Aggregate USD and venue-specific USDT represent different universes. Compare like with like.</p></div>${deskMode==='pro'?(marketUniverse==='aggregate'?'<div id="market-sector"></div>':'')+screenerControls(marketScreen,marketUniverse):''}<div id="market-groups"></div><div class="panel"><div class="market-controls"><div class="tabs"><button class="tab ${marketUniverse==='aggregate'?'active':''}" data-action="universe" data-universe="aggregate">Asset directory <span>USD</span></button><button class="tab ${marketUniverse==='exchange'?'active':''}" data-action="universe" data-universe="exchange">Binance spot <span>USDT</span></button></div><label class="search-field">${icon('search')}<input id="market-search" placeholder="Search name, symbol or asset ID" value="${esc(marketQuery)}" aria-label="Search markets"></label></div><div class="filter-row"><button class="chip ${onlyWatch?'selected':''}" data-action="toggle-watch">${icon('star')} Watchlist only</button><label class="sort-label">Sort by <select id="market-sort"><option value="rank">${marketUniverse==='exchange'?'Volume':'Rank'}</option>${marketUniverse==='aggregate'?'<option value="marketCap">Market cap</option>':''}<option value="volume">24h volume</option><option value="gainers">Top gainers</option><option value="losers">Top losers</option></select></label><span id="market-source"></span><span class="live-status" data-live-status></span></div><div id="market-results"></div><div id="market-catalog"></div><div id="market-pagination" class="pagination"></div></div><p class="data-note">Directory prices are aggregate USD snapshots. Binance prices use USDT; live rows show their update time. Sorting updates on refresh or filter change.</p>`;
 
- $('#market-sort').value=marketSort;$('#market-search').addEventListener('input',e=>{marketQuery=e.target.value;marketPage=0;queueMarketSearch();renderMarketResults();});$('#market-sort').addEventListener('change',e=>{marketSort=e.target.value;marketPage=0;renderMarketResults();});queueMarketSearch();renderMarketResults();if(marketUniverse==='exchange'&&!data.exchange)fetchData(['exchange']);
+ $('#market-sort').value=marketSort;for(const field of document.querySelectorAll('[data-screen]'))field.addEventListener('change',()=>{const key=field.dataset.screen;marketScreen={...marketScreen,[key]:key==='volume'?Number(field.value):field.value};marketPage=0;renderMarketResults();});$('#market-search').addEventListener('input',e=>{marketQuery=e.target.value;marketPage=0;queueMarketSearch();renderMarketResults();});$('#market-sort').addEventListener('change',e=>{marketSort=e.target.value;marketPage=0;renderMarketResults();});queueMarketSearch();renderMarketResults();if(marketUniverse==='exchange'&&!data.exchange)fetchData(['exchange']);
 
 }
 
-function filteredMarkets(){const list=[...(marketUniverse==='exchange'?(data.exchange?.data??[]).map(a=>{const q=marketStream?.fresh(a.id);return q?{...a,...q,id:a.id,symbol:a.symbol}:a;}):data.markets?.data??[])].filter(a=>(!onlyWatch||workspace.watchlist.includes(a.id))&&matchesAsset(a,marketQuery));if(['gainers','losers','volume'].includes(marketGroup))return filterMarketGroup(list,marketGroup,marketUniverse);if(marketSort==='marketCap')list.sort((a,b)=>(b.marketCap??0)-(a.marketCap??0));if(marketSort==='volume')list.sort((a,b)=>b.volume-a.volume);if(marketSort==='gainers')list.sort((a,b)=>(b.change??-Infinity)-(a.change??-Infinity));if(marketSort==='losers')list .sort((a,b)=>(a.change??Infinity)-(b.change??Infinity));return filterMarketGroup(list,marketGroup,marketUniverse);}
+let marketSectorFocus=false;
+function filteredMarkets(){let list=[...(marketUniverse==='exchange'?(data.exchange?.data??[]).map(a=>{const q=marketStream?.fresh(a.id);return q?{...a,...q,id:a.id,symbol:a.symbol}:a;}):data.markets?.data??[])].filter(a=>(!onlyWatch||workspace.watchlist.includes(a.id))&&matchesAsset(a,marketQuery));if(deskMode==='pro')list=screenMarket(list,marketScreen,marketUniverse);if(['gainers','losers','volume'].includes(marketGroup))return filterMarketGroup(list,marketGroup,marketUniverse);if(marketSort==='marketCap')list.sort((a,b)=>(b.marketCap??0)-(a.marketCap??0));if(marketSort==='volume')list.sort((a,b)=>b.volume-a.volume);if(marketSort==='gainers')list.sort((a,b)=>(b.change??-Infinity)-(a.change??-Infinity));if(marketSort==='losers')list .sort((a,b)=>(a.change??Infinity)-(b.change??Infinity));return filterMarketGroup(list,marketGroup,marketUniverse);}
 
-function renderMarketResults(){const key=marketUniverse==='exchange'?'exchange':'markets';const list=filteredMarkets(),size=deskMode==='basic'?15:40,pages=Math.max(1,Math.ceil(list.length/size));marketPage=Math.min(marketPage,pages-1);const rows=list.slice(marketPage*size,marketPage*size+size);$('#market-groups').innerHTML=renderMarketGroups({assets:data[key]?.data,group:marketGroup,mode:deskMode,universe:marketUniverse});$('#market-results').innerHTML=list.length?(deskMode==='basic'?renderMarketCards(rows,{universe:marketUniverse,watchlist:workspace.watchlist}):marketTable(rows,marketUniverse==='exchange')):data[key]?empty('No assets match your filters','Try a name, ticker or a different universe.'):errorOrLoading(key);$('#market-source').innerHTML=stateBadge(key);$('#market-pagination').innerHTML=`<span>${num(list.length,0)} results · Page ${marketPage+1} of ${pages}</span><div><button class="icon-button" data-action="prev-page" aria-label="Previous page" ${marketPage===0?'disabled':''}>${icon('chevron-left')}</button><button class="icon-button" data-action="next-page" aria-label="Next page" ${marketPage>=pages-1?'disabled':''}>${icon('chevron-right')}</button></div>`;renderMarketCatalog();hydrate();patchLiveQuotes();}
+function renderMarketResults(){const key=marketUniverse==='exchange'?'exchange':'markets';const list=filteredMarkets(),size=deskMode==='basic'?15:40,pages=Math.max(1,Math.ceil(list.length/size));marketPage=Math.min(marketPage,pages-1);const rows=list.slice(marketPage*size,marketPage*size+size);if($('#market-sector'))$('#market-sector').innerHTML=sectorPulse(data.markets?.data??[],marketGroup);$('#market-groups').innerHTML=renderMarketGroups({assets:data[key]?.data,group:marketGroup,mode:deskMode,universe:marketUniverse});$('#market-results').innerHTML=list.length?(deskMode==='basic'?renderMarketCards(rows,{universe:marketUniverse,watchlist:workspace.watchlist}):marketTable(rows,marketUniverse==='exchange')):data[key]?empty('No assets match your filters','Try a name, ticker or a different universe.'):errorOrLoading(key);$('#market-source').innerHTML=stateBadge(key);$('#market-pagination').innerHTML=`<span>${num(list.length,0)} results · Page ${marketPage+1} of ${pages}</span><div><button class="icon-button" data-action="prev-page" aria-label="Previous page" ${marketPage===0?'disabled':''}>${icon('chevron-left')}</button><button class="icon-button" data-action="next-page" aria-label="Next page" ${marketPage>=pages-1?'disabled':''}>${icon('chevron-right')}</button></div>`;renderMarketCatalog();hydrate();patchLiveQuotes();}
 
 function queueMarketSearch(){clearTimeout(marketSearchTimer);marketCatalogSearch.cancel();marketRemoteAssets=[];marketRemoteError='';marketRemoteLoading=!onlyWatch&&marketGroup==='all'&&marketUniverse==='aggregate'&&normalizeSearch(marketQuery).length>=2;if(marketRemoteLoading)marketSearchTimer=setTimeout(()=>marketCatalogSearch.run(marketQuery),350);}
 function renderMarketCatalog(){const host=$('#market-catalog');if(!host)return;if(onlyWatch||marketGroup!=='all'||marketUniverse!=='aggregate'||normalizeSearch(marketQuery).length<2){host.innerHTML='';return;}const shown=new Set(filteredMarkets().map(assetIdentity)),items=rankAssets(marketRemoteAssets.filter(a=>!shown.has(assetIdentity(a))),marketQuery,12);host.innerHTML=`<div class="catalog-results"><h3>Broader asset catalog</h3><p class="source">${marketRemoteLoading?'Searching…':marketRemoteError?'Catalog unavailable. Loaded prices remain above.':'Catalog identities beyond the current price list. Open an asset to check available prices and charts.'}</p>${items.map(a=>`<button class="command-row" data-action="asset-chart" data-id="${esc(a.id)}">${coinMark(a.symbol)}<span><strong>${esc(a.name)} <small>${esc(a.symbol)}</small></strong><small>${esc(a.id)}</small></span>${icon('arrow-up-right')}</button>`).join('')}</div>`;}
 
-function capturePreferences(){if(!terminal)return;workspace.preferences=normalizePreferences({...workspace.preferences,lastInstrument:selected,interval:selectedInterval,view:terminal.viewPreset,style:terminal.style,period:terminal.period,rsiPeriod:terminal.rsiPeriod,oscillator:terminal.oscillator,indicators:terminal.indicators,studyIds:deskMode==='pro'?terminal.studyIds:workspace.preferences.studyIds,basicStudyIds:deskMode==='basic'?terminal.studyIds:workspace.preferences.basicStudyIds,autoGuide:terminal.autoGuide,signalKinds:terminal.signalKinds,markers:terminal.markers});save();}
+function capturePreferences(){if(!terminal)return;workspace.preferences=normalizePreferences({...workspace.preferences,lastInstrument:selected,interval:selectedInterval,view:terminal.viewPreset,style:deskMode==='pro'?terminal.style:workspace.preferences.style,basicStyle:deskMode==='basic'?terminal.style:workspace.preferences.basicStyle,period:terminal.period,rsiPeriod:terminal.rsiPeriod,oscillator:terminal.oscillator,indicators:terminal.indicators,studyIds:deskMode==='pro'?terminal.studyIds:workspace.preferences.studyIds,basicStudyIds:deskMode==='basic'?terminal.studyIds:workspace.preferences.basicStudyIds,autoGuide:terminal.autoGuide,signalKinds:terminal.signalKinds,markers:terminal.markers});save();}
 
 function refreshIndicatorStrip(){if(!terminal||!$('#indicator-strip'))return;const active=terminal.activeStudies().map(id=>STUDIES[id]?.label).filter(Boolean);$('#indicator-strip').innerHTML=`<span class="active-chain" title="${esc(active.join(', '))}">${esc(active.length?active.join(' · '):'Price only')}${terminal.markers?' · EMA crosses':''}</span><small id="chart-window-info">Loading history…</small>`;terminal.notifyWindow();}
 function updateChartWindow(info){
@@ -209,7 +240,7 @@ function updateChartWindow(info){
 }
 function setChartFocus(value){document.body.classList.toggle('chart-focus',value);const b=$('#focus-chart');if(b){b.innerHTML=icon(value?'minimize-2':'maximize-2');b.setAttribute('aria-label',value?'Exit chart focus':'Focus chart');b.setAttribute('aria-pressed',value);}hydrate();requestAnimationFrame(()=>terminal?.draw());}
 
-function riskInstrument(){return page==='practice'?(practiceSelected??selected):selected;}
+function riskInstrument(){return ['practice','risk','replay','backtest'].includes(page)?(practiceSelected??selected):selected;}
 function riskKey(){const i=riskInstrument();return i.venue+':'+i.symbol;}
 function saveRiskDraft(){const form=$('#risk-form');if(form)drafts.setRisk(riskKey(),Object.fromEntries(new FormData(form)));}
 function resetRisk(){const form=$('#risk-form');if(!form)return;const i=riskInstrument();if($('#risk-quote-label'))$('#risk-quote-label').textContent=i.quote;form.reset();if($('#risk-example-status'))$('#risk-example-status').textContent='Use sample prices to see how the numbers work.';for(const [key,value] of Object.entries(drafts.risk(riskKey())))if(form.elements[key])form.elements[key].value=value;$('#risk-result').textContent='Enter levels to estimate position size and fees for '+i.base+'/'+i.quote+'.';}
@@ -219,25 +250,25 @@ function renderComparison(){ $('#main').innerHTML=header('Compare','Compare pric
 function layoutModal(){if(!terminal)return;modal('Saved chart layouts',`<p class="muted">Layouts save indicators, chart style, interval and instrument on this browser.</p><form id="layout-form"><label>Layout name<input name="name" required maxlength="60" placeholder="e.g. Momentum research"></label><button class="button primary" type="submit">Save current layout</button></form><div class="layout-list">${workspace.layouts.map(l=>`<div class="layout-row"><span><strong>${esc(l.name)}</strong><small>${esc(l.settings.lastInstrument.symbol)} · ${esc(l.settings.interval)} · ${esc(l.settings.style)}</small></span><button class="button" data-action="load-layout" data-id="${esc(l.id)}">Load</button><button class="icon-button" data-action="delete-layout" data-id="${esc(l.id)}" aria-label="Delete ${esc(l.name)} layout">${icon('trash-2')}</button></div>`).join('')||'<p class="muted">No named layouts yet. Current settings auto-save automatically.</p>'}</div>`);$('#layout-form').addEventListener('submit',e=>{e.preventDefault();if(workspace.layouts.length>=8){toast('Maximum 8 named layouts. Delete one to save another.');return;}capturePreferences();workspace.layouts.push({id:crypto.randomUUID(),name:new FormData(e.target).get('name').trim(),settings:structuredClone(workspace.preferences)});save();layoutModal();});}
 
 function autoControls(){
- const chosen=normalizePreferences(workspace.preferences).autoGuide;
- return `<div class="auto-controls" role="group" aria-label="Automatic drawing tools"><p>${deskMode==='basic'?'Draw for me':'Auto overlays'}</p>${[['range','Price range'],['trend','Swing trend'],['fibonacci','Fibonacci'],['none','Clear']].map(([id,label])=>`<button class="button" type="button" data-action="auto-guide" data-guide="${id}" aria-pressed="${id===chosen}">${label}</button>`).join('')}${deskMode==='pro'?'<button class="button" type="button" data-action="manual-guide" aria-pressed="false">Manual drawing</button>':''}</div>`;
+ const saved=normalizePreferences(workspace.preferences).autoGuide,chosen=deskMode==='basic'&&['zones','profile'].includes(saved)?'range':saved;
+ return `<div class="auto-controls" role="group" aria-label="Automatic drawing tools"><p>${deskMode==='basic'?'Draw for me':'Auto overlays'}</p>${[['range','Price range'],['trend','Swing trend'],['fibonacci','Fibonacci'],...(deskMode==='pro'?[['zones','Swing levels'],['profile','Volume profile']]:[]),['none','Clear']].map(([id,label])=>`<button class="button" type="button" data-action="auto-guide" data-guide="${id}" aria-pressed="${id===chosen}">${label}</button>`).join('')}${'<button class="button" type="button" data-action="suggest-studies">Suggested studies</button>'}${deskMode==='pro'?'<button class="button" type="button" data-action="manual-guide" aria-pressed="false">Manual drawing</button>':''}</div>`;
 }
 function applyAutoGuide(id){
- if(!terminal||!['range','trend','fibonacci','none'].includes(id))return;
+ if(!terminal||!['range','trend','fibonacci','zones','profile','none'].includes(id))return;
  terminal.autoGuide=id;terminal.manualDrawing=false;$('.drawing-tools').hidden=true;$('[data-action="manual-guide"]')?.setAttribute('aria-pressed','false');terminal.setTool('cursor');
  document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('selected',b.dataset.tool==='cursor'));
  document.querySelectorAll('[data-action="auto-guide"]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.guide===id)));
  capturePreferences();terminal.draw();updateSummary();
 }
 const forecastLedger=createForecastLedger(storage);
-let forecastRun=null,forecastView=null,forecastScope=null,settlePass=null;
+let forecastRun=null,forecastView=null,forecastScope=null,settlePass=null,forecastHorizon=5,activeBook=null;
 function resetForecast(){
  forecastRun?.abort();forecastRun=null;forecastView=null;forecastScope=null;settlePass=null;
 }
 function forecastTarget(){return $('#forecast-result');}
 function paintForecast(chart){
  const target=forecastTarget();if(!target)return;
- const rows=forecastLedger.list(chart.instrument,chart.interval);
+ const rows=forecastLedger.list(chart.instrument,chart.interval).filter(row=>row.horizon===forecastHorizon);
  target.innerHTML=(forecastView?forecastPanel(forecastView.result,{archive:Boolean(chart.historyAnchor),recorded:forecastView.recorded,superseded:!chart.historyAnchor&&forecastView.result.asOf<chart.completedCutoff()}):'<p>Results compare this model with a simple historical baseline. A direction is shown only when the evidence meets the minimum checks.</p>')+forecastJournal(rows);
 }
 function syncForecastScope(chart){
@@ -256,21 +287,21 @@ async function runChartForecast(deep){
  const chart=terminal;if(!chart||forecastRun)return;
  const target=forecastTarget();
  if(!target||!chart.studyBars.length){if(target)target.textContent='Wait for closed exchange candles or refresh the chart.';return;}
- const controller=new AbortController();forecastRun=controller;const gen=chart.generation,active=()=>terminal===chart&&chart.generation===gen&&!controller.signal.aborted;
+ const controller=new AbortController();forecastRun=controller;const gen=chart.generation,horizon=forecastHorizon,active=()=>terminal===chart&&chart.generation===gen&&forecastHorizon===horizon&&!controller.signal.aborted;
  setForecastBusy(true);
  try{
   if(deep){
-   for(let attempt=0;attempt<9&&chart.studyBars.length<1200&&active();attempt++){
+   for(let attempt=0;attempt<12&&chart.studyBars.length<(horizon===24?1650:horizon===12?1300:1000)&&active();attempt++){
     const count=chart.studyBars.length;target.textContent=`Fetching an earlier page. ${count} verified candles loaded…`;
-    await chart.loadOlder({automatic:true});if(count===chart.studyBars.length)break;
+    await chart.loadOlder({automatic:true,retry:attempt===0});if(count===chart.studyBars.length)break;
    }
   }
   if(!active())return;
   target.textContent='Running time-ordered tests against the baseline…';
   const asOf=chart.historyAnchor??Date.now()/1000,closedThrough=chart.completedCutoff(asOf);
-  const result=await assessInWorker({bars:chart.studyBars,interval:chart.interval,instrument:chart.instrument,closedThrough,nowSeconds:asOf,stale:!!chart.historyAnchor||chart.candleMeta?.cache==='stale'},controller.signal);
+  const result=await assessInWorker({bars:chart.studyBars,interval:chart.interval,instrument:chart.instrument,closedThrough,nowSeconds:asOf,horizon,stale:!!chart.historyAnchor||chart.candleMeta?.cache==='stale'},controller.signal);
   if(!active())return;
-  const recorded=result.forecast&&!chart.historyAnchor?await forecastLedger.record(result.forecast):null;
+  const recorded=result.forecast&&!chart.historyAnchor?await forecastLedger.record(result.forecast,undefined,{signal:controller.signal}):null;
   if(!active())return;
   forecastView={result,recorded};paintForecast(chart);
  }catch(error){if(active())target.textContent=error.message||'Unable to evaluate this market.';}
@@ -279,26 +310,31 @@ async function runChartForecast(deep){
 function exportForecastCases(){
  const rows=forecastView?.result?.evidence?.origins;if(!rows?.length||!terminal)return;
  const date=t=>new Date(t*1000).toISOString();
- download(`cryptoz-test-${terminal.instrument.venue}-${terminal.instrument.symbol}-${terminal.interval}.csv`,serializeCSV(['origin_close_utc','target_close_utc','training_labels_through_utc','model_score_up','historical_rate_up','actual_higher'],rows.map(r=>[date(r.asOf),date(r.targetCloseAt),date(r.trainedThrough),r.modelProbability,r.baselineProbability,r.actualUp])),'text/csv');
+ download(`cryptoz-test-${terminal.instrument.venue}-${terminal.instrument.symbol}-${terminal.interval}-${forecastHorizon}bars.csv`,serializeCSV(['origin_close_utc','target_close_utc','training_labels_through_utc','horizon_bars','model_score_up','historical_rate_up','recent_rate_up','last_close_momentum','actual_higher','actual_return'],rows.map(r=>[date(r.asOf),date(r.targetCloseAt),date(r.trainedThrough),r.horizon??forecastHorizon,r.modelProbability,r.baselineProbability,r.recentBaselineProbability??'',r.momentumBaselineProbability??'',r.actualUp,r.actualReturn??''])),'text/csv');
 }
 
+function activateChartPanel(value,{reflect=true}={}){
+ const selectedPane=chartPanelFor(value,deskMode);
+ document.querySelectorAll('[data-chart-pane]').forEach(el=>el.hidden=el.dataset.chartPane!==selectedPane);
+ document.querySelectorAll('[data-action="chart-panel"]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.pane===selectedPane)));if(selectedPane==='depth'){lastBookPaint=0;updateBook(activeBook); }
+ if(reflect)history.replaceState(null,'','#terminal'+(selectedPane==='reading'?'':'?panel='+selectedPane));
+}
 function renderTerminal(){
-
- $('#main').innerHTML=`<div class="terminal-heading"><div><span class="page-kicker">TECHNICAL ANALYSIS</span><h1>Chart terminal</h1><p class="terminal-description basic-only">Explore price history and see automatic levels explained beside the chart.</p><p class="terminal-description pro-only">Exchange history, technical studies and market depth.</p></div><div class="hero-actions"><span class="source" id="stream-status">Connecting…</span></div></div><div class="terminal-layout" id="terminal-chart"><section class="panel terminal-main"><div class="instrument-bar"><label class="select-wrap"><span>Venue</span><select id="venue"><option value="binance">Binance</option><option value="coinbase">Coinbase</option></select></label><label class="select-wrap instrument-select"><span>Instrument</span><select id="instrument" aria-label="Chart instrument"></select></label><button class="icon-button" data-action="search" title="Search all instruments" aria-label="Search all instruments">${icon('search')}</button><div class="instrument-quote"><strong id="terminal-price">—</strong><span id="terminal-change"></span><small id="compact-stream-status" role="status">Connecting</small></div><div class="instrument-stats"><span>24h high <b id="terminal-high">—</b></span><span>24h low <b id="terminal-low">—</b></span></div></div><div class="chart-toolbar"><button class="icon-button focus-nav-reveal" data-action="dock-toggle" aria-label="Show navigation">${icon('menu')}</button><div class="timeframes">${['1m','5m','15m','1h','4h','1d'].map(t=>`<button data-action="timeframe" data-time="${t}" class="${t===selectedInterval?'selected':''}">${t.endsWith('m')?t:t.toUpperCase()}</button>`).join('')}</div><label class="compact-timeframe"><span class="sr-only">Candle interval</span><select id="compact-interval">${['1m','5m','15m','1h','4h','1d'].map(t=>`<option value="${t}" ${t===selectedInterval?'selected':''}>${t.toUpperCase()}</option>`).join('')}</select></label><label class="chart-view-control"><span>View</span><select id="chart-view" aria-label="Chart view"><option value="all">Fit loaded</option><option value="recent">100 bars</option><option value="custom" disabled>Custom</option></select></label><div class="chart-zoom" aria-label="Chart zoom"><button class="icon-button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out">${icon('minus')}</button><button class="icon-button" data-action="zoom-in" aria-label="Zoom in" title="Zoom in">${icon('plus')}</button></div><button class="tool-button study-button" data-action="indicators" aria-label="Indicators">${icon('sliders-horizontal')}<span>Indicators</span></button><details class="chart-menu pro-only"><summary aria-label="Chart tools">${icon('more-horizontal')}<span>Tools</span></summary><div class="chart-menu-body"><button data-action="refresh">${icon('refresh-cw')} Refresh chart</button><button data-action="guide" data-guide="chart">${icon('info')} Chart guide</button><label>Chart type<select id="chart-style" aria-label="Chart style"><option value="candles">Candles</option><option value="bars">OHLC bars</option><option value="line">Line</option><option value="heikin">Heikin-Ashi</option></select></label><button data-action="layouts">${icon('layers')} Saved layouts</button><button data-action="drawings">${icon('settings-2')} Manage drawings</button><button data-action="fit-chart">${icon('maximize-2')} Reset view</button><button data-action="chart-png">${icon('download')} Export PNG</button><button data-action="chart-csv">${icon('download')} Export candles CSV</button></div></details><button class="icon-button focus-button" id="focus-chart" data-action="focus-chart" aria-label="Focus chart" aria-pressed="false" title="Focus chart">${icon('maximize-2')}</button></div><div class="indicator-strip" id="indicator-strip"><span>EMA 20</span><span>EMA 50</span><span>RSI 14</span><small>UTC bars · provisional latest candle</small></div>${autoControls()}<div class="chart-workspace"><div class="drawing-tools pro-only" hidden>${[['cursor','mouse-pointer-2','Pan and crosshair'],['horizontal','minus','Horizontal level'],['trend','trending-up','Trend line: two clicks'],['fib','layers','Fibonacci: two clicks'],['label','file-text','Annotation: one click']].map(([id,i,t])=>`<button class="icon-button ${id==='cursor'?'selected':''}" data-action="draw-tool" data-tool="${id}" title="${t}" aria-label="${t}">${icon(i)}</button>`).join('')}<span></span><button class="icon-button" data-action="drawings" title="Edit saved drawings" aria-label="Edit saved drawings">${icon('settings-2')}</button></div><div class="price-chart" id="price-chart" aria-label="Interactive price chart"></div></div><div class="history-bar" aria-label="Chart history"><button class="button" data-action="older-candles" disabled>${icon('chevron-left')} Older candles</button><button class="button" data-action="latest-candles">Latest ${icon('chevron-right')}</button><button class="button" data-action="chart-history-date">${icon('clock')} Jump to date</button><small id="history-status" role="status">Connecting to history…</small></div><div class="chart-bottom"><span id="candle-source">Drag sideways to pan · scroll to zoom</span><button class="text-link pro-only" data-action="drawings">Drawings <span id="drawings-count">0</span> ${icon('chevron-right')}</button></div></section><aside class="terminal-side chart-inspector"><section class="panel chart-reader"><div class="panel-top"><div><span class="page-kicker">CHART CONTEXT</span><h2>Read this chart</h2></div></div><div id="technical-summary" class="chart-reader-body"></div></section><section class="panel forecast-card"><div class="panel-top"><div><span class="page-kicker">EVIDENCE</span><h2>Adaptive study</h2></div></div><div class="forecast-body"><p>Tests this market’s past patterns before suggesting a direction for the next five candles.</p><div class="forecast-actions"><button class="button primary" data-action="forecast-run">Run study</button><button class="button" data-action="forecast-run" data-deep="1">Load more &amp; test</button></div><div id="forecast-result" role="status">Select a pair and wait for candle history.</div></div></section><section class="panel orderbook-panel pro-only"><div class="panel-top"><h2>Order book</h2><span class="small-tag" id="book-mode">L2 SNAPSHOT</span></div><div class="book-labels"><span>Price</span><span>Size (base)</span><span>Total</span></div><div id="orderbook">${empty('Connecting…')}</div><div class="book-footer" id="book-source">Refreshing every 15s</div></section></aside></div>`;
-
- terminal=new TerminalChart({host:$('#price-chart'),workspace,save,deskMode,onQuote:updateQuote,onSummary:updateSummary,onBook:updateBook,onStatus:updateStreamStatus,onWindow:updateChartWindow,onDrawings:()=>{if($('#drawings-count'))$('#drawings-count').textContent=(workspace.drawings[terminal?.key]??[]).length;}});
-
- $('#venue').value=selected.venue;$('#chart-style').value=terminal.style;$('#chart-view').value=terminal.viewPreset;refreshIndicatorStrip();updateInstrumentOptions();capturePreferences();terminal.load(selected,selectedInterval);updateWatchPanel();
-
- $('#venue').addEventListener('change',e=>{const previousBase=selected.base;selected=selectVenueInstrument(selected,instruments[e.target.value],e.target.value);if(selected.base!==previousBase)toast(previousBase+' is not listed here; selected '+selected.base+'.');capturePreferences();resetRisk();updateInstrumentOptions();terminal.load(selected,selectedInterval);});
-
- $('#instrument').addEventListener('change',e=>{selected=instruments[selected.venue].find(x=>x.symbol===e.target.value)??selected;capturePreferences();resetRisk();terminal.load(selected,selectedInterval);});
-
- $('#chart-view').addEventListener('change',e=>{terminal.setViewPreset(e.target.value);capturePreferences();});$('#compact-interval').addEventListener('change',e=>{selectedInterval=e.target.value;capturePreferences();document.querySelectorAll('[data-action="timeframe"]').forEach(b=>b.classList.toggle('selected',b.dataset.time===selectedInterval));terminal.load(selected,selectedInterval);});
+ const panel=new URLSearchParams(location.hash.split('?')[1]??'').get('panel');
+ if(deskMode==='basic')forecastHorizon=5;
+ $('#main').innerHTML=chartWorkbench({mode:deskMode,interval:selectedInterval,forecastHorizon,panel,controls:autoControls()});
+ activeBook=null;terminal=new TerminalChart({host:$('#price-chart'),workspace,save,deskMode,onQuote:updateQuote,onSummary:updateSummary,onBook:updateBook,onStatus:updateStreamStatus,onWindow:updateChartWindow,onDrawings:()=>{if($('#drawings-count'))$('#drawings-count').textContent=(workspace.drawings[terminal?.key]??[]).length;}});
+ if(deskMode==='basic'){terminal.style=workspace.preferences.basicStyle??'line';terminal.viewPreset='recent';}
+ $('#venue').value=selected.venue;$('#chart-style').value=terminal.style;$('#chart-view').value=terminal.viewPreset;
+ refreshIndicatorStrip();updateInstrumentOptions();terminal.load(selected,selectedInterval);
+ $('#forecast-horizon').addEventListener('change',e=>{const n=Number(e.target.value);if(![5,12,24].includes(n))return;forecastRun?.abort();forecastRun=null;forecastView=null;forecastHorizon=n;setForecastBusy(false);paintForecast(terminal);});
+ $('#venue').addEventListener('change',e=>{const prior=selected.base;selected=selectVenueInstrument(selected,instruments[e.target.value],e.target.value);if(selected.base!==prior)toast(prior+' is not listed here; selected '+selected.base+'.');capturePreferences();updateInstrumentOptions();terminal.load(selected,selectedInterval);});
+ $('#instrument').addEventListener('change',e=>{selected=instruments[selected.venue].find(x=>x.symbol===e.target.value)??selected;capturePreferences();terminal.load(selected,selectedInterval);});
+ $('#chart-view').addEventListener('change',e=>{terminal.setViewPreset(e.target.value);capturePreferences();});
+ $('#compact-interval').addEventListener('change',e=>{selectedInterval=e.target.value;capturePreferences();syncTimeframe();terminal.load(selected,selectedInterval);});
  $('#chart-style').addEventListener('change',e=>{terminal.style=e.target.value;capturePreferences();if(terminal.bars.length)terminal.build();});
-
-
 }
+function syncTimeframe(){for(const b of document.querySelectorAll('[data-time]')){b.classList.toggle('selected',b.dataset.time===selectedInterval);b.setAttribute('aria-pressed',String(b.dataset.time===selectedInterval));}}
 
 function updateInstrumentOptions(){if(!$('#instrument'))return;const items=[...instruments[selected.venue]];if(!items.some(x=>x.symbol===selected.symbol))items.unshift(selected);items.sort((a,b)=>a.base.localeCompare(b.base));$('#instrument').innerHTML=items.map(x=>`<option value="${esc(x.symbol)}">${esc(x.base)}/${esc(x.quote)}</option>`).join('');$('#instrument').value=selected.symbol;}
 
@@ -314,8 +350,8 @@ function updateChartReader(chart,pov){
  const node=$('#technical-summary');if(!node||!chart)return;
  const key=[chart.generation,pov.closedAt,pov.stale,chart.manualDrawing,chart.autoGuide,chart.signalKinds?.join(','),chart.studyIds?.join(','),pov.reason].join(':');
  if(node.dataset.context===key)return;node.dataset.context=key;
- const open=[...node.querySelectorAll('details[open] summary')].map(x=>x.textContent);
- node.innerHTML=chartGuide(pov,chart.autoSetup?{...chart.autoSetup,activeGuide:chart.manualDrawing?'none':chart.autoGuide,events:chart.autoSetup.events.filter(e=>(deskMode==='pro'?chart.signalKinds:['range']).includes(e.kind))}:null,deskMode,chart.activeStudies(),STUDIES);
+ const open=[...node.querySelectorAll('details[open] summary')].map(x=>x.textContent);const levels=$('#auto-guide-info');if(levels)levels.innerHTML=renderGuideAudit(chart.autoSetup,chart.manualDrawing?'none':chart.autoGuide,chart.instrument.quote);
+ node.innerHTML=chartGuide(pov,chart.autoSetup?{...chart.autoSetup,activeGuide:'none',events:chart.autoSetup.events.filter(e=>(deskMode==='pro'?chart.signalKinds:['range']).includes(e.kind))}:null,deskMode,chart.activeStudies(),STUDIES);
  for(const x of node.querySelectorAll('details'))x.open=open.includes(x.querySelector('summary').textContent);
  if(pov.ready&&!chart.historyAnchor){if(!forecastRun&&forecastView?.result.asOf<pov.closedAt&&node.dataset.forecastWake!==String(pov.closedAt)){node.dataset.forecastWake=String(pov.closedAt);paintForecast(chart);}acceptForecastResults(chart,pov.closedAt);}
 }
@@ -323,7 +359,7 @@ function updateChartReader(chart,pov){
 function updateStreamStatus(s){if(!$('#stream-status'))return;const compact=$('#compact-stream-status');if(compact){const short=navigator.onLine===false?'Offline':{loading:'Connecting',streaming:'Live',snapshot:'Snapshot',polling:'Reconnecting',delayed:'Delayed',stale:'Stale',unavailable:'Unavailable',archive:'Archive'}[s]??s;if(compact.textContent!==short)compact.textContent=short;compact.dataset.status=s;}const labels={loading:'Connecting to exchange…',streaming:'WebSocket · live messages',snapshot:'REST snapshot',polling:'REST fallback · reconnecting',delayed:'Delayed · awaiting fresh data',stale:'Stale provider cache',unavailable:'Provider unavailable',archive:'Historical window · no live quote'};$('#stream-status').innerHTML=`<span class="live-dot ${s==='streaming'?'':'muted-dot'}"></span>${labels[s]??s}`;$('#stream-status').className='source '+(['stale','delayed','unavailable'].includes(s)?'warn':'');if(terminal?.candleMeta)$('#candle-source').textContent=`${terminal.candleMeta.provider} · ${selected.base}/${selected.quote} · UTC bars · ${terminal.candleMeta.cache==='stale'?'STALE · ':''}${stamp(terminal.candleMeta.fetchedAt)}`;}
 
 let lastBookPaint=0;
-function updateBook(r){if(!$('#orderbook'))return;const now=Date.now();if(r?.cache==='live'&&now-lastBookPaint<250)return;lastBookPaint=r?now:0;if(!r){$('#book-mode').textContent='AWAITING DATA';$('#orderbook').innerHTML=empty('Book unavailable','Awaiting next valid snapshot.');$('#book-source').textContent='No current snapshot';return;}$('#book-mode').textContent=r.cache==='live'?'LIVE · TOP 20':'L2 SNAPSHOT';const d=r.data,max=Math.max(...d.bids.slice(0,7).map(x=>x[1]),...d.asks.slice(0,7).map(x=>x[1]),1);const rows=(items,side)=>items.map(x=>`<div class="book-row ${side}" style="--depth:${x[1]/max*100}%"><span>${num(x[0],x[0]<1?8:2)}</span><span>${num(x[1],5)}</span><span>${compact(x[0]*x[1])}</span></div>`).join('');const bid=d.bids[0]?.[0],ask=d.asks[0]?.[0];$('#orderbook').innerHTML=rows(d.asks.slice(0,7).reverse(),'ask')+`<div class="book-spread">Spread <strong>${Number.isFinite(ask-bid)?num(ask-bid,8):'—'} ${esc(selected.quote)}</strong><small>${bid&&ask?num((ask-bid)/((ask+bid)/2)*100,4)+'%':''}</small></div>`+rows(d.bids.slice(0,7),'bid');$('#book-source').textContent=`${r.provider} · ${r.cache==='stale'?'STALE · ':''}${r.cache==='live'?'received '+new Date(r.fetchedAt).toLocaleTimeString():ago(r.fetchedAt)} · top 7 / side`;}
+function updateBook(r){activeBook=r;if(!$('#orderbook')||$('#wb-depth')?.hidden)return;const now=Date.now();if(r?.cache==='live'&&now-lastBookPaint<250)return;lastBookPaint=r?now:0;if(!r){$('#book-mode').textContent='AWAITING DATA';$('#orderbook').innerHTML=empty('Book unavailable','Awaiting next valid snapshot.');$('#book-source').textContent='No current snapshot';return;}$('#book-mode').textContent=r.cache==='live'?'LIVE · TOP 20':'L2 SNAPSHOT';const d=r.data,max=Math.max(...d.bids.slice(0,7).map(x=>x[1]),...d.asks.slice(0,7).map(x=>x[1]),1);const rows=(items,side)=>items.map(x=>`<div class="book-row ${side}" style="--depth:${x[1]/max*100}%"><span>${num(x[0],x[0]<1?8:2)}</span><span>${num(x[1],5)}</span><span>${compact(x[0]*x[1])}</span></div>`).join('');const bid=d.bids[0]?.[0],ask=d.asks[0]?.[0];$('#orderbook').innerHTML=rows(d.asks.slice(0,7).reverse(),'ask')+`<div class="book-spread">Spread <strong>${Number.isFinite(ask-bid)?num(ask-bid,8):'—'} ${esc(selected.quote)}</strong><small>${bid&&ask?num((ask-bid)/((ask+bid)/2)*100,4)+'%':''}</small></div>`+rows(d.bids.slice(0,7),'bid');$('#book-source').textContent=`${r.provider} · ${r.cache==='stale'?'STALE · ':''}${r.cache==='live'?'received '+new Date(r.fetchedAt).toLocaleTimeString():ago(r.fetchedAt)} · top 7 / side`;}
 
 function updateWatchPanel(){if(!$('#terminal-watchlist'))return;const list=(data.markets?.data??[]).filter(a=>workspace.watchlist.includes(a.id));$('#terminal-watchlist').innerHTML=list.length?list.slice(0,8).map(a=>`<button class="watch-row" data-action="asset-chart" data-id="${esc(a.id)}"><span>${esc(a.symbol)} <small>USD</small></span><span>${price(a.price)}<small class="${tone(a.change)}">${pct(a.change)}</small></span></button>`).join(''):empty('Watchlist empty','Star an asset in Markets to save it.');}
 
@@ -429,7 +465,7 @@ document.addEventListener('click',e=>{
  if(a==='skip-content'){e.preventDefault();$('#main').focus();$('#main').scrollIntoView({block:'start'});return;}
 
  if(b.closest('.chart-menu'))b.closest('.chart-menu').open=false;
- if(a==='desk'){if(page==='overview')setDesk(b.dataset.mode);return;}if(a==='older-candles'){terminal?.loadOlder();return;}if(a==='latest-candles'){terminal?.showLatest();capturePreferences();return;}
+ if(a==='desk'){const mode=b.dataset.mode;if(page==='overview'&&['basic','pro'].includes(mode)&&mode!==deskMode){setDesk(mode);renderPage();document.querySelector('[data-action="desk"][data-mode="'+mode+'"]')?.focus({preventScroll:true});}return;}if(a==='older-candles'){terminal?.loadOlder();return;}if(a==='latest-candles'){terminal?.showLatest();capturePreferences();return;}
  if(a==='zoom-in'){terminal?.zoom(2/3);return;}if(a==='zoom-out'){terminal?.zoom(1.5);return;}if(a==='focus-chart'){setChartFocus(!document.body.classList.contains('chart-focus'));return;}
  if(a==='dock-toggle'){setDock(dockMode==='hidden'?'compact':'hidden');if(dockMode==='compact')$('.sidebar a[aria-current="page"]')?.focus();return;}
  if(a==='dock-hide'){setDock('hidden');const reveal=document.body.classList.contains('chart-focus')?$('.focus-nav-reveal'):$('[data-action="dock-toggle"]');reveal?.focus();return;}
@@ -453,8 +489,10 @@ document.addEventListener('click',e=>{
 
  if(a==='default-chart'){selected={venue:'binance',symbol:'BTCUSDT',base:'BTC',quote:'USDT'};return;}
 
- if(a==='market-group'){marketGroup=b.dataset.marketGroup;marketPage=0;queueMarketSearch();renderMarketResults();document.querySelector('[data-market-group="'+CSS.escape(marketGroup)+'"]')?.focus({preventScroll:true});return;}
- if(a==='universe'){marketGroup='all';marketUniverse=b.dataset.universe;if(marketUniverse==='exchange'&&marketSort==='marketCap')marketSort='volume';marketPage=0;renderMarkets();hydrate();return;}
+ if(a==='insights-tab'){insightsView?.load(b.dataset.tab);return;}
+ if(a==='insights-retry'){insightsView?.load();return;}
+ if(a==='market-group'){if(!b.closest('.sector-pulse'))marketSectorFocus=false;else marketSectorFocus=true;marketGroup=b.dataset.marketGroup;marketPage=0;queueMarketSearch();renderMarketResults();document.querySelector((marketSectorFocus?'#market-sector ':'#market-groups ')+'[data-market-group="'+CSS.escape(marketGroup)+'"]')?.focus({preventScroll:true});return;}
+ if(a==='universe'){marketGroup='all';marketScreen=initialScreen();marketUniverse=b.dataset.universe;if(marketUniverse==='exchange'&&marketSort==='marketCap')marketSort='volume';marketPage=0;renderMarkets();hydrate();return;}
 
  if(a==='toggle-watch'){onlyWatch=!onlyWatch;b.classList.toggle('selected',onlyWatch);marketPage=0;renderMarketResults();return;}
 
@@ -467,7 +505,7 @@ document.addEventListener('click',e=>{
 
  if(a==='studio-tab'){studioView(b.dataset.view);return;}
 
- if(a==='timeframe'){selectedInterval=b.dataset.time;if($('#compact-interval'))$('#compact-interval').value=selectedInterval;capturePreferences();document.querySelectorAll('[data-time]').forEach(el=>el.classList.toggle('selected',el.dataset.time===selectedInterval));terminal?.load(selected,selectedInterval);return;}
+ if(a==='timeframe'){selectedInterval=b.dataset.time;if($('#compact-interval'))$('#compact-interval').value=selectedInterval;capturePreferences();syncTimeframe();terminal?.load(selected,selectedInterval);return;}
 
  if(a==='retry-chart'){terminal?.refresh();return;}
 
@@ -479,8 +517,10 @@ document.addEventListener('click',e=>{
 
  if(a==='guide'){const help=helpFor(b.dataset.guide);if(help)modal(help.title,'<ol class="help-steps">'+help.items.map(([title,text])=>'<li><h3>'+esc(title)+'</h3><p>'+esc(text)+'</p></li>').join('')+'</ol>');return;}
  if(a==='indicators'){indicatorModal();return;}
+ if(a==='chart-panel'){activateChartPanel(b.dataset.pane);return;}
  if(a==='forecast-csv'){exportForecastCases();return;}
  if(a==='forecast-run'){runChartForecast(b.dataset.deep==='1');return;}
+ if(a==='suggest-studies'&&terminal){const state=buildStudyPov({bars:terminal.studyBars,instrument:selected,interval:selectedInterval,nowSeconds:terminal.historyAnchor??Date.now()/1000,candleMeta:terminal.candleMeta,confirmedThrough:terminal.confirmedThrough});if(!state.ready){toast('Wait for enough closed candles.');return;}const preset=STUDY_PRESETS[state.trend==='Mixed'?'range':'trend'];terminal.studyIds=normalizeStudyIds(preset.studies);terminal.renderIndicators();refreshIndicatorStrip();updateSummary();capturePreferences();toast(preset.label+' studies applied');return;}
  if(a==='auto-guide'){applyAutoGuide(b.dataset.guide);return;}
  if(a==='manual-guide'&&terminal&&deskMode==='pro'){terminal.manualDrawing=!terminal.manualDrawing;b.setAttribute('aria-pressed',String(terminal.manualDrawing));$('.drawing-tools').hidden=!terminal.manualDrawing;terminal.setTool('cursor');document.querySelectorAll('[data-action="auto-guide"]').forEach(btn=>btn.setAttribute('aria-pressed',String(!terminal.manualDrawing&&btn.dataset.guide===terminal.autoGuide)));terminal.draw();updateSummary();return;}
  if(a==='chart-history-date'){historyDateModal();return;}
@@ -496,7 +536,7 @@ document.addEventListener('click',e=>{
  if(a==='delete-drawing'){workspace.drawings[terminal.key]=(workspace.drawings[terminal.key]??[]).filter(x=>x.id!==b.dataset.id);save();terminal.draw();$('#drawings-count').textContent=workspace.drawings[terminal.key].length;drawingModal();return;}
 
  if(a==='risk-example'){const form=$('#risk-form');if(!form)return;const values={side:'long',equity:1000,riskPercent:1,entry:100,stop:95,target:110,feePercent:0.1};for(const [key,value] of Object.entries(values))form.elements[key].value=value;$('#risk-example-status').textContent='Hypothetical example loaded. The prices are for practice, not current market levels.';riskCalculator?.calculate();return;}
- if(a==='use-price'){const quote=page==='practice'?practice?.currentQuote():terminal?.currentQuote();if(quote){$('#risk-form [name="entry"]').value=quote.price;saveRiskDraft();riskCalculator?.invalidate();}else toast('No fresh quote for this instrument. Refresh or enter a price manually.');return;}
+ if(a==='use-price'){if(page==='risk'){useRiskPrice(b);return;}const quote=terminal?.currentQuote();if(quote){$('#risk-form [name="entry"]').value=quote.price;saveRiskDraft();riskCalculator?.invalidate();}else toast('No fresh quote for this instrument. Refresh or enter a price manually.');return;}
 
 
  if(a==='new-alert'){alertModal();return;}

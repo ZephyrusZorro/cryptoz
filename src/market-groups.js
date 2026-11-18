@@ -25,6 +25,8 @@ const categories = [
     'akt-akash-network', 'theta-theta-token', 'aioz-aioz-network', 'glm-golem', 'nmr-numeraire',
     'io-ionet', 'rlc-iexec-rlc',
   ])},
+  {id:'tokenized-oracles',label:'Tokenized assets & oracles',detail:'Selected tokens tied to off-chain assets or used in data networks.',ids:new Set(['paxg-pax-gold','xaut-tether-gold','link-chainlink','pyth-pyth-network'])},
+  {id:'gaming',label:'Gaming & virtual worlds',detail:'Selected assets used in blockchain games, virtual worlds, or gaming infrastructure.',ids:new Set(['imx-immutable-x','axs-axie-infinity','gala-gala','sand-the-sandbox','mana-decentraland'])},
   {id: 'meme', label: 'Meme coins', detail: 'Selected assets associated with internet memes and communities.', ids: new Set([
     'doge-dogecoin', 'shib-shiba-inu', 'pepe-pepe', 'bonk-bonk', 'floki-floki-inu', 'fartcoin-fartcoin',
     'turbo-turbo', 'bome-book-of-meme', 'brett-brett-base', 'toshi-toshi', 'mew-cat-in-a-dogs-world',

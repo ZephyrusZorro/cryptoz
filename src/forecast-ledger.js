@@ -1,16 +1,19 @@
-import { closedStudyCandles, FORECAST_HORIZON, FORECAST_VERSION } from './adaptive-study.js';
+import { closedStudyCandles, FORECAST_HORIZON, FORECAST_HORIZONS, FORECAST_VERSION } from './adaptive-study.js';
 import { INTERVALS, validInstrument } from './preferences.js';
 
 export const FORECAST_STORAGE_KEY = 'cryptoz.forecasts.v1';
-const MAX_RECORDS = 192;
-const MAX_PER_MARKET = 32;
-const MAX_SERIALIZED_LENGTH = 256_000;
+const LEGACY_VERSION = 'adaptive-v1';
+const MAX_RECORDS = { [LEGACY_VERSION]: 192, [FORECAST_VERSION]: 384 };
+const MAX_PER_SCOPE = 32;
+const MAX_SERIALIZED_LENGTH = 384_000;
+const BENCHMARK_IDS = new Set(['historical', 'recent', 'momentum']);
 
 const stepFor = interval => typeof interval === 'string' && Object.hasOwn(INTERVALS, interval) ? INTERVALS[interval] : 0;
 const positivePrice = value => Number.isFinite(value) && value > 0;
 const validProbability = value => Number.isFinite(value) && value >= 0 && value <= 1;
 const marketKey = row => [row.venue, row.symbol, row.interval].join(':');
-const recordKey = row => [marketKey(row), row.version, row.horizon, row.asOf].join(':');
+const scopeKey = row => [marketKey(row), row.version, row.horizon].join(':');
+const recordKey = row => [scopeKey(row), row.asOf].join(':');
 const outcomeDirection = (close, originClose) => close > originClose ? 'up' : close < originClose ? 'down' : 'flat';
 
 function forecastFields(row) {
@@ -20,13 +23,20 @@ function forecastFields(row) {
   const suffix = venue === 'binance' ? 'USDT' : '-USD';
   if (!validInstrument({ venue, symbol, base: symbol.slice(0, -suffix.length), quote })) return null;
   const step = stepFor(interval);
-  if (!step || version !== FORECAST_VERSION || horizon !== FORECAST_HORIZON
+  const supported = version === LEGACY_VERSION && horizon === FORECAST_HORIZON
+    || version === FORECAST_VERSION && FORECAST_HORIZONS.includes(horizon);
+  if (!step || !supported
       || !Number.isSafeInteger(asOf) || asOf <= 0 || asOf >= 1e10 || asOf % step
       || targetCloseAt !== asOf + step * horizon || !positivePrice(originClose)
       || !validProbability(probabilityUp) || !validProbability(baselineProbabilityUp)
       || !(direction === 'up' && probabilityUp >= 0.60 || direction === 'not-higher' && probabilityUp <= 0.40)) return null;
 
-  return { venue, symbol, interval, version, horizon, asOf, targetCloseAt, originClose, probabilityUp, baselineProbabilityUp, direction };
+  const fields = { venue, symbol, interval, version, horizon, asOf, targetCloseAt, originClose, probabilityUp, baselineProbabilityUp, direction };
+  const { benchmarkId, benchmarkProbabilityUp } = row;
+  if (BENCHMARK_IDS.has(benchmarkId) && validProbability(benchmarkProbabilityUp)) {
+    return { ...fields, benchmarkId, benchmarkProbabilityUp };
+  }
+  return fields;
 }
 
 function issuedInTime(row, at) {
@@ -51,15 +61,17 @@ function retain(records) {
     if (!first || row.issuedAt < first.issuedAt) firstIssuances.set(key, row);
   }
   const newest = [...firstIssuances.values()].sort((a, b) => b.issuedAt - a.issuedAt);
-  const counts = new Map();
+  const scopes = new Map();
+  const versions = new Map();
   const retained = [];
   for (const row of newest) {
-    const market = marketKey(row);
-    const count = counts.get(market) ?? 0;
-    if (count >= MAX_PER_MARKET) continue;
-    counts.set(market, count + 1);
+    const scope = scopeKey(row);
+    const count = scopes.get(scope) ?? 0;
+    const versionCount = versions.get(row.version) ?? 0;
+    if (count >= MAX_PER_SCOPE || versionCount >= MAX_RECORDS[row.version]) continue;
+    scopes.set(scope, count + 1);
+    versions.set(row.version, versionCount + 1);
     retained.push(row);
-    if (retained.length >= MAX_RECORDS) break;
   }
   return retained;
 }
@@ -100,16 +112,18 @@ export function createForecastLedger(storage, locks = globalThis.navigator?.lock
   }
 
   return {
-    async record(forecast, nowSeconds = Date.now() / 1000) {
+    async record(forecast, nowSeconds, { signal } = {}) {
       const fields = forecastFields(forecast);
-      if (!fields) return null;
+      if (!fields || signal?.aborted) return null;
       return write(() => {
+        if (signal?.aborted) return null;
         const records = read();
         if (!records) return null;
         const existing = records.find(row => recordKey(row) === recordKey(fields));
         if (existing) return existing;
-        if (!issuedInTime(fields, nowSeconds)) return null;
-        const entry = { ...fields, issuedAt: nowSeconds, outcome: null };
+        const issuedAt = nowSeconds === undefined ? Date.now() / 1000 : nowSeconds;
+        if (!issuedInTime(fields, issuedAt)) return null;
+        const entry = { ...fields, issuedAt, outcome: null };
         const retained = retain([...records, entry]);
         return retained.includes(entry) && save(retained) ? entry : null;
       }, null);

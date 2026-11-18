@@ -2,13 +2,13 @@
 
 Crypto charts, news and market research. Five compact left destinations: Home, Markets, Charts, Practice and Learn. The rail can hide/reveal but never expands. A transparent breadcrumb/search header, contextual tabs and direct Home sections keep the workspace organized.
 
-Home has a Basic/Pro switch, a live spot tape, news topics, real market stats, and a separate Analyst views tab. Basic Markets presents grouped cards; Pro uses the research table. Full news is one attributed feed with topic filters, including CoinDesk, Decrypt, Cointelegraph and The Block.
+Home switches between a Basic starting guide and a Pro market monitor. Both include publisher news and market statistics. Basic Markets shows grouped cards; Pro has a multi-filter screener and category changes. Markets → Insights covers derivatives, networks, macro and official protocol references. Full news is one attributed feed with topic filters, including CoinDesk, Decrypt, Cointelegraph and The Block.
 
 Search normalizes names and punctuation, handles verified Fetch.ai/FET/Artificial Superintelligence Alliance identities, and queries the wider active provider catalog on demand. Price and exchange-chart coverage vary; an identity result does not imply live price/history availability. The bulk quote endpoint is provider-limited (2,000 assets observed); supported exchange charts use Binance USDT and Coinbase USD listings.
 
 Appearance provides dark/light, System/Glass/Solid surfaces, a stable background and reduced motion. Explicit Glass is useful when the device otherwise requests reduced transparency. Continuous particles and pointer lighting have been removed. Existing local research state is preserved.
 
-Choose **Basic** or **Pro** on Home. **Learn** opens crypto foundations and the glossary. Charts has one-click auto guides, an evidence sidebar, **Older candles**, a **Jump to date** archive, and **Latest**. **Practice** contains the simulator and position calculator. Read the [adaptive study method](docs/ADAPTIVE-FORECAST.md), [market group coverage](docs/market-groups.md), and [operations](docs/OPERATIONS.md).
+Choose **Basic** or **Pro** on Home. **Learn** opens crypto foundations and the glossary. Charts has separate guided and Pro workbenches, full-width analysis panels, one-click drawings, and a date archive. **Practice** has separate Simulator, Replay, Strategy lab and Calculator views. Read the [archive comparison](docs/ARCHIVE-MERGE.md), [forecast method](docs/FORECAST-STUDY.md), [market group coverage](docs/market-groups.md), and [operations](docs/OPERATIONS.md).
 
 A crypto research terminal with real public market data, editable financial charts, market visualizations and publisher-linked news. This rebuild replaces the supplied single-file app's unsupported quantitative claims and hardcoded market narratives.
 

@@ -1,0 +1,94 @@
+.practice-history, [data-strategy-results] {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+}
+[data-strategy-results][hidden] { display: none; }
+.practice-history-fields [hidden] { display: none; }
+.practice-card .data-note { padding: 4px 0; }
+.practice-history-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding-top: 4px;
+}
+.practice-history h4 { margin: 0; }
+.practice-history-head p { font-size: 13px; max-width: 48ch; }
+.practice-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.practice-history-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 9px;
+}
+.practice-history-fields label {
+  display: grid;
+  gap: 5px;
+  min-width: 110px;
+  flex: 1 1 120px;
+  color: var(--muted);
+}
+.practice-strategy-form label:first-child { flex-basis: 230px; }
+.practice-history-fields :is(input, select), .practice-controls input {
+  width: 100%;
+  min-width: 0;
+}
+.practice-history-fields :is(input, select, button), .practice-actions button { min-height: 42px; }
+.practice-chart {
+  height: clamp(260px, 39vh, 430px);
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.practice-candle { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.practice-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(132px, 100%), 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--border);
+}
+.practice-metrics > div { min-width: 0; padding: 9px 11px; background: var(--surface-deep); }
+.practice-metrics dt { color: var(--muted); font-size: 11px; }
+.practice-metrics dd { margin: 4px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.practice-result { color: var(--text); min-height: 1.4em; font-size: 13px; }
+.practice-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--muted); font-size: 12px; }
+.practice-legend span::before {
+  content: '';
+  display: inline-block;
+  width: 16px;
+  border-top: 2px solid var(--accent);
+  margin-right: 5px;
+  vertical-align: middle;
+}
+.practice-legend span + span::before { border-top-style: dashed; border-color: #f1c28a; }
+:root[data-theme="light"] .practice-legend span + span::before { border-color: #ab650e; }
+.practice-table {
+  max-width: 100%;
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.practice-table table { width: 100%; border-collapse: collapse; font-size: 12px; background: var(--surface-deep); white-space: nowrap; }
+.practice-table th, .practice-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.practice-table thead th { position: sticky; top: 0; color: var(--muted); background: var(--panel); }
+.practice-table tr:last-child td, .practice-table tbody tr:last-child th { border-bottom: 0; }
+.practice-history h4 + .practice-table { margin-top: 5px; }
+.paper-working { min-width: 0; padding-top: 12px; border-top: 1px solid var(--border); }
+.paper-working summary { cursor: pointer; font-weight: 650; }
+.paper-working p { font-size: 12px; margin: 8px 0; }
+.paper-working [data-working-orders] { min-width: 0; }
+@media (max-width: 520px) {
+  .practice-history-fields button { flex: 1 0 100%; }
+  .practice-history-fields :is(input, select, button), .practice-actions button { min-height: 44px; }
+  .practice-actions { width: 100%; }
+  .practice-actions button { flex: 1 1 0; }
+}

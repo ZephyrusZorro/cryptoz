@@ -9,6 +9,7 @@ const metrics = [
   ['cash', 'Virtual cash'], ['quantity', 'Open position'], ['markValue', 'Estimated sell value'],
   ['openPnl', 'Open P&L'], ['realized', 'Realized P&L'], ['totalPnl', 'Total P&L'],
 ];
+const workingLabels = { limit: 'Limit', 'stop-loss': 'Stop-loss', 'take-profit': 'Take-profit' };
 
 export function paperPanel(instrument) {
   const base = esc(instrument.base);
@@ -29,6 +30,19 @@ export function paperPanel(instrument) {
       </div>
       <p class="paper-order-status" role="status" data-paper-status></p>
     </form>
+    <details class="paper-working">
+      <summary>Conditional orders <span class="muted" data-working-count></span></summary>
+      <p class="muted">Orders are checked while this paper market is open. Limits respect the price after slippage. Stops and targets trigger on the observed trade price. Funds are checked at execution.</p>
+      <form class="practice-history-fields" data-working-form>
+        <label>Type<select name="type">${Object.entries(workingLabels).map(([key, label]) => `<option value="${key}">${label}</option>`).join('')}</select></label>
+        <label>Side<select name="side"><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
+        <label>Quantity (${base})<input name="quantity" inputmode="decimal" maxlength="37" autocomplete="off" required></label>
+        <label>Trigger (${currency})<input name="trigger" type="number" min="0" step="any" required></label>
+        <button class="button primary" type="submit">Add conditional order</button>
+      </form>
+      <p role="status" data-working-status></p>
+      <div data-working-orders></div>
+    </details>
     <section class="paper-ledger">
       <div class="paper-ledger-heading"><h3 id="paper-fills-title">Practice fills</h3><p class="muted">Saved in this browser · Amounts in ${currency}</p></div>
       <p class="muted" data-paper-empty>No simulated fills for this market yet.</p>
@@ -55,6 +69,21 @@ function renderFills(fills) {
   }).join('');
 }
 
+function renderOrders(orders) {
+  if (!orders.length) return '<p class="muted">No conditional orders for this market.</p>';
+  return `<div class="practice-table" role="region" aria-label="Conditional orders" tabindex="0">
+    <table><thead><tr><th scope="col">Type</th><th scope="col">Side</th><th scope="col">Quantity</th>
+      <th scope="col">Trigger price</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead>
+    <tbody>${orders.map(order => {
+      const fill = order.status === 'filled' ? ` · ${price(order.executionPrice, '')}` : '';
+      const error = order.status === 'rejected' ? ` · ${esc(order.error)}` : '';
+      return `<tr><th scope="row">${workingLabels[order.type]}</th><td>${order.side === 'buy' ? 'Buy' : 'Sell'}</td>
+        <td>${order.quantity}</td><td>${price(order.triggerPrice, '')}</td>
+        <td class="${order.status === 'rejected' ? 'negative' : ''}">${order.status}${fill}${error}</td><td>
+        ${order.status === 'working' ? `<button class="button" type="button" data-cancel-working="${esc(order.id)}" aria-label="Cancel ${workingLabels[order.type].toLowerCase()} ${order.side} order">Cancel</button>` : '—'}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+
 export function bindPaperPanel({ host, instrument, getQuote, storage, signal }) {
   const panel = host.querySelector('[data-paper-panel]');
   if (!panel || signal.aborted) return;
@@ -68,14 +97,75 @@ export function bindPaperPanel({ host, instrument, getQuote, storage, signal }) 
   const history = panel.querySelector('[data-paper-history]');
   const empty = panel.querySelector('[data-paper-empty]');
   const rows = panel.querySelector('[data-paper-fills]');
+  const workingForm = panel.querySelector('[data-working-form]');
+  const workingStatus = panel.querySelector('[data-working-status]');
+  const workingHost = panel.querySelector('[data-working-orders]');
+  const workingCount = panel.querySelector('[data-working-count]');
+  const workingSubmit = workingForm.querySelector('[type=submit]');
   const fields = Object.fromEntries(metrics.map(([key]) => [key, panel.querySelector(`[data-paper-metric="${key}"]`)]));
   const store = createPaperStore(storage);
+  const hasLocks = Boolean(win.navigator.locks);
+  let lastWorkingList = '';
+  let placingWorking = false;
+  let settling = false;
   let ledger;
   let busy = false;
 
   function report(message, failed = false) {
     status.textContent = message;
     status.classList.toggle('negative', failed);
+  }
+
+  function reportWorking(message, failed = false) {
+    workingStatus.textContent = message;
+    workingStatus.classList.toggle('negative', failed);
+  }
+
+  function renderWorking() {
+    const orders = (ledger?.workingOrders ?? []).filter(order => order.instrument.venue === instrument.venue
+      && order.instrument.symbol === instrument.symbol).reverse();
+    const key = orders.map(({ id, status }) => `${id}:${status}`).join(',');
+    if (key !== lastWorkingList || !workingHost.hasChildNodes()) {
+      workingHost.innerHTML = renderOrders(orders);
+      lastWorkingList = key;
+    }
+    const active = orders.filter(order => order.status === 'working').length;
+    workingCount.textContent = active ? `· ${active} working` : '';
+    workingSubmit.disabled = !hasLocks || !ledger || placingWorking;
+  }
+
+  function updateSide() {
+    const field = workingForm.elements.side;
+    const limit = workingForm.elements.type.value === 'limit';
+    if (!limit) field.value = 'sell';
+    field.disabled = !limit;
+  }
+
+  function withLock(action) {
+    const run = () => { if (!signal.aborted) return action(); };
+    return hasLocks ? win.navigator.locks.request(PAPER_STORAGE_KEY, { signal }, run) : run();
+  }
+
+  async function observeQuote() {
+    if (!hasLocks || settling || !ledger?.workingOrders.some(order => order.status === 'working'
+      && order.instrument.venue === instrument.venue && order.instrument.symbol === instrument.symbol)) return;
+    settling = true;
+    try {
+      const before = new Map(ledger.workingOrders.map(order => [order.id, order.status]));
+      await withLock(() => { ledger = store.settleWorking(instrument, getQuote()); });
+      if (signal.aborted) return;
+      const changed = ledger.workingOrders.filter(order => before.get(order.id) === 'working' && order.status !== 'working');
+      if (changed.length) {
+        const count = changed.filter(order => order.status === 'filled').length;
+        const rejected = changed.filter(order => order.status === 'rejected').length;
+        if (count || rejected) reportWorking(`${count} filled · ${rejected} rejected. Review conditional order history.`, rejected > 0);
+      }
+      refresh({ updateFills: true });
+    } catch (error) {
+      if (!signal.aborted) reportWorking(`Conditional orders were not updated. ${error.message}`, true);
+    } finally {
+      settling = false;
+    }
   }
 
   function refresh({ updateFills = false } = {}) {
@@ -96,6 +186,7 @@ export function bindPaperPanel({ host, instrument, getQuote, storage, signal }) 
       rows.innerHTML = renderFills(fills);
       history.hidden = fills.length === 0;
       empty.hidden = !ledger || fills.length > 0;
+      renderWorking();
     }
   }
 
@@ -114,11 +205,7 @@ export function bindPaperPanel({ host, instrument, getQuote, storage, signal }) 
     report('');
     let saved = false;
     try {
-      const execute = () => {
-        if (!signal.aborted) ledger = store.fill(instrument, order, getQuote());
-      };
-      if (win.navigator.locks) await win.navigator.locks.request(PAPER_STORAGE_KEY, { signal }, execute);
-      else execute();
+      await withLock(() => { ledger = store.fill(instrument, order, getQuote()); });
       if (signal.aborted) return;
       const fill = ledger.fills.at(-1);
       saved = true;
@@ -132,10 +219,47 @@ export function bindPaperPanel({ host, instrument, getQuote, storage, signal }) 
       if (!signal.aborted) refresh({ updateFills: saved });
     }
   }, { signal });
+  workingForm.elements.type.addEventListener('change', updateSide, { signal });
+  workingForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!hasLocks || !ledger || placingWorking) return;
+    const { type, side, quantity, trigger } = workingForm.elements;
+    const order = { type: type.value, side: side.value, quantity: quantity.value, triggerPrice: trigger.value };
+    placingWorking = true;
+    workingSubmit.disabled = true;
+    try {
+      await withLock(() => { ledger = store.addWorking(instrument, order); });
+      if (signal.aborted) return;
+      if (quantity.value === order.quantity) quantity.value = '';
+      if (trigger.value === order.triggerPrice) trigger.value = '';
+      reportWorking('Conditional order saved. It will evaluate new quotes for this market.');
+    } catch (error) {
+      if (!signal.aborted) reportWorking(error.message, true);
+    } finally {
+      placingWorking = false;
+      if (!signal.aborted) renderWorking();
+    }
+  }, { signal });
+  workingHost.addEventListener('click', async event => {
+    const button = event.target.closest('[data-cancel-working]');
+    if (!button || !hasLocks) return;
+    try {
+      await withLock(() => { ledger = store.cancelWorking(instrument, button.dataset.cancelWorking); });
+      if (signal.aborted) return;
+      const cancelled = ledger.workingOrders.find(order => order.id === button.dataset.cancelWorking).status === 'cancelled';
+      reportWorking(cancelled ? 'Conditional order cancelled.' : 'This order has already settled.');
+      renderWorking();
+      workingForm.elements.type.focus();
+    } catch (error) {
+      if (!signal.aborted) reportWorking(error.message, true);
+    }
+  }, { signal });
   win.addEventListener('storage', event => {
     if (event.key === PAPER_STORAGE_KEY || event.key === null) reload();
   }, { signal });
   const timer = win.setInterval(refresh, 1000);
   signal.addEventListener('abort', () => win.clearInterval(timer), { once: true });
   reload();
+  if (!hasLocks) reportWorking('Conditional orders require a browser that supports coordinated local storage.');
+  return { observeQuote, refresh };
 }

@@ -133,3 +133,39 @@ test('a duplicated stored origin keeps its first issuance', () => {
   assert.equal(ledger.list(btc, '1h').length, 1);
   assert.equal(ledger.list(btc, '1h')[0].probabilityUp, 0.68);
 });
+
+test('new horizon records coexist with legacy rows and settle only at their own target close', async () => {
+  const data = storage([[FORECAST_STORAGE_KEY, JSON.stringify([{ ...entry, issuedAt: asOf + 1, outcome: null }])]]);
+  const ledger = createForecastLedger(data);
+  for (const horizon of [5, 12, 24]) {
+    const accepted = await ledger.record({
+      ...entry, version: 'adaptive-v2', horizon, targetCloseAt: asOf + horizon * defaultStep,
+    }, asOf + 2);
+    assert.equal(accepted.horizon, horizon);
+  }
+  assert.equal((await ledger.settle(settlement())).settled, 2);
+  const reread = createForecastLedger(data);
+  const extendedTarget = asOf + 24 * defaultStep;
+  assert.equal((await reread.settle(settlement({
+    bars: [candle(extendedTarget - defaultStep, 102)], closedThrough: extendedTarget, nowSeconds: extendedTarget,
+  }))).settled, 1);
+  const rows = reread.list(btc, '1h');
+  assert.equal(rows.find(row => row.horizon === 24).outcome.close, 102);
+  assert.equal(rows.find(row => row.horizon === 12).outcome, null);
+  assert.equal(rows.find(row => row.version === 'adaptive-v1').outcome.close, 99);
+});
+
+test('navigation while waiting for an issuance lock leaves the journal unchanged', async () => {
+  let release;
+  const lock = { request: async (key, operation) => {
+    await new Promise(resolve => { release = resolve; });
+    return operation();
+  } };
+  const ledger = createForecastLedger(storage(), lock);
+  const controller = new AbortController();
+  const pending = ledger.record(entry, asOf + 1, { signal: controller.signal });
+  controller.abort();
+  release();
+  assert.equal(await pending, null);
+  assert.deepEqual(ledger.list(btc, '1h'), []);
+});

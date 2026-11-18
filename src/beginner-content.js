@@ -2,7 +2,7 @@ export const GETTING_STARTED=[
  {id:'identity',title:'Know the asset',text:'Check its name, venue and quote currency. Matching tickers can represent different tokens.',href:'#markets',action:'Find an asset',icon:'search'},
  {id:'candles',title:'Read the chart',text:'Choose an interval. Compare the current unfinished candle with completed history.',href:'#terminal',action:'Open charts',icon:'chart-no-axes-combined'},
  {id:'indicators',title:'Understand the readings',text:'Read what EMA, RSI and MACD measure, including their limitations.',href:'#learn?view=readings',action:'View signal readings',icon:'activity'},
- {id:'risk',title:'Plan a scenario',text:'Enter your own entry, stop, target and fees. Compare loss, position size and capital.',href:'#practice?section=risk-tools',action:'Open risk calculator',icon:'target'},
+ {id:'risk',title:'Plan a scenario',text:'Enter your own entry, stop, target and fees. Compare loss, position size and capital.',href:'#risk',action:'Open risk calculator',icon:'target'},
  {id:'notes',title:'Test your reasoning',text:'Practice how order size, fees, and price movement affect the result with virtual funds.',href:'#practice',action:'Open simulator',icon:'file-text'}
 ];
 const glossary=[

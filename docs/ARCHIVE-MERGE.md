@@ -1,0 +1,17 @@
+# Combining the 3.0 archive with CRYPTOZ
+
+The attached archive contained 211 entries with 8 additional source/test/script files and 21 modified files compared with the deployed 2.8.1 source. It was inspected as reference source; its bundled runtime and scripts were not run. The release retains five primary destinations and the existing validated market, chart, and storage layers, while importing the useful ideas in separate modules.
+
+| Attachment idea | Implementation decision |
+| --- | --- |
+| More navigation destinations and dashboard columns | Five destinations, genuine modes with different Home and Chart templates, one selected full-width chart panel, separate Practice routes, a contextual Insights route. |
+| Regime and multi-horizon AI, probability cones | Independent 5/12/24 estimates, earlier-only calibration, the strongest of three same-origin baselines, a reliability plot, and an immutable settled study ledger. Historical percentiles are labeled as observations. No probability cones or odds inferred from untested conditions. |
+| Market structure and volume profile | Confirmed pivot clusters, three audited prices from a bounded candle-volume estimate, existing confirmed range, trend and Fibonacci, plus a suggested study preset. Candle volume is spread across each bar's range: this is not a trade-by-trade profile or TradingView visible-range parity. |
+| Working orders, replay, historical testing | Venue-scoped virtual orders check actual last-trade observations and update one ledger. Replay advances one bar at a time. Strategy entries decided on closes fill at the next eligible open, with explicit fees/slippage and a matching-cost buy-and-hold baseline. |
+| Market intelligence | Funding, basis, interest, volatility, chain activity, stablecoins, yields and calendar entries use fixed public adapters with independent timestamps, missing states and cache status. Protocol links come directly from documentation. |
+| Institutional track record | Keep publication conditions and dates. A current spot print does not verify an old target with a different horizon, measure or venue. Added a dated VanEck consolidation view without claiming comparable target performance. |
+| Discovery and academy | Pro cap/volume/return filters, market-cap-weighted tracked-sector moves, grouped Basic cards, and feedback-driven exercises separate from source-grounded readings. |
+
+Design and method references: [Coinbase default vs Advanced](https://help.coinbase.com/en-ca/getting-started/other/coinbase-vs-coinbase-advanced); [TradingView broker emulator](https://www.tradingview.com/support/solutions/43000786181-broker-emulator/); [TradingView volume profile method](https://www.tradingview.com/support/solutions/43000703076-visible-range-volume-profile/); [CoinGecko sector discovery](https://www.coingecko.com/en/categories); [VanEck original report](https://www.vaneck.com/us/en/blogs/investment-outlook/plan-for-2026-predictions-from-our-portfolio-managers/); [scikit-learn time-ordered evaluation](https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.TimeSeriesSplit.html). See [forecast method](FORECAST-STUDY.md) for thresholds and observed market results.
+
+No exchange credentials, trading endpoints, or source archive deployments were added. Public upstreams have separate quotas and data cadences. This release does not claim future model accuracy, institutional uptime, or every trading workflow under physical-device or public load.

@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { Worker } from 'node:worker_threads';
 import { evaluateAdaptiveStudy } from '../src/adaptive-study.js';
 
 const instrument = { venue: 'binance', symbol: 'BTCUSDT', base: 'BTC', quote: 'USDT' };
@@ -24,15 +26,16 @@ function evaluate(bars, overrides = {}) {
   return evaluateAdaptiveStudy({ bars, instrument, interval, closedThrough, nowSeconds: closedThrough + 1, ...overrides });
 }
 
-test('walk-forward forecasts beat the historical up rate on directional regimes', () => {
-  const bars = series(1_061);
+test('walk-forward forecasts beat the strongest baseline on directional regimes', () => {
+  const bars = series(1_062);
   const result = evaluate(bars);
   assert.equal(result.closedCount, bars.length);
   assert.equal(result.sampleStart, start + step);
   assert.ok(result.evidence.count >= 50);
-  assert.ok(result.evidence.modelBrier + 0.01 < result.evidence.baselineBrier);
-  assert.ok(result.evidence.modelAccuracy >= result.evidence.baselineAccuracy);
+  assert.ok(result.evidence.modelBrier + 0.01 < result.evidence.strongestBaseline.brier);
+  assert.ok(result.evidence.modelAccuracy >= result.evidence.strongestBaseline.accuracy);
   assert.ok(result.evidence.passed);
+  assert.ok(result.reliability.current.supported);
   assert.equal(result.forecast.direction, 'up');
   assert.ok(result.forecast.probabilityUp > 0.6);
   assert.equal(result.forecast.asOf, bars.at(-1).time + step);
@@ -109,4 +112,131 @@ test('evaluation requires a validated instrument and confirmed observation cutof
   const result = evaluate(bars, { closedThrough: null });
   assert.equal(result.asOf, null);
   assert.equal(result.evidence, null);
+});
+
+test('each horizon has time-aligned held-out cases and its own strongest same-origin comparator', () => {
+  const bars = series(1_550);
+  const { horizons, horizon } = evaluate(bars, { horizon: 24 });
+  assert.equal(horizon, 24);
+  assert.deepEqual(Object.keys(horizons).map(Number), [5, 12, 24]);
+  for (const length of [5, 12, 24]) {
+    const { evidence } = horizons[length];
+    assert.ok(evidence.count >= 50);
+    const fields = ['baselineProbability', 'recentBaselineProbability', 'momentumBaselineProbability'];
+    const errors = fields.map(field => evidence.origins.reduce((loss, row) =>
+      loss + (row[field] - row.actualUp) ** 2, 0) / evidence.count);
+    assert.deepEqual(evidence.baselines.map(b => b.brier), errors);
+    assert.equal(evidence.strongestBaseline.brier, Math.min(...errors));
+    for (const [i, row] of evidence.origins.entries()) {
+      assert.equal(row.targetCloseAt - row.asOf, length * step);
+      assert.equal(row.trainedThrough, row.asOf - step);
+      if (i > 0) assert.ok(row.asOf >= evidence.origins[i - 1].targetCloseAt);
+    }
+  }
+});
+
+test('short history can support a shorter horizon while a longer horizon abstains', () => {
+  const { horizons } = evaluate(series(600));
+  assert.ok(horizons[5].evidence.count >= 50);
+  assert.ok(horizons[24].evidence.count < 50);
+  assert.equal(horizons[24].forecast, null);
+  assert.equal(horizons[24].scenarios, null);
+});
+
+test('held-out model calibration excludes the current outcome and earlier outcomes inside the embargo', () => {
+  const { evidence, reliability } = evaluate(series(1_061));
+  const band = probability => probability < 0.4 ? 0 : probability < 0.6 ? 1 : 2;
+  assert.ok(reliability.calibratedOrigins > 0);
+  const cases = [...evidence.calibrationOrigins, ...evidence.origins];
+  for (const row of evidence.origins) {
+    const prior = cases.filter(item => item.targetCloseAt <= row.asOf - step).slice(-60)
+      .filter(item => band(item.rawProbability) === band(row.rawProbability));
+    assert.equal(row.calibrationCount, prior.length);
+    if (!row.calibrated) {
+      assert.equal(row.modelProbability, row.rawProbability);
+      continue;
+    }
+    const priorUps = prior.reduce((sum, item) => sum + item.actualUp, 0);
+    assert.equal(row.modelProbability, (priorUps + 12 * row.rawProbability) / (prior.length + 12));
+  }
+});
+
+test('adding later candles preserves the scores for earlier origins with the same underlying history', () => {
+  const bars = series(1_100);
+  const before = evaluate(bars.slice(0, 1_050)).evidence.origins;
+  const after = evaluate(bars).evidence.origins;
+  const earlier = new Map(before.map(row => [row.asOf, row]));
+  const overlap = after.filter(row => earlier.has(row.asOf));
+  assert.ok(overlap.length > 50);
+  for (const row of overlap) assert.deepEqual(row, earlier.get(row.asOf));
+});
+
+test('a regime reversal can abstain even when the historical model passed its evidence checks', () => {
+  const { evidence, reliability, forecast } = evaluate(series(1_061));
+  assert.ok(evidence.passed);
+  assert.equal(reliability.current.supported, false);
+  assert.equal(forecast, null);
+});
+
+test('a strongly directional score abstains when its historical band lacks enough cases', () => {
+  const bars = series(1_065, index => {
+    if (index < 700) return Math.floor(index / 53) % 2 === 0 ? 1.004 : 0.996;
+    return index < 1_045 ? 1.004 : 0.996;
+  });
+  const { evidence, reliability, forecast } = evaluate(bars);
+  assert.ok(evidence.passed);
+  assert.equal(reliability.current.upper, 0.4);
+  assert.equal(reliability.current.count, 2);
+  assert.equal(reliability.current.supported, false);
+  assert.equal(forecast, null);
+});
+
+test('scenario percentiles and outcomes describe the historical returns that actually occurred', () => {
+  const bars = series(1_061);
+  const closeAt = new Map(bars.map(bar => [bar.time + step, bar.close]));
+  const { evidence, scenarios } = evaluate(bars);
+  const returns = evidence.origins.map(row => closeAt.get(row.targetCloseAt) / closeAt.get(row.asOf) - 1).sort((a, b) => a - b);
+  assert.equal(scenarios.count, returns.length);
+  assert.equal(scenarios.up, returns.filter(x => x > 0).length);
+  assert.equal(scenarios.down, returns.filter(x => x < 0).length);
+  assert.equal(scenarios.flat, returns.filter(x => x === 0).length);
+  assert.equal(scenarios.lower, returns[Math.ceil(returns.length / 10) - 1]);
+  assert.equal(scenarios.median, returns[Math.ceil(returns.length / 2) - 1]);
+  assert.equal(scenarios.upper, returns[Math.ceil(returns.length * 0.9) - 1]);
+});
+
+test('a stable uninformative price gives the baselines equal skill and no directional call', () => {
+  const result = evaluate(series(1_550, () => 1));
+  for (const { evidence, forecast } of Object.values(result.horizons)) {
+    assert.equal(evidence.upCount, 0);
+    assert.equal(evidence.passed, false);
+    assert.equal(forecast, null);
+  }
+});
+
+test('the worker responds to a failed request and accepts the next valid analysis', { timeout: 3_000 }, async t => {
+  const moduleUrl = new URL('../src/forecast-worker.js', import.meta.url).href;
+  const bridge = `
+    import { parentPort } from 'node:worker_threads';
+    globalThis.self = {
+      addEventListener: (type, listener) => parentPort.on(type, data => listener({ data })),
+      postMessage: data => parentPort.postMessage(data),
+    };
+    await import(${JSON.stringify(moduleUrl)});
+  `;
+  const worker = new Worker(new URL(`data:text/javascript,${encodeURIComponent(bridge)}`));
+  t.after(() => worker.terminate());
+
+  worker.postMessage({ id: 1, input: null });
+  const [failure] = await once(worker, 'message', { signal: AbortSignal.timeout(1_000) });
+  assert.equal(failure.id, 1);
+  assert.equal(typeof failure.error, 'string');
+
+  const bars = series(1_062);
+  const closedThrough = bars.at(-1).time + step;
+  worker.postMessage({ id: 2, input: { bars, instrument, interval, closedThrough, nowSeconds: closedThrough + 1, horizon: 12 } });
+  const [response] = await once(worker, 'message', { signal: AbortSignal.timeout(2_000) });
+  assert.equal(response.id, 2);
+  assert.equal(response.result.horizon, 12);
+  assert.ok(response.result.horizons[12].evidence.count >= 50);
 });

@@ -129,6 +129,17 @@ const sources = {
       context: 'A conditional valuation scenario that also assumes gold’s market cap grows at its trend rate.',
     },
     {
+      publisher: 'VanEck Research',
+      author: 'Matthew Sigel',
+      title: 'Plan for 2026: Predictions from Our Portfolio Managers',
+      url: 'https://www.vaneck.com/us/en/blogs/investment-outlook/plan-for-2026-predictions-from-our-portfolio-managers/',
+      published: '2025-12-18',
+      period: 'Calendar year 2026',
+      periodEnd: endOf2026,
+      view: 'Described consolidation as a likelier 2026 path than a sharp rally or collapse.',
+      context: 'The discussion combines cycle timing, liquidity, leverage, and on-chain activity. It does not specify a comparable closing price.',
+    },
+    {
       publisher: 'Galaxy Research',
       author: 'Alex Thorn',
       title: '26 Crypto, Bitcoin, DeFi, and AI Predictions for 2026',

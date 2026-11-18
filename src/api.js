@@ -1,6 +1,6 @@
 import {abortable,throwIfAborted,deadline} from './async-task.js';
-const directRoutes=new Set(['asset-search','asset','markets','global','sentiment','chains','instruments','exchange-markets','candles','book','ticker']);
-const allowedRoutes=new Set([...directRoutes,'news']);
+const directRoutes=new Set(['asset-search','asset','markets','global','sentiment','chains','instruments','exchange-markets','candles','book','ticker','trade-quote']);
+const allowedRoutes=new Set([...directRoutes,'news','insights']);
 export function createApiClient({fetcher=(...args)=>fetch(...args),loadDirect=async()=>(await import('./direct.js')).directApi,now=Date.now}={}){
  const telemetry=new Map(),cooldown=new Map(),latest=new Map();let sequence=0;
  const publish=(key,id,value)=>{if(latest.get(key)!==id)return;telemetry.delete(key);telemetry.set(key,value);if(telemetry.size>32)telemetry.delete(telemetry.keys().next().value);};

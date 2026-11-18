@@ -1,4 +1,5 @@
 import {createProviderCache} from './cache.js';
+import {createInsights,insightSections} from './insights.js';
 import {abortable,deadline,throwIfAborted} from '../src/async-task.js';
 import {normalizeBook} from '../src/market-integrity.js';
 import { XMLParser } from 'fast-xml-parser';
@@ -18,6 +19,14 @@ export function parseNews(xml,source) {
 }
 export function createGateway({fetcher=fetch,now=Date.now}={}) {
  const runCached=createProviderCache({now});
+ const insights=createInsights({upstream:async(url,text,signal)=>{
+  const timing=deadline(signal,6500);
+  try{
+   const response=await abortable(fetcher(url,{headers,signal:timing.signal,redirect:'error'}),timing.signal);
+   if(!response.ok)throw Error('Upstream HTTP '+response.status);
+   return await abortable(text?response.text():response.json(),timing.signal);
+  }finally{timing.dispose();}
+ },parseNews,now});
  async function upstream(url,xml=false,signal){
   const timing=deadline(signal,12000);try{const response=await abortable(fetcher(url,{headers,signal:timing.signal}),timing.signal);if(!response.ok)throw Error(`Upstream HTTP ${response.status}`);return await abortable(xml?response.text():response.json(),timing.signal);}finally{timing.dispose();}
  }
@@ -28,7 +37,28 @@ export function createGateway({fetcher=fetch,now=Date.now}={}) {
   if(request.method!=='GET')return Response.json({error:'Read-only API'},{status:405});
   try {
    let result;
-   if(['candles','book','ticker'].includes(route)) {
+   if(route==='trade-quote'){
+    const venue=p.get('venue'),symbol=p.get('symbol'),binance=venue==='binance';
+    const validSymbol=binance?/^[\p{L}\p{N}]{1,25}USDT$/u:/^[A-Z0-9]{1,20}-USD$/;
+    if(!['binance','coinbase'].includes(venue)||!symbol||!validSymbol.test(symbol)
+       ||p.size!==2||p.getAll('venue').length!==1||p.getAll('symbol').length!==1){
+     return Response.json({error:'Invalid trade quote market'},{status:400});
+    }
+    const path=binance?`${B}/trades?symbol=${encodeURIComponent(symbol)}&limit=1`:`${C}/products/${symbol}/ticker`;
+    result=await cached(`trade-quote:${venue}:${symbol}`,binance?'Binance':'Coinbase',5000,async signal=>{
+     const payload=await upstream(path,false,signal);
+     const trade=binance?(Array.isArray(payload)&&payload.length===1?payload[0]:null):payload;
+     const price=Number(trade?.price),observed=binance?trade?.time:Date.parse(trade?.time);
+     if(!Number.isFinite(price)||price<=0||!Number.isSafeInteger(observed)||observed<=0||observed>now()+5000){
+      throw Error('Invalid last-trade observation');
+     }
+     return {venue,symbol,price,observedAt:new Date(observed).toISOString()};
+    });
+   } else if(route==='insights'){
+    const section=p.get('section')??'derivatives';
+    if(!insightSections.has(section)||p.size>1||[...p.keys()].some(key=>key!=='section'))return Response.json({error:'Invalid Insights section'},{status:400});
+    result=await insights(section,request.signal);
+   } else if(['candles','book','ticker'].includes(route)) {
     const venue=p.get('venue')??'binance',symbol=p.get('symbol')??'BTCUSDT',interval=p.get('interval')??'1h';
     if(!['binance','coinbase'].includes(venue)||!(venue==='binance'?/^[\p{L}\p{N}]{3,30}$/u:/^[A-Z0-9]{1,20}-USD$/).test(symbol)||!Object.hasOwn(intervals,interval))return Response.json({error:'Invalid venue, instrument or interval'},{status:400});
     const rawBefore=route==='candles'?p.get('before'):null,before=rawBefore===null?null:Number(rawBefore);
