@@ -29,6 +29,8 @@ body[data-page=terminal] .terminal-heading{margin-bottom:13px}
 .wb-tabs{scroll-margin-top:108px}
 .wb-signal-link{padding:4px 8px;border:1px solid var(--nav-edge);border-radius:7px;color:var(--text);font-size:11px;line-height:1.4}
 .wb-signal-link:hover{background:var(--nav-highlight)}
+.wb-selected-signal:not([hidden]){display:flex;align-items:center;flex-wrap:wrap;justify-content:space-between;gap:6px;padding:5px 12px;background:var(--nav-highlight);font-size:11px}
+.wb-selected-signal [role=status]{color:var(--gold)}
 .wb-main .price-chart:focus-visible,.wb-pane:focus-visible{outline:2px solid var(--lime);outline-offset:-2px}
 .wb-draw-task .auto-controls{border-top:0;padding:10px 17px}
 .wb-tabs{display:flex;flex-wrap:wrap;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border)}

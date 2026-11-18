@@ -8,7 +8,7 @@ export function riskSection(quote){
  // The selected instrument is normalized by preferences; quote is still constrained at markup.
  const currency=quote==='USD'?'USD':'USDT';
  return `<section class="panel risk-panel guided-risk" id="risk-tools">
-  <div class="panel-top"><div><h2>Position calculator</h2><p>Estimate how much a practice trade could lose at your stop.</p></div></div>
+  <div class="panel-top"><h2>Trade inputs</h2></div>
   <div class="risk-example"><button class="button" type="button" data-action="risk-example">Try an example</button><small id="risk-example-status" aria-live="polite">Use sample prices to see how the numbers work.</small></div>
   <form id="risk-form">
    <fieldset><legend><span>1</span> Set a loss budget</legend><div class="risk-inputs">

@@ -28,6 +28,7 @@ export class TerminalChart {
  async refresh(){if(this.disposed)return;if(this.historyAnchor||!this.bars.length)return this.load(this.instrument,this.interval,{before:this.historyAnchor});return Promise.allSettled([this.poll(this.generation),this.reconcile(this.generation)]);}
  async load(instrument=this.instrument,interval=this.interval,{before=null}={}){
   if(this.disposed)return;
+  this.clearSignalFocus();
   this.instrument=instrument;this.interval=interval;this.historyAnchor=before;this.generation++;const gen=this.generation;this.stopNetwork();this.networkController=new AbortController();this.gestureController?.abort();this.liveRevision=0;this.confirmedThrough=0;this.latestSnapshotAt=0;this.confirmedStreamBars.clear();this.studyBars=[];this.visibleSignals=[];this.markerDescriptions=null;this.autoSetup=null;this.barRevisions=new Map();this.barEvents=new Map();this.observer?.disconnect();this.chart?.remove();this.chart=null;this.series=null;this.svg=null;this.bars=[];this.historyStatus='idle';this.historyNotice='';this.quote=null;this.candleMeta=null;this.lastStream=0;this.lastSocketFrame=0;this.reconnectAttempt=0;this.lastKlineReceived=0;this.lastBookAt=0;this.bookSequence=0;this.pendingPoint=null;this.status('loading');this.onWindow?.({visible:0,total:0,start:null,end:null});this.onQuote(null);this.onBook(null);this.onSummary({ready:false});this.host.innerHTML='<div class="chart-loading"><span class="loader"></span> Connecting to '+esc(instrument.venue)+' market data…</div>';this.onDrawings();
   try{const requestedAt=Date.now();const response=await this.fetch(`candles?venue=${instrument.venue}&symbol=${instrument.symbol}&interval=${interval}${before?'&before='+before:''}`);if(gen!==this.generation||this.disposed)return;this.bars=normalizeCandles(response.data?.bars??[]).filter(bar=>!before||bar.time<before);if(!this.bars.length)throw Error(before?'No provider candles before that date for this pair and interval.':'No valid candles available');this.candleMeta=response;this.latestSnapshotAt=this.snapshotCutoff(response,requestedAt);this.observeStudyBars(this.bars,Math.min(before??Infinity,this.latestSnapshotAt));this.build();this.updateSummary();this.status(before?'archive':response.cache==='stale'?'stale':'snapshot');if(before)return;this.onQuote({price:this.bars.at(-1).close,source:'candle',updatedAt:response.fetchedAt,stale:response.cache==='stale'});this.connect(gen);this.poll(gen);this.pollTimer=setInterval(()=>{if(!document.hidden)this.poll(gen);},15000);this.healthTimer=setInterval(()=>this.checkConnection(gen),5000);
   }catch(e){if(gen!==this.generation||this.disposed)return;this.host.innerHTML=`<div class="chart-loading error-state"><strong>Chart unavailable</strong><p>${esc(e.message)}</p><button data-action="retry-chart" class="button">Retry connection</button><small>Select another venue or instrument. No synthetic candles are shown.</small></div>`;this.status('unavailable');this.historyStatus='unavailable';this.onWindow?.({visible:0,total:0,historyStatus:'unavailable'});}
@@ -70,7 +71,26 @@ export class TerminalChart {
    this.markerDescriptions.set(time,[this.markerDescriptions.get(time),label].filter(Boolean).join(' · '));
    if(!marks.has(key))marks.set(key,{time,price,id,position:up?'atPriceBottom':'atPriceTop',shape:up?'arrowUp':'arrowDown',color:up?colors.up:colors.down});
   }
-  this.markerApi?.setMarkers([...marks.values()]);
+  this.signalMarks=[...marks.values()];
+  if(this.focusedSignal){
+   const latest=this.visibleSignals.find(event=>event.id===this.focusedSignal.id)??null;
+   this.setFocusedSignal(latest);
+  }else this.paintSignalMarkers(colors);
+ }
+ paintSignalMarkers(colors=palette()){
+  const marks=this.signalMarks??[],selected=this.focusedSignal;
+  if(!selected){this.markerApi?.setMarkers(marks);return;}
+  const point={id:'selected:'+selected.id,time:selected.time,price:selected.price,position:'atPriceMiddle',shape:'circle',color:colors.gold,size:1.6};
+  // Lightweight Charts requires the sequence to remain time-ordered.
+  this.markerApi?.setMarkers([...marks,point].sort((a,b)=>a.time-b.time));
+ }
+ setFocusedSignal(signal){
+  this.focusedSignal=signal;
+  this.paintSignalMarkers();
+  this.onSignalFocus?.(signal);
+ }
+ clearSignalFocus(){
+  if(this.focusedSignal)this.setFocusedSignal(null);
  }
  focusSignal(id){
   const signal=this.visibleSignals.find(item=>item.id===id);
@@ -84,6 +104,7 @@ export class TerminalChart {
   this.pendingRangePrefetch=false;
   scale.setVisibleLogicalRange({from,to:from+span});
   this.chart.setCrosshairPosition(signal.price,signal.time,this.series);
+  this.setFocusedSignal(signal);
   this.notifyWindow();
   return true;
  }
@@ -300,7 +321,7 @@ export class TerminalChart {
  notifyWindow(){if(!this.chart)return;this.onWindow?.({...windowInfo(this.bars,this.chart.timeScale().getVisibleLogicalRange()),preset:this.viewPreset,selection:classifyRange(this.chart.timeScale().getVisibleLogicalRange(),this.bars.length),historyStatus:this.historyStatus,historyNotice:this.historyNotice,historyAnchor:this.historyAnchor});}
  resizeView(){if(this.disposed||!this.chart)return;if(['all','recent'].includes(this.viewPreset))this.setViewPreset(this.viewPreset);this.draw();}
  jumpToDate(date){const before=historyCursor(date,seconds[this.interval]);if(!before)return false;this.load(this.instrument,this.interval,{before});return true;}
- showLatest(){if(this.historyAnchor){this.viewPreset='recent';return this.load();}this.setViewPreset('recent');}
+ showLatest(){this.clearSignalFocus();if(this.historyAnchor){this.viewPreset='recent';return this.load();}this.setViewPreset('recent');}
  setViewPreset(preset){if(!this.chart||!['all','recent'].includes(preset))return;this.viewPreset=preset;this.lastRangeGesture=0;if(preset==='all')this.chart.timeScale().fitContent();else this.chart.timeScale().setVisibleLogicalRange(rangeForPreset(this.bars.length,preset));this.notifyWindow();}
  zoom(factor){if(!this.chart)return;const range=zoomRange(this.chart.timeScale().getVisibleLogicalRange(),factor,this.bars.length);if(range){this.viewPreset='custom';this.chart.timeScale().setVisibleLogicalRange(range);this.notifyWindow();if(factor>1&&range.from<HISTORY_EDGE)this.loadOlder({automatic:true});}}
  setTool(mode,label=''){this.drawMode=mode;this.drawLabel=label;this.pendingPoint=null;this.chart?.applyOptions({handleScroll:mode==='cursor'});this.host.classList.toggle('drawing',mode!=='cursor');}

@@ -108,12 +108,12 @@ test('a final prior candle is incorporated after the next forming candle and can
   }
 });
 
-test('a signal jump centers the loaded candle without issuing a history request', () => {
+test('a signal jump centers the candle and keeps a price marker independent of hover', () => {
   const chart = make();
   chart.bars = Array.from({length:100}, (_, i) => candle(i));
   const event = {id: 'range:up:evidence', time: chart.bars[40].time, price: 100};
   chart.visibleSignals = [event];
-  let range, crosshair;
+  let range, crosshair, markers, focused;
   const scale = {
     timeToIndex: time => time === event.time ? 40 : null,
     getVisibleLogicalRange: () => range ?? {from: 80, to: 100},
@@ -124,10 +124,18 @@ test('a signal jump centers the loaded candle without issuing a history request'
     setCrosshairPosition: (...position) => {crosshair = position;}
   };
   chart.series = {};
+  chart.markerApi = {setMarkers: value => {markers = value;}};
+  chart.onSignalFocus = value => {focused = value;};
   chart.fetch = () => assert.fail('Signal selection requests old data');
   assert.equal(chart.focusSignal(event.id), true);
   assert.equal((range.from + range.to) / 2, 40);
   assert.deepEqual(crosshair, [event.price, event.time, chart.series]);
+  assert.equal(focused, event);
+  assert.deepEqual(markers.map(({time, price, position, shape})=>[time, price, position, shape]),
+    [[event.time, event.price, 'atPriceMiddle', 'circle']]);
+  chart.clearSignalFocus();
+  assert.deepEqual(markers, []);
+  assert.equal(focused, null);
   assert.equal(chart.focusSignal('missing'), false);
 });
 

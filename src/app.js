@@ -457,6 +457,15 @@ function renderTerminal(){
  forecastHorizon=deskMode==='pro'&&[12,24].includes(horizon)?horizon:5;
  $('#main').innerHTML=chartWorkbench({mode:deskMode,interval:selectedInterval,forecastHorizon,panel,controls:autoControls()});
  activeBook=null;terminal=new TerminalChart({host:$('#price-chart'),workspace,save,deskMode,onQuote:updateQuote,onSummary:updateSummary,onBook:updateBook,onStatus:updateStreamStatus,onWindow:updateChartWindow,onDrawings:()=>{if($('#drawings-count'))$('#drawings-count').textContent=(workspace.drawings[terminal?.key]??[]).length;}});
+ terminal.onSignalFocus=event=>{
+  const selection=$('#selected-signal');
+  if(!selection)return;
+  selection.hidden=!event;
+  const date=event?new Date(event.confirmedAt*1000).toISOString().slice(0,16).replace('T',' '):'';
+  const label=event?`Highlighted: ${event.label} · ${date} UTC · ${price(event.price,'')} ${esc(terminal.instrument.quote)}`:'';
+  const status=selection.querySelector('[role="status"]');
+  if(status.textContent!==label)status.textContent=label;
+ };
  if(deskMode==='basic'){terminal.style=workspace.preferences.basicStyle??'line';terminal.viewPreset='recent';}
  $('#venue').value=selected.venue;$('#chart-style').value=terminal.style;$('#chart-view').value=terminal.viewPreset;
  refreshIndicatorStrip();updateInstrumentOptions();terminal.load(selected,selectedInterval);
@@ -728,6 +737,7 @@ document.addEventListener('click',e=>{
   const plot=$('#price-chart');plot?.focus({preventScroll:true});plot?.scrollIntoView({block:'center'});
   return;
  }
+ if(a==='clear-signal'&&terminal){terminal.clearSignalFocus();$('[data-action="show-signals"]')?.focus({preventScroll:true});return;}
  if(a==='forecast-csv'){exportForecastCases();return;}
  if(a==='forecast-run'){runChartForecast(b.dataset.deep==='1');return;}
  if(a==='suggest-studies'&&terminal){const state=buildStudyPov({bars:terminal.studyBars,instrument:selected,interval:selectedInterval,nowSeconds:terminal.historyAnchor??Date.now()/1000,candleMeta:terminal.candleMeta,confirmedThrough:terminal.confirmedThrough});if(!state.ready){toast('Wait for enough closed candles.');return;}const preset=STUDY_PRESETS[state.trend==='Mixed'?'range':'trend'];terminal.studyIds=normalizeStudyIds(preset.studies);terminal.renderIndicators();refreshIndicatorStrip();updateSummary();capturePreferences();toast(preset.label+' studies applied');return;}
