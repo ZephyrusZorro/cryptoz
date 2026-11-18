@@ -1,0 +1,180 @@
+/* Keep section navigation separate from controls inside a workbench. */
+#app #context-root:empty {
+ display: none;
+}
+
+#app #context-root .context-nav {
+ display: flex;
+ flex-wrap: wrap;
+ gap: 4px;
+ height: auto;
+ min-height: 46px;
+ padding-block: 5px;
+ overflow: visible;
+}
+
+#app #context-root .context-nav a {
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ min-width: 0;
+ min-height: 36px;
+ padding: 6px 12px;
+ border: 1px solid transparent;
+ border-radius: 9px;
+ color: var(--muted);
+ font-size: 12px;
+ font-weight: 600;
+ line-height: 1.25;
+ text-align: center;
+ white-space: normal;
+}
+
+#app #context-root .context-nav a[aria-current="page"] {
+ background: var(--tint) !important;
+ border-color: var(--border);
+ color: var(--text);
+ font-weight: 700;
+}
+
+#app #context-root .context-nav a[aria-current="page"]::after {
+ inset: auto 11px 0;
+ background: var(--lime);
+}
+
+#app #context-root .context-nav a:hover {
+ border-color: var(--border);
+ color: var(--text);
+}
+
+#app #context-root .context-nav a:focus-visible,
+#app .sidebar a:focus-visible {
+ outline-offset: -2px;
+}
+
+#app .sidebar nav a {
+ color: var(--subtle-text);
+ font-size: 10px;
+ font-weight: 600;
+}
+
+#app .sidebar nav a.active {
+ color: var(--text);
+}
+
+#app .sidebar nav a.active::before {
+ position: absolute;
+ inset: 16px auto 16px 0;
+ width: 2px;
+ border-radius: 2px;
+ background: var(--lime);
+ content: "";
+}
+
+body.chart-focus[data-dock="hidden"] #app .wb-picker .focus-nav-reveal {
+ position: static;
+ flex: 0 0 auto;
+ width: 34px;
+ height: 34px;
+ margin-bottom: 0;
+}
+
+@media (min-width: 701px) and (min-height: 650px) {
+ #app #context-root {
+  position: sticky;
+  top: 0;
+ }
+
+ #app #context-root .context-nav {
+  background: var(--surface-deep) !important;
+  padding-inline: 5px;
+  border-radius: 0 0 12px 12px;
+ }
+
+ #workspace-alerts h2 {
+  scroll-margin-block-start: 64px;
+ }
+}
+
+@media (max-width: 650px) {
+ #app .topbar {
+  gap: 4px;
+ }
+
+ #app .topbar .top-actions {
+  gap: 2px;
+ }
+
+ #app .topbar .top-actions .icon-button,
+ #app .topbar .search-trigger {
+  display: inline-flex;
+  width: 32px;
+  min-width: 32px;
+  height: 36px;
+  min-height: 36px;
+ }
+
+ #app #context-root .context-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-block: 4px;
+ }
+
+ #app #context-root .context-nav[data-count="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+ }
+
+ #app #context-root .context-nav a {
+  padding-inline: 5px;
+  font-size: 11px;
+ }
+
+ #app .sidebar nav a {
+  font-size: 9px;
+ }
+}
+
+@media (min-width: 521px) and (max-width: 650px) {
+ #app #context-root .context-nav[data-count="4"] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+ }
+}
+
+/* The dock remains usable in phone landscape and short split-screen windows. */
+@media (max-height: 480px) {
+ #app .sidebar {
+  gap: 5px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+ }
+
+ #app .sidebar nav {
+  gap: 2px;
+ }
+
+ #app .sidebar nav a {
+  flex-direction: column;
+  gap: 2px;
+  height: 40px;
+  min-height: 40px;
+  padding-block: 3px;
+ }
+
+ #app .sidebar nav a svg {
+  width: 16px;
+  height: 16px;
+ }
+
+ #app .sidebar .dock-controls {
+  padding-block-start: 4px;
+ }
+}
+
+@media (forced-colors: active) {
+ #app #context-root .context-nav a[aria-current="page"],
+ #app .sidebar nav a.active {
+  outline: 1px solid Highlight;
+  outline-offset: -2px;
+ }
+}

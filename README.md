@@ -8,7 +8,7 @@ Search normalizes names and punctuation, handles verified Fetch.ai/FET/Artificia
 
 Appearance provides dark/light, System/Glass/Solid surfaces, a stable background and reduced motion. Explicit Glass is useful when the device otherwise requests reduced transparency. Continuous particles and pointer lighting have been removed. Existing local research state is preserved.
 
-Choose **Basic** or **Pro** on Home. **Learn** opens crypto foundations and the glossary. Charts has separate guided and Pro workbenches, full-width analysis panels, one-click drawings, and a date archive. **Practice** has separate Simulator, Replay, Strategy lab and Calculator views. Read the [archive comparison](docs/ARCHIVE-MERGE.md), [forecast method](docs/FORECAST-STUDY.md), [market group coverage](docs/market-groups.md), and [operations](docs/OPERATIONS.md).
+Choose **Basic** or **Pro** on Home. **Learn** opens crypto foundations and the glossary. Charts has a guided workspace, a Pro workbench, one-click drawings, and a UTC date archive. In Pro, Signals lists confirmed events and opens the corresponding candle. **Practice** has dedicated Paper trading, Market replay, Strategy lab and Position calculator pages. Read the [archive comparison](docs/ARCHIVE-MERGE.md), [forecast method](docs/FORECAST-STUDY.md), [market group coverage](docs/market-groups.md), and [operations](docs/OPERATIONS.md).
 
 A crypto research terminal with real public market data, editable financial charts, market visualizations and publisher-linked news. This rebuild replaces the supplied single-file app's unsupported quantitative claims and hardcoded market narratives.
 
@@ -28,7 +28,7 @@ Open http://127.0.0.1:5187. The Windows `START-CRYPTOZ.cmd` launcher uses the in
 
 - Searchable USD asset directory (2,000 quotes returned during verification), watchlist, sorting and CSV exports.
 - Separate exchange instrument identities: Binance spot USDT and Coinbase spot USD.
-- Selected-market WebSocket, real OHLCV history, REST recovery, reconnect/gap reconciliation and visible stale/unavailable states. Browser-direct public API fallback recovers from shared-host egress restrictions where the provider permits it. Global statistics can fall back to separately attributed Coinpaprika data.
+- Binance spot ticker updates paint changed quotes on the next browser frame. The UI labels fresh stream observations, snapshots and retained prices per pair. The chart uses separate selected-market WebSockets, provider OHLCV, REST recovery and gap reconciliation. Browser-direct public APIs recover from shared-host egress restrictions where the provider permits them.
 - Candles, OHLC, line and Heikin-Ashi; 20 chart studies in Pro with automatic presets, one lower study pane and up to four overlays.
 - Persistent horizontal levels, trendlines, Fibonacci levels and annotations. Place anchors with chart tools; edit anchor prices, UTC times and labels in Drawings. Pan/zoom and PNG/OHLCV exports.
 - Plain-language technical context, a local adaptive study with scored historical evidence and an outcome ledger, attributed analyst notes, a fee-aware position calculator, and simulated spot fills with a browser-local ledger.

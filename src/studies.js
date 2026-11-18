@@ -99,8 +99,9 @@ function channel(bars, period) {
 }
 
 function recentLevels(bars, before) {
-  const closed = bars.filter(bar => bar.time < before).slice(-20);
-  if (closed.length < 20) return [];
+  const end = bars.findLastIndex(bar => bar.time < before) + 1;
+  if (end < 20) return [];
+  const closed = bars.slice(end - 20, end);
   return [
     {key: 'high', title: '20-bar high', value: Math.max(...closed.map(b => b.high)), color: 'gold'},
     {key: 'low', title: '20-bar low', value: Math.min(...closed.map(b => b.low)), color: 'cyan'}
@@ -213,7 +214,7 @@ const calculate = {
       lower: middle.map((m, i) => m === null ? null : m - 2 * range[i])
     }, 'violet')};
   },
-  levels: ({bars, completedBefore}) => ({levels: recentLevels(bars, completedBefore)}),
+  levels: ({confirmed, completedBefore}) => ({levels: recentLevels(confirmed, completedBefore)}),
   rsi: ({closes, rsiPeriod}) => ({series: [line('main', `RSI ${rsiPeriod}`, rsi(closes, rsiPeriod), 'violet')], guides: [30, 70], bounds: [0, 100]}),
   macd: ({closes}) => {
     const values = macd(closes);
@@ -243,11 +244,11 @@ const calculate = {
   cmf: ({bars}) => ({series: [line('main', 'CMF 20', chaikinFlow(bars), 'up')], guides: [0], bounds: [-1, 1]})
 };
 
-export function calculateStudies(bars, ids, {period = 20, rsiPeriod = 14, interval, completedBefore = Infinity} = {}) {
+export function calculateStudies(bars, ids, {period = 20, rsiPeriod = 14, interval, completedBefore = Infinity, confirmed = bars} = {}) {
   const selected = normalizeStudyIds(ids);
   if (!selected.length) return [];
   const context = {
-    bars, closes: bars.map(bar => bar.close), interval, completedBefore,
+    bars, closes: bars.map(bar => bar.close), interval, completedBefore, confirmed,
     period: Number.isInteger(period) && period >= 2 && period <= 200 ? period : 20,
     rsiPeriod: Number.isInteger(rsiPeriod) && rsiPeriod >= 2 && rsiPeriod <= 100 ? rsiPeriod : 14
   };
@@ -304,7 +305,8 @@ export function renderStudies(chart, priceSeries, previousView, bars, ids, optio
   const results = calculateStudies(bars, ids, options);
   const series = new Map();
   const levels = new Map();
-  const hasPane = results.some(result => result.placement === 'pane' && result.series.length > 0);
+  const hasPane = results.some(result => result.placement === 'pane' &&
+    result.series.some(plot => plot.values.some(Number.isFinite)));
   const tail = bars.at(-1);
   const beforeTail = bars.at(-2);
   const firstTime = bars[0]?.time;
@@ -316,6 +318,7 @@ export function renderStudies(chart, priceSeries, previousView, bars, ids, optio
   const priceFormat = {type: 'price', precision, minMove: 10 ** -precision};
 
   for (const result of results) {
+    if (result.placement === 'pane' && !hasPane) continue;
     const pane = result.placement === 'pane' ? 1 : 0;
     for (const [index, plot] of result.series.entries()) {
       const key = `${result.id}:${plot.key}`;

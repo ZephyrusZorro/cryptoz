@@ -1,12 +1,258 @@
-export function parseMarketTicker(d,registry){if(!d||!registry.has(d.s))return null;const price=+d.c,change=d.P!==undefined?+d.P:+d.o>0?(+d.c/+d.o-1)*100:NaN,volume=+d.q,high=+d.h,low=+d.l,time=+d.E;if(![price,change,volume,high,low,time].every(Number.isFinite)||price<=0||volume<0||high<price||low>price||low<=0||!Number.isSafeInteger(time)||time<=0||time>8640000000000000)return null;return {symbol:d.s,price,change,volume,high,low,time,updatedAt:new Date(time).toISOString()};}
-export function acceptTicker(previous,next){return !!next&&(!previous||next.time>previous.time);}
-export function parsePartialBook(d){if(!d||!Number.isSafeInteger(d.lastUpdateId)||d.lastUpdateId<=0)return null;const read=x=>Array.isArray(x)&&x.length>0&&x.length<=20?x.map(a=>[+a?.[0],+a?.[1]]):null,bids=read(d.bids),asks=read(d.asks);if(!bids||!asks||[...bids,...asks].some(x=>!x.every(Number.isFinite)||x[0]<=0||x[1]<=0)||bids.some((x,i)=>i&&x[0]>=bids[i-1][0])||asks.some((x,i)=>i&&x[0]<=asks[i-1][0])||bids[0][0]>=asks[0][0])return null;return {bids,asks,sequence:d.lastUpdateId};}
-export class MarketStream{
- constructor({onBatch,onStatus}){Object.assign(this,{onBatch,onStatus});this.quotes=new Map();this.registry=new Set();this.pending=new Map();this.state='connecting';this.lastMessage=0;this.closed=false;this.flushTimer=setInterval(()=>this.flush(),1000);this.healthTimer=setInterval(()=>this.report(),5000);}
- setRegistry(list){this.registry=new Set(list.filter(x=>x.venue==='binance'&&x.quote==='USDT').map(x=>x.symbol));for(const symbol of this.quotes.keys())if(!this.registry.has(symbol)){this.quotes.delete(symbol);this.pending.delete(symbol);}if(this.registry.size&&!this.socket)this.connect();}
- connect(){if(this.closed||!this.registry.size)return;this.state='connecting';this.connectionStarted=Date.now();this.report();const socket=this.socket=new WebSocket('wss://data-stream.binance.vision/ws/!miniTicker@arr');socket.onmessage=e=>{let list;try{list=JSON.parse(e.data);}catch{return;}if(!Array.isArray(list))return;const now=Date.now();for(const raw of list){const q=parseMarketTicker(raw,this.registry);if(!q||now-q.time>30000||q.time-now>5000||!acceptTicker(this.quotes.get(q.symbol),q))continue;this.quotes.set(q.symbol,q);this.pending.set(q.symbol,q);this.lastMessage=now;this.state='streaming';this.attempt=0;}this.report();};socket.onclose=()=>{this.socket=null;if(this.closed)return;this.state='reconnecting';this.report();this.retry=setTimeout(()=>this.connect(),Math.min(30000,1500*2**Math.min(this.attempt??0,4)));this.attempt=(this.attempt??0)+1;};socket.onerror=()=>{};}
- report(){if(!this.closed&&this.socket&&Date.now()-Math.max(this.lastMessage,this.connectionStarted??Date.now())>45000)this.socket.close();this.onStatus({state:this.state==='streaming'&&Date.now()-this.lastMessage>15000?'delayed':this.state,lastMessage:this.lastMessage});}
- flush(){if(this.pending.size){this.onBatch(new Map(this.pending));this.pending.clear();}}
- fresh(symbol){const q=this.quotes.get(symbol);return this.registry.has(symbol)&&q&&Date.now()-q.time<15000&&this.state==='streaming'?q:null;}
- dispose(){this.closed=true;clearInterval(this.flushTimer);clearInterval(this.healthTimer);clearTimeout(this.retry);this.socket?.close();}
+import {asNumber} from './numbers.js';
+
+const PUBLIC_STREAM = 'wss://data-stream.binance.vision/ws/!miniTicker@arr';
+export const BENCHMARK_ASSETS = Object.freeze(['BTC', 'ETH', 'SOL', 'BNB', 'XRP']);
+const FRESH_MS = 15_000;
+const FUTURE_TOLERANCE_MS = 5_000;
+const CONNECT_TIMEOUT_MS = 15_000;
+const STREAM_TIMEOUT_MS = 30_000;
+const HEALTH_MS = 3_000;
+
+function observationTime(time) {
+  return Number.isSafeInteger(time) && time > 0 && time <= 8_640_000_000_000_000;
+}
+
+export function parseMarketTicker(raw, registry) {
+  if (!raw || !registry.has(raw.s)) return null;
+  const price = asNumber(raw.c), open = asNumber(raw.o), high = asNumber(raw.h), low = asNumber(raw.l);
+  const change = raw.P === undefined ? (open > 0 ? (price / open - 1) * 100 : null) : asNumber(raw.P);
+  const volume = asNumber(raw.q), time = asNumber(raw.E);
+  if (!(price > 0 && high >= price && low > 0 && low <= price && volume !== null
+    && volume >= 0 && Number.isFinite(change) && observationTime(time))) return null;
+  return {symbol: raw.s, price, change, volume, high, low, time, updatedAt: new Date(time).toISOString()};
+}
+
+export function acceptTicker(previous, next) {
+  return !!next && (!previous || next.time > previous.time);
+}
+
+export function parsePartialBook(data) {
+  if (!data || !Number.isSafeInteger(data.lastUpdateId) || data.lastUpdateId <= 0) return null;
+  const read = levels => Array.isArray(levels) && levels.length > 0 && levels.length <= 20
+    ? levels.map(level => [asNumber(level?.[0]), asNumber(level?.[1])])
+    : null;
+  const bids = read(data.bids), asks = read(data.asks);
+  if (!bids || !asks || [...bids, ...asks].some(level => level.some(value => !(value > 0)))
+    || bids.some((level, index) => index && level[0] >= bids[index - 1][0])
+    || asks.some((level, index) => index && level[0] <= asks[index - 1][0])
+    || bids[0][0] >= asks[0][0]) return null;
+  return {bids, asks, sequence: data.lastUpdateId};
+}
+
+export class MarketStream {
+  constructor({
+    onBatch, onStatus, now = Date.now, random = Math.random, timers = globalThis,
+    visibility = globalThis.document, network = globalThis.window,
+    socketFactory = url => new WebSocket(url),
+    requestFrame = globalThis.requestAnimationFrame?.bind(globalThis) ?? (fn => timers.setTimeout(fn, 16)),
+    cancelFrame = globalThis.cancelAnimationFrame?.bind(globalThis) ?? (id => timers.clearTimeout(id))
+  }) {
+    Object.assign(this, {onBatch, onStatus, now, random, timers, visibility, network, socketFactory, requestFrame, cancelFrame});
+    this.quotes = new Map();
+    this.snapshots = new Map();
+    this.registry = new Set();
+    this.connectionSamples = new Set();
+    this.pending = new Map();
+    this.state = 'idle';
+    this.lastMessage = 0;
+    this.connectionStarted = 0;
+    this.attempt = 0;
+    this.frame = null;
+    this.retry = null;
+    this.socket = null;
+    this.closed = false;
+    this.active = true;
+    this.handleLifecycle = () => this.syncConnection();
+    this.visibility?.addEventListener('visibilitychange', this.handleLifecycle);
+    this.network?.addEventListener('online', this.handleLifecycle);
+    this.network?.addEventListener('offline', this.handleLifecycle);
+    this.healthTimer = this.timers.setInterval(() => this.report(), HEALTH_MS);
+  }
+
+  setRegistry(list) {
+    this.registry = new Set(list.filter(item => item.venue === 'binance' && item.quote === 'USDT').map(item => item.symbol));
+    for (const symbol of this.quotes.keys()) {
+      if (this.registry.has(symbol)) continue;
+      this.quotes.delete(symbol);
+      this.pending.delete(symbol);
+      this.connectionSamples.delete(symbol);
+    }
+    for (const symbol of this.snapshots.keys()) {
+      if (!this.registry.has(symbol)) this.snapshots.delete(symbol);
+    }
+    this.syncConnection();
+  }
+
+  setActive(active) {
+    if (this.active === active) return;
+    this.active = active;
+    this.syncConnection();
+  }
+
+  setSnapshots(list, {stale = false} = {}) {
+    const now = this.now();
+    for (const row of list) {
+      if (!row) continue;
+      const price = asNumber(row.price), time = Date.parse(row.updatedAt);
+      const change = asNumber(row.change), volume = asNumber(row.volume);
+      if (typeof row.id !== 'string' || !row.id.endsWith('USDT') || !(price > 0)
+        || !observationTime(time) || time - now > FUTURE_TOLERANCE_MS || volume === null || volume < 0
+        || (this.snapshots.get(row.id)?.time ?? 0) > time) continue;
+      const snapshot = {symbol: row.id, price, change, volume, time, updatedAt: new Date(time).toISOString(), stale};
+      this.snapshots.set(row.id, snapshot);
+      this.pending.set(row.id, snapshot);
+    }
+    this.scheduleFlush();
+  }
+
+  syncConnection() {
+    if (this.closed) return;
+    const blocked = this.network?.navigator?.onLine === false ? 'offline'
+      : this.visibility?.hidden || !this.active ? 'paused' : !this.registry.size ? 'idle' : '';
+    if (blocked) {
+      this.stopConnection();
+      this.transition(blocked);
+    } else if (!this.socket && this.retry === null) {
+      this.connect();
+    }
+  }
+
+  connect() {
+    this.connectionStarted = this.now();
+    this.lastMessage = 0;
+    this.transition('connecting');
+    let socket;
+    try {
+      socket = this.socketFactory(PUBLIC_STREAM);
+    } catch {
+      this.scheduleRetry();
+      return;
+    }
+    this.socket = socket;
+    socket.onmessage = event => {
+      if (socket !== this.socket) return;
+      let tickers;
+      try { tickers = JSON.parse(event.data); } catch { return; }
+      if (tickers?.e === 'serverShutdown') {
+        this.scheduleRetry();
+        return;
+      }
+      if (!Array.isArray(tickers)) return;
+      const now = this.now();
+      let accepted = false;
+      for (const raw of tickers) {
+        const quote = parseMarketTicker(raw, this.registry);
+        if (!quote || now - quote.time >= FRESH_MS || quote.time - now > FUTURE_TOLERANCE_MS
+          || !acceptTicker(this.quotes.get(quote.symbol), quote)) continue;
+        this.quotes.set(quote.symbol, quote);
+        this.pending.set(quote.symbol, quote);
+        this.connectionSamples.add(quote.symbol);
+        accepted = true;
+      }
+      if (!accepted) return;
+      this.lastMessage = now;
+      this.attempt = 0;
+      this.transition('streaming');
+      this.scheduleFlush();
+    };
+    socket.onclose = () => {
+      if (socket === this.socket) this.scheduleRetry();
+    };
+    // A failed browser upgrade emits close. The watchdog also covers silent sockets.
+    socket.onerror = () => {};
+  }
+
+  scheduleRetry() {
+    this.stopConnection();
+    if (this.closed) return;
+    this.transition('reconnecting');
+    const delay = Math.min(30_000, 1_500 * 2 ** Math.min(this.attempt++, 5) * (0.8 + this.random() * 0.4));
+    this.retry = this.timers.setTimeout(() => {
+      this.retry = null;
+      this.syncConnection();
+    }, delay);
+  }
+
+  stopConnection() {
+    if (this.retry !== null) this.timers.clearTimeout(this.retry);
+    this.retry = null;
+    if (this.frame !== null) this.cancelFrame(this.frame);
+    this.frame = null;
+    this.pending.clear();
+    this.connectionSamples.clear();
+    const socket = this.socket;
+    this.socket = null;
+    if (!socket) return;
+    socket.onmessage = socket.onclose = socket.onerror = null;
+    socket.close();
+  }
+
+  transition(state) {
+    if (state === this.state) return;
+    this.state = state;
+    this.publish(true);
+  }
+
+  status() {
+    return {state: this.state, lastMessage: this.lastMessage};
+  }
+
+  publish(transition = false) {
+    this.onStatus({...this.status(), transition});
+  }
+
+  report() {
+    if (this.closed) return;
+    const now = this.now();
+    if (this.socket && (this.lastMessage ? now - this.lastMessage >= STREAM_TIMEOUT_MS
+      : now - this.connectionStarted >= CONNECT_TIMEOUT_MS)) {
+      this.scheduleRetry();
+      return;
+    }
+    if (this.state === 'streaming' && now - this.lastMessage >= FRESH_MS) {
+      this.transition('delayed');
+    } else {
+      this.publish();
+    }
+  }
+
+  scheduleFlush() {
+    if (this.frame !== null || !this.pending.size || this.visibility?.hidden || this.closed) return;
+    this.frame = this.requestFrame(() => {
+      this.frame = null;
+      this.flush();
+    });
+  }
+
+  flush() {
+    if (!this.pending.size || this.closed) return;
+    const batch = this.pending;
+    this.pending = new Map();
+    this.onBatch(batch);
+  }
+
+  fresh(symbol) {
+    const quote = this.quotes.get(symbol), now = this.now();
+    return this.state === 'streaming' && now - this.lastMessage < FRESH_MS
+      && this.connectionSamples.has(symbol) && quote && now - quote.time < FRESH_MS
+      && quote.time - now <= FUTURE_TOLERANCE_MS ? quote : null;
+  }
+
+  observation(symbol) {
+    const quote = this.quotes.get(symbol), snapshot = this.snapshots.get(symbol);
+    if (snapshot && (!quote || snapshot.time > quote.time)) {
+      return {quote: snapshot, quality: snapshot.stale || this.now() - snapshot.time >= 60_000 ? 'last' : 'snapshot'};
+    }
+    if (!quote) return null;
+    return {quote, quality: this.fresh(symbol) ? 'live' : 'last'};
+  }
+
+  dispose() {
+    this.closed = true;
+    this.stopConnection();
+    this.timers.clearInterval(this.healthTimer);
+    this.visibility?.removeEventListener('visibilitychange', this.handleLifecycle);
+    this.network?.removeEventListener('online', this.handleLifecycle);
+    this.network?.removeEventListener('offline', this.handleLifecycle);
+  }
 }

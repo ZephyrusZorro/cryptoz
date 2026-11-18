@@ -2,6 +2,7 @@ import {createProviderCache} from './cache.js';
 import {createInsights,insightSections} from './insights.js';
 import {abortable,deadline,throwIfAborted} from '../src/async-task.js';
 import {normalizeBook} from '../src/market-integrity.js';
+import {asNumber} from '../src/numbers.js';
 import { XMLParser } from 'fast-xml-parser';
 import { normalizeCandles } from '../src/analytics.js';
 
@@ -90,7 +91,25 @@ export function createGateway({fetcher=fetch,now=Date.now}={}) {
     const venue=p.get('venue')??'binance';if(!['binance','coinbase'].includes(venue))return Response.json({error:'Invalid venue'},{status:400});
     result=await loadInstruments(venue,request.signal);
    } else if(route==='exchange-markets') {
-    result=await cached('exchange-markets','Binance',30000,async signal=>{const [d,registry]=await Promise.all([upstream(`${B}/ticker/24hr`,false,signal),loadInstruments('binance',signal)]);if(!Array.isArray(d))throw Error('Invalid ticker response');const active=new Map(registry.data.map(x=>[x.symbol,x]));return d.filter(x=>active.has(x.symbol)&&+x.lastPrice>0).map(x=>({id:x.symbol,symbol:active.get(x.symbol).base,name:x.symbol,price:+x.lastPrice,change:+x.priceChangePercent,volume:+x.quoteVolume,high:+x.highPrice,low:+x.lowPrice,updatedAt:new Date(+x.closeTime).toISOString()})).sort((a,b)=>b.volume-a.volume);});
+    result=await cached('exchange-markets','Binance',30000,async signal=>{
+     const [tickers,registry]=await Promise.all([upstream(`${B}/ticker/24hr`,false,signal),loadInstruments('binance',signal)]);
+     if(!Array.isArray(tickers))throw Error('Invalid ticker response');
+     const active=new Map(registry.data.map(item=>[item.symbol,item]));
+     const quotes=new Map(),maxTime=now()+5000;
+     for(const ticker of tickers){
+      const instrument=active.get(ticker?.symbol);
+      if(!instrument)continue;
+      const id=instrument.symbol,price=asNumber(ticker.lastPrice),change=asNumber(ticker.priceChangePercent);
+      const volume=asNumber(ticker.quoteVolume),time=asNumber(ticker.closeTime);
+      if(!(price>0)||change===null||volume===null||volume<0||!Number.isSafeInteger(time)
+       ||time<=0||time>maxTime||(quotes.get(id)?.time??0)>=time)continue;
+      const high=asNumber(ticker.highPrice),low=asNumber(ticker.lowPrice);
+      quotes.set(id,{id,symbol:instrument.base,name:id,price,change,volume,
+       high:high>=price?high:null,low:low>0&&low<=price?low:null,time,updatedAt:new Date(time).toISOString()});
+     }
+     if(!quotes.size)throw Error('No valid Binance spot observations');
+     return [...quotes.values()].sort((a,b)=>b.volume-a.volume);
+    });
    } else if(route==='global'){try{result=await cached('global','CoinGecko',120000,async signal=>{const d=(await upstream('https://api.coingecko.com/api/v3/global',false,signal)).data;if(!d?.total_market_cap?.usd)throw Error('Invalid global data');return {marketCap:d.total_market_cap.usd,volume:d.total_volume.usd,change:d.market_cap_change_percentage_24h_usd,btcDominance:d.market_cap_percentage.btc,ethDominance:d.market_cap_percentage.eth,activeCoins:d.active_cryptocurrencies,updatedAt:new Date(d.updated_at*1000).toISOString()};});}catch{result=await cached('global-fallback','Coinpaprika',120000,async signal=>{const d=await upstream('https://api.coinpaprika.com/v1/global',false,signal);if(!Number.isFinite(d.market_cap_usd)||d.market_cap_usd<=0)throw Error('Invalid global fallback');return {marketCap:d.market_cap_usd,volume:d.volume_24h_usd,change:d.market_cap_change_24h,btcDominance:d.bitcoin_dominance_percentage,ethDominance:null,activeCoins:d.cryptocurrencies_number,updatedAt:new Date(d.last_updated*1000).toISOString()};});result.notice='CoinGecko unavailable; global statistics supplied by Coinpaprika.';}}
    else if(route==='chains')result=await cached('chains','DeFiLlama',300000,async signal=>{const d=await upstream('https://api.llama.fi/v2/chains',false,signal);if(!Array.isArray(d))throw Error('Invalid chain data');return d.filter(x=>Number.isFinite(x.tvl)&&x.tvl>0).map(x=>({name:x.name,symbol:x.tokenSymbol,tvl:x.tvl})).sort((a,b)=>b.tvl-a.tvl);});
    else if(route==='sentiment')result=await cached('sentiment','Alternative.me',3600000,async signal=>{const d=(await upstream('https://api.alternative.me/fng/?limit=1',false,signal)).data?.[0];if(!d||!Number.isFinite(+d.value))throw Error('Invalid sentiment');return {value:+d.value,label:d.value_classification,updatedAt:new Date(+d.timestamp*1000).toISOString()};});

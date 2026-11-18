@@ -75,22 +75,26 @@ test('falling swing highs form resistance even when the swing lows are falling t
 test('range events compare with the prior 20 bars and require the close to clear the level', () => {
   const bars = candles([...Array(21).fill(100), 102, 104, 104, 94, 90]);
   bars[23] = candle(23, 104, {high: 110});
-  const {events} = setup(bars, 26);
+  const events = setup(bars, 26).events.filter(event => event.kind === 'range');
   assert.deepEqual(events.map(({time, confirmedAt, kind, direction}) => [time, confirmedAt, kind, direction]), [
     [time(21), time(22), 'range', 'up'], [time(24), time(25), 'range', 'down']
   ]);
   assert.equal(events[0].evidence.level, 101);
   assert.equal(events[0].evidence.close, 102);
   assert.equal(events[1].evidence.level, 99);
-  assert.deepEqual(setup(bars, 21).events, []);
+  assert.deepEqual(setup(bars, 21).events.filter(event => event.kind === 'range'), []);
 });
 
-test('momentum transitions use a fixed trailing sample and remain stable as history extends', () => {
+test('momentum transitions use the same loaded seed as their plots and do not use future candles', () => {
   const bars = candles([...Array(100).fill(100), 150, 50, 10, 100]);
   const prefix = setup(bars, 102);
   const full = setup(bars, 104);
   const prepended = setup([candle(-1, 700), ...bars], 104);
-  assert.deepEqual(full.events, prepended.events);
+  assert.deepEqual(
+    full.events.filter(event => event.kind === 'range'),
+    prepended.events.filter(event => event.kind === 'range')
+  );
+  assert.ok(prepended.events.filter(event => event.kind === 'macd').every(event => event.evidence.sampleStartTime === time(-1)));
   assert.deepEqual(prefix.events, full.events.filter(event => event.confirmedAt <= time(102)));
   const momentum = full.events.filter(event => event.kind !== 'range');
   assert.ok(momentum.some(event => event.kind === 'macd' && event.direction === 'up' && event.time === time(100) && event.evidence.previous === 0 && event.evidence.value > 0));

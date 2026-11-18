@@ -36,7 +36,7 @@ test('signals exclude the active candle and require sufficient completed history
 test('drawing overlays export actual palette colors rather than undefined anchors',()=>{
  const workspace={drawings:{'binance:BTCUSDT:1h':[{id:'test',type:'horizontal',points:[{time:3600,price:100}]}]}};
  const chart=new TerminalChart({host:{clientWidth:800,clientHeight:500},workspace});
- chart.chart={timeScale:()=>({timeToCoordinate:()=>100}),panes:()=>[{getHeight:()=>500}]};chart.series={priceToCoordinate:()=>100};chart.svg={setAttribute(){},style:{}};
+ chart.chart={timeScale:()=>({timeToCoordinate:()=>100,width:()=>730}),panes:()=>[{getHeight:()=>500}]};chart.series={priceToCoordinate:()=>100};chart.svg={setAttribute(){},style:{}};
  chart.draw();assert.ok(chart.svg.innerHTML.includes(palette('dark').gold));assert.ok(!chart.svg.innerHTML.includes('undefined'));
 });
 test('market stream batches real mini tickers, ignores stale/reversed data and prunes removed instruments',()=>{

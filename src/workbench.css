@@ -14,20 +14,41 @@
 .wb-quote>strong{font-size:clamp(19px,2.1vw,27px);font-variant-numeric:tabular-nums}
 .wb-24h{font-size:11px;line-height:1.5;color:var(--muted)}
 .wb-24h b{padding-left:3px;color:var(--text)}
-.wb-toolbar{border-top:1px solid var(--border);padding:8px 14px;background:var(--header-glass)}
+.wb-toolbar{border-top:1px solid var(--border);padding:7px 14px;background:var(--header-glass)}
 .wb-toolbar .button{min-height:34px;padding:6px 9px;font-size:11px}.wb-toolbar .button svg{width:14px}
 .wb-toolbar .chart-menu summary{min-height:34px;white-space:nowrap}
 .wb-toolbar .timeframes button.selected{color:var(--text)}
 .wb-toolbar select{font-size:11px;min-height:34px;width:auto;margin:0;max-width:100%}
 .wb-mobile-interval,.wb-visually-hidden{display:none!important}
-.wb-main .price-chart{height:clamp(310px,43vh,470px);overflow:hidden}
-.pro-price .price-chart{height:clamp(320px,49vh,510px)}
+.wb-main .price-chart{height:clamp(320px,49vh,530px);overflow:hidden}
+.pro-price .price-chart{height:clamp(365px,55vh,580px)}
+body[data-page=terminal] .terminal-heading{margin-bottom:13px}
+.wb-main{border-radius:15px}
+.wb-main .indicator-strip{padding-block:5px}
+.wb-main .active-chain{min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.wb-tabs{scroll-margin-top:108px}
+.wb-signal-link{padding:4px 8px;border:1px solid var(--nav-edge);border-radius:7px;color:var(--text);font-size:11px;line-height:1.4}
+.wb-signal-link:hover{background:var(--nav-highlight)}
+.wb-main .price-chart:focus-visible,.wb-pane:focus-visible{outline:2px solid var(--lime);outline-offset:-2px}
 .wb-draw-task .auto-controls{border-top:0;padding:10px 17px}
 .wb-tabs{display:flex;flex-wrap:wrap;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border)}
 .wb-tabs button{padding:8px 12px;min-height:36px;border-radius:9px;font-size:12px;border:1px solid transparent;color:var(--muted)}
-.wb-tabs button[aria-pressed=true]{border-color:var(--nav-edge);background:var(--nav-highlight);color:var(--text)}
+.wb-tabs button[aria-selected=true]{border-color:var(--nav-edge);background:var(--nav-highlight);color:var(--text)}
+.wb-tabs button:hover{color:var(--text)}
 .wb-pane[hidden]{display:none!important}
 .wb-pane{padding:13px 16px;min-width:0}
+.wb-signal-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:9px;margin-bottom:8px}
+.wb-signal-head p{font-size:12px;color:var(--muted);margin-top:4px}
+.wb-signal-events{list-style:none;margin:0;padding:0}
+.wb-signal-events li{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:5px 12px;padding:10px 0;border-top:1px solid var(--border)}
+.wb-signal-events li div{flex:1 1 195px;min-width:0}
+.wb-signal-events li p{font-size:12px;color:var(--muted);margin-top:4px}
+.wb-signal-events li small{display:block;color:var(--muted);font-variant-numeric:tabular-nums}
+.wb-signal-events li .button{flex:none;font-size:11px}
+.wb-signal-settings{display:grid;gap:7px;min-inline-size:0;border:0;padding:0;margin:12px 0}
+.wb-signal-settings legend{padding:0 0 6px;color:var(--muted);font-size:12px}
+#signal-form>.button{margin-top:12px}
+#forecast-progress:empty{display:none}
 .wb-reader .chart-observations{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,175px),1fr));gap:8px;margin:8px 0}
 .wb-reader .chart-observations>div{border:1px solid var(--border);border-radius:10px;padding:9px}
 .wb-reader .chart-observations dd{margin:0}
@@ -55,6 +76,7 @@ body.chart-focus .wb-main .wb-instrument,body.chart-focus .wb-main .wb-toolbar,b
 .basic-path a{display:flex;align-items:center;gap:9px;padding:10px 12px;border:1px solid var(--nav-edge);border-radius:11px;color:var(--text);background:var(--glass)}
 .basic-path strong,.basic-path small{display:block}.basic-path small{color:var(--muted);margin-top:2px;line-height:1.4}.basic-path svg{width:16px;color:var(--lime);flex:none}
 .basic-path a:hover{border-color:var(--lime)}
+.research-paths a{background:var(--nav-highlight)}
 .pro-statusline{color:var(--muted);font-size:12px;margin:7px 0 0}
 .monitor-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:stretch}
 .monitor-columns .panel{min-width:0;margin:0}.monitor-columns .home-breadth{height:auto}
@@ -73,9 +95,9 @@ body.chart-focus .wb-main .wb-instrument,body.chart-focus .wb-main .wb-toolbar,b
 @media(max-width:700px){
  .wb-mobile-interval{display:grid!important}.pro-workbench .timeframes{display:none}
  .wb-instrument,.wb-toolbar{padding:8px 9px;gap:7px}.wb-step{padding:10px 12px}
- .wb-main .price-chart,.pro-price .price-chart{height:clamp(220px,40vh,380px)}
+ .wb-main .price-chart,.pro-price .price-chart{height:clamp(265px,45vh,390px)}
  .wb-toolbar .chart-menu summary,.wb-toolbar .button{font-size:10px}.wb-view{display:none!important}
- .wb-tabs{padding:6px;gap:3px}.wb-tabs button{padding:6px 7px;font-size:11px;min-height:36px}
+ .wb-tabs{padding:6px;gap:3px}.wb-tabs button{padding:6px 7px;font-size:11px;min-height:36px;flex:1 0 auto}
  .wb-pane{padding:10px}.wb-pair select{width:min(110px,32vw)}.wb-picker{gap:5px}.wb-24h{display:none}
  .monitor-columns,.basic-path{grid-template-columns:1fr}.basic-start,.pro-monitor-header{padding:14px}
  .basic-path{gap:5px}.basic-path a{padding:8px 9px}.market-screen-fields{grid-template-columns:repeat(2,minmax(0,1fr))}

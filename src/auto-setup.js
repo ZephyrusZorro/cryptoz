@@ -1,12 +1,10 @@
-import {macd, normalizeCandles, rsi} from './analytics.js';
+import {ema, macd, normalizeCandles, rsi} from './analytics.js';
 import {formatter, pricePrecision} from './numbers.js';
 import {INTERVALS} from './preferences.js';
 
 const RANGE_WINDOW = 20;
 const SWING_WINDOW = 60;
 const SWING_WIDTH = 2;
-const EVENT_WINDOW = 80;
-const MOMENTUM_WINDOW = 100;
 const RETRACEMENTS = [0.236, 0.382, 0.5, 0.618, 0.786];
 
 const priceText = value => formatter({maximumFractionDigits: pricePrecision(value)}).format(value);
@@ -122,15 +120,20 @@ function addRangeEvent(events, bars, i, step) {
     {close: bar.close, level: anchor.price, anchorTime: anchor.time, rangeStartTime: bars[i - RANGE_WINDOW].time, rangeEndTime: bars[i - 1].time}));
 }
 
-function addMomentumEvents(events, bar, step, previous, current, sampleStartTime) {
+function crossing(before, after, tolerance) {
+  if (before <= tolerance && after > tolerance) return 'up';
+  if (before >= -tolerance && after < -tolerance) return 'down';
+  return null;
+}
+
+function addMomentumEvents(events, bar, step, previous, current, evidence, rsiPeriod) {
   if (Number.isFinite(previous.macd) && Number.isFinite(current.macd)) {
-    const up = previous.macd <= 0 && current.macd > 0;
-    const down = previous.macd >= 0 && current.macd < 0;
-    if (up || down) {
-      const relation = up ? 'above' : 'below';
-      events.push(event(bar, step, 'macd', up ? 'up' : 'down', `MACD crossed ${relation} signal`,
+    const direction = crossing(previous.macd, current.macd, bar.close * 1e-12);
+    if (direction) {
+      const relation = direction === 'up' ? 'above' : 'below';
+      events.push(event(bar, step, 'macd', direction, `MACD crossed ${relation} signal`,
         `The 12/26/9 MACD histogram moved from ${momentumText(previous.macd)} to ${momentumText(current.macd)}.`,
-        {previous: previous.macd, value: current.macd, threshold: 0, sampleStartTime, sampleCount: MOMENTUM_WINDOW + 1}));
+        {...evidence, previous: previous.macd, value: current.macd, threshold: 0}));
     }
   }
   const recovered = previous.rsi <= 30 && current.rsi > 30;
@@ -138,41 +141,12 @@ function addMomentumEvents(events, bar, step, previous, current, sampleStartTime
   if (Number.isFinite(previous.rsi) && Number.isFinite(current.rsi) && (recovered || cooled)) {
     const threshold = recovered ? 30 : 70;
     events.push(event(bar, step, 'rsi', recovered ? 'up' : 'down', `RSI moved ${recovered ? 'above' : 'below'} ${threshold}`,
-      `RSI 14 moved from ${momentumText(previous.rsi)} to ${momentumText(current.rsi)} at the close.`,
-      {previous: previous.rsi, value: current.rsi, threshold, sampleStartTime, sampleCount: MOMENTUM_WINDOW + 1}));
+      `RSI ${rsiPeriod} moved from ${momentumText(previous.rsi)} to ${momentumText(current.rsi)} at the close.`,
+      {...evidence, previous: previous.rsi, value: current.rsi, threshold, lookback: rsiPeriod}));
   }
 }
 
-function compareMomentum(events, bars, i, step) {
-  // Both values share an indicator seed. Dropping one candle from a rolling
-  // seed between the two values could create a transition with no price move.
-  const sampleStart = i - MOMENTUM_WINDOW;
-  const closes = bars.slice(sampleStart, i + 1).map(bar => bar.close);
-  const histogram = macd(closes).histogram;
-  const strength = rsi(closes);
-  const valueAt = offset => {
-    const value = histogram.at(offset);
-    return {macd: Math.abs(value) <= closes.at(offset) * 1e-12 ? 0 : value, rsi: strength.at(offset)};
-  };
-  addMomentumEvents(events, bars[i], step, valueAt(-2), valueAt(-1), bars[sampleStart].time);
-}
-
-function recentEvents(closed, step) {
-  const events = [];
-  const eventStart = closed.at(-1).time - (EVENT_WINDOW - 1) * step;
-  let runStart = Math.max(0, closed.length - EVENT_WINDOW - MOMENTUM_WINDOW);
-  for (let i = runStart; i < closed.length; i++) {
-    const bar = closed[i];
-    if (i > runStart && bar.time - closed[i - 1].time !== step) runStart = i;
-    if (bar.time < eventStart) continue;
-    const previousCount = i - runStart;
-    if (previousCount > RANGE_WINDOW) addRangeEvent(events, closed, i, step);
-    if (previousCount >= MOMENTUM_WINDOW) compareMomentum(events, closed, i, step);
-  }
-  return events;
-}
-
-export function buildAutoSetup(bars, {interval, completedBefore, nowSeconds = Date.now() / 1000, stale = false} = {}) {
+export function buildAutoSetup(bars, {interval, completedBefore, nowSeconds = Date.now() / 1000, stale = false, events} = {}) {
   const step = Object.hasOwn(INTERVALS, interval) ? INTERVALS[interval] : 0;
   const base = {ready: false, stale: stale === true, closedAt: null, sampleCount: 0, range: null, trend: null, fibonacci: null, guides: [], events: []};
   if (!step || !Number.isFinite(nowSeconds) || !Number.isFinite(completedBefore)) {
@@ -203,13 +177,66 @@ export function buildAutoSetup(bars, {interval, completedBefore, nowSeconds = Da
   const trend = swingTrend(swings);
   const fibonacci = fibonacciLeg(swings);
   const guides = setupGuides(range, trend, fibonacci, last.time);
-  const events = recentEvents(closed, step);
   const ready = guides.length > 0;
   const reason = sample.length < RANGE_WINDOW
     ? first > 0 ? 'A candle gap limits the recent sample.' : `Recent range needs ${RANGE_WINDOW} consecutive closed candles.`
     : 'The latest closed candles have a flat range.';
   return {
     ready, reason: ready ? null : reason, stale: base.stale || nowSeconds - closedAt >= step,
-    closedAt, sampleCount: sample.length, range, trend, fibonacci, guides, events
+    closedAt, sampleCount: sample.length, range, trend, fibonacci, guides,
+    events: events ?? chartSignalEvents(closed, closed, {step, kinds: ['range', 'macd', 'rsi']})
   };
+}
+
+export function chartSignalEvents(bars, confirmed, {step, kinds, rsiPeriod = 14}) {
+  if (!kinds.length || !confirmed.length) return [];
+  const byTime = new Map(confirmed.map(bar => [bar.time, bar]));
+  // Use the same input values as the overlays and oscillators. Requiring a
+  // confirmed matching close prevents an unfinished or corrected bar from
+  // producing a marker that disagrees with the visible price series.
+  const closes = bars.map(bar => bar.close);
+  const strength = kinds.includes('rsi') ? rsi(closes, rsiPeriod) : [];
+  const histogram = kinds.includes('macd') ? macd(closes).histogram : [];
+  const fast = kinds.includes('ema') ? ema(closes, 20) : [];
+  const slow = kinds.includes('ema') ? ema(closes, 50) : [];
+  const ranges = kinds.includes('range');
+  const momentum = strength.length || histogram.length;
+  const events = [];
+  let consecutive = 0;
+  for (let i = 0; i < bars.length; i++) {
+    const bar = bars[i];
+    if (bars[i - 1]?.time + step !== bar.time) consecutive = 0;
+    const verified = byTime.get(bar.time);
+    if (!verified || verified !== bar && (
+      bar.close !== verified.close || bar.open !== verified.open || bar.high !== verified.high ||
+      bar.low !== verified.low || bar.volume !== verified.volume
+    )) {
+      consecutive = 0;
+      continue;
+    }
+    consecutive++;
+    const firstEvent = events.length;
+    if (ranges && consecutive > RANGE_WINDOW + 1) addRangeEvent(events, bars, i, step);
+    const evidence = {sampleStartTime: bars[0].time, sampleCount: i + 1};
+    if (momentum) {
+      const momentumAt = index => ({
+        macd: consecutive >= 35 ? histogram[index] : undefined,
+        rsi: consecutive >= rsiPeriod + 2 ? strength[index] : undefined
+      });
+      addMomentumEvents(events, bar, step, momentumAt(i - 1), momentumAt(i), evidence, rsiPeriod);
+    }
+    if (consecutive >= 51 && Number.isFinite(slow[i - 1])) {
+      const before = fast[i - 1] - slow[i - 1];
+      const after = fast[i] - slow[i];
+      const direction = crossing(before, after, bar.close * 1e-12);
+      if (direction) {
+        const relation = direction === 'up' ? 'above' : 'below';
+        events.push(event(bar, step, 'ema', direction, `EMA 20 crossed ${relation} EMA 50`,
+          `The 20-candle EMA closed at ${priceText(fast[i])} and the 50-candle EMA closed at ${priceText(slow[i])}.`,
+          {...evidence, previous: before, value: after, threshold: 0, ema20: fast[i], ema50: slow[i]}));
+      }
+    }
+    for (let index = firstEvent; index < events.length; index++) events[index].price = bar.close;
+  }
+  return events;
 }

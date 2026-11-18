@@ -45,6 +45,19 @@ test('older failed requests can retry and obsolete responses cannot alter the ne
  assert.deepEqual(chart.bars,[bar(B+3600)]);
 });
 
+test('a deeper study can await a history page already requested by chart navigation',async()=>{
+ const chart=terminal();chart.bars=[bar(B)];chart.updateSeries=()=>{};
+ let release,requests=0;
+ chart.fetch=()=>{requests++;return new Promise(resolve=>{release=resolve;});};
+ const background=chart.loadOlder({automatic:true});
+ const forecast=chart.loadOlder({automatic:true,retry:true});
+ assert.equal(forecast,background);
+ release({data:{bars:[bar(B-3600)]}});
+ await forecast;
+ assert.equal(requests,1);
+ assert.deepEqual(chart.bars.map(candle=>candle.time),[B-3600,B]);
+});
+
 test('UTC archive dates validate calendar, future and timeframe boundaries',()=>{
  assert.equal(historyCursor('2024-02-30',3600,NOW/1000),null);
  assert.equal(historyCursor('2028-01-01',3600,NOW/1000),null);
