@@ -7,13 +7,15 @@ import {parsePartialBook} from './live-market.js';
 import {createChart,CandlestickSeries,BarSeries,LineSeries,ColorType,CrosshairMode,createSeriesMarkers} from 'lightweight-charts';
 import {renderStudies,normalizeStudyIds,STUDIES} from './studies.js';
 import {buildAutoSetup,chartSignalEvents} from './auto-setup.js';
-import {structureTools} from './structure-tools.js';
+import {previousPeriodLevels,structureTools} from './structure-tools.js';
 import {heikinAshi,technicalSummary,normalizeCandles} from './analytics.js';
-import {normalizePreferences} from './preferences.js';
+import {AUTO_GUIDES,normalizePreferences} from './preferences.js';
 import {api} from './api.js';import {esc,num,download,toast} from './ui.js';
 const seconds={'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400};
 const HISTORY_LIMIT=4000;
 const HISTORY_EDGE=34;
+const HISTORY_GESTURE_MS=1800,HISTORY_RETRY_MS=3000,DAY=86400;
+const periodGuides=new Set(['prev-day','prev-week']);
 const sameBar=(a,b)=>a.time===b.time&&a.open===b.open&&a.high===b.high&&a.low===b.low&&a.close===b.close&&a.volume===b.volume;
 const types={candles:CandlestickSeries,bars:BarSeries,line:LineSeries,heikin:CandlestickSeries};
 export function parseStreamBar(d){const k=d?.k;if(!k)return null;return normalizeCandles([{time:Math.floor(+k.t/1000),open:+k.o,high:+k.h,low:+k.l,close:+k.c,volume:+k.v}])[0]??null;}
@@ -29,26 +31,42 @@ export class TerminalChart {
  async load(instrument=this.instrument,interval=this.interval,{before=null}={}){
   if(this.disposed)return;
   this.clearSignalFocus();
+  this.lastRangeGesture=null;this.historyRetryAt=0;
+  this.referenceDays=[];this.referenceRequest=null;this.referenceCursor=null;this.referenceRetryAt=0;this.periodBeforeAt=null;
   this.instrument=instrument;this.interval=interval;this.historyAnchor=before;this.generation++;const gen=this.generation;this.stopNetwork();this.networkController=new AbortController();this.gestureController?.abort();this.liveRevision=0;this.confirmedThrough=0;this.latestSnapshotAt=0;this.confirmedStreamBars.clear();this.studyBars=[];this.visibleSignals=[];this.markerDescriptions=null;this.autoSetup=null;this.barRevisions=new Map();this.barEvents=new Map();this.observer?.disconnect();this.chart?.remove();this.chart=null;this.series=null;this.svg=null;this.bars=[];this.historyStatus='idle';this.historyNotice='';this.quote=null;this.candleMeta=null;this.lastStream=0;this.lastSocketFrame=0;this.reconnectAttempt=0;this.lastKlineReceived=0;this.lastBookAt=0;this.bookSequence=0;this.pendingPoint=null;this.status('loading');this.onWindow?.({visible:0,total:0,start:null,end:null});this.onQuote(null);this.onBook(null);this.onSummary({ready:false});this.host.innerHTML='<div class="chart-loading"><span class="loader"></span> Connecting to '+esc(instrument.venue)+' market data…</div>';this.onDrawings();
   try{const requestedAt=Date.now();const response=await this.fetch(`candles?venue=${instrument.venue}&symbol=${instrument.symbol}&interval=${interval}${before?'&before='+before:''}`);if(gen!==this.generation||this.disposed)return;this.bars=normalizeCandles(response.data?.bars??[]).filter(bar=>!before||bar.time<before);if(!this.bars.length)throw Error(before?'No provider candles before that date for this pair and interval.':'No valid candles available');this.candleMeta=response;this.latestSnapshotAt=this.snapshotCutoff(response,requestedAt);this.observeStudyBars(this.bars,Math.min(before??Infinity,this.latestSnapshotAt));this.build();this.updateSummary();this.status(before?'archive':response.cache==='stale'?'stale':'snapshot');if(before)return;this.onQuote({price:this.bars.at(-1).close,source:'candle',updatedAt:response.fetchedAt,stale:response.cache==='stale'});this.connect(gen);this.poll(gen);this.pollTimer=setInterval(()=>{if(!document.hidden)this.poll(gen);},15000);this.healthTimer=setInterval(()=>this.checkConnection(gen),5000);
   }catch(e){if(gen!==this.generation||this.disposed)return;this.host.innerHTML=`<div class="chart-loading error-state"><strong>Chart unavailable</strong><p>${esc(e.message)}</p><button data-action="retry-chart" class="button">Retry connection</button><small>Select another venue or instrument. No synthetic candles are shown.</small></div>`;this.status('unavailable');this.historyStatus='unavailable';this.onWindow?.({visible:0,total:0,historyStatus:'unavailable'});}
  }
  build(){
-  if(this.rangeFrame){cancelAnimationFrame(this.rangeFrame);this.rangeFrame=0;}this.pendingRangePrefetch=false;
+  if(this.rangeFrame){cancelAnimationFrame(this.rangeFrame);this.rangeFrame=0;}this.lastRangeGesture=null;
   const p=palette();const range=this.chart?.timeScale().getVisibleLogicalRange();this.observer?.disconnect();this.chart?.remove();this.host.innerHTML='<div class="chart-canvas"></div><svg class="drawing-layer" aria-hidden="true"></svg><div class="crosshair-hud"></div>';const el=this.host.querySelector('.chart-canvas');this.svg=this.host.querySelector('svg');
-  this.chart=createChart(el,{autoSize:true,layout:{background:{type:ColorType.Solid,color:p.panel},textColor:p.text,fontSize:11,fontFamily:'ui-monospace, monospace',attributionLogo:true,panes:{separatorColor:p.border,separatorHoverColor:p.accent,enableResize:true}},grid:{vertLines:{color:p.grid},horzLines:{color:p.grid}},crosshair:{mode:CrosshairMode.Normal,vertLine:{color:p.text,labelBackgroundColor:p.border},horzLine:{color:p.text,labelBackgroundColor:p.border}},rightPriceScale:{borderColor:p.border},timeScale:{borderColor:p.border,timeVisible:true,secondsVisible:false,rightOffset:3,minBarSpacing:.2},handleScroll:this.drawMode==='cursor',handleScale:true});
+  this.chart=createChart(el,{autoSize:true,layout:{background:{type:ColorType.Solid,color:p.panel},textColor:p.text,fontSize:11,fontFamily:'ui-monospace, monospace',attributionLogo:true,panes:{separatorColor:p.border,separatorHoverColor:p.accent,enableResize:true}},grid:{vertLines:{color:p.grid},horzLines:{color:p.grid}},crosshair:{mode:CrosshairMode.Normal,vertLine:{color:p.text,labelBackgroundColor:p.border},horzLine:{color:p.text,labelBackgroundColor:p.border}},rightPriceScale:{borderColor:p.border},timeScale:{borderColor:p.border,timeVisible:true,secondsVisible:false,rightOffset:3,minBarSpacing:.2,fixLeftEdge:true},handleScroll:this.drawMode==='cursor',handleScale:true});
   const options={upColor:p.up,downColor:p.down,borderVisible:false,wickUpColor:p.up,wickDownColor:p.down,color:p.accent,lineWidth:2,priceFormat:{type:'price',precision:pricePrecision(this.bars.at(-1).close),minMove:10**-pricePrecision(this.bars.at(-1).close)}};
   this.series=this.chart.addSeries(types[this.style],options);const display=this.style==='heikin'?heikinAshi(this.bars):this.bars;this.series.setData(this.style==='line'?display.map(b=>({time:b.time,value:b.close})):display);this.seriesFirstTime=this.bars[0]?.time;this.seriesLastTime=this.bars.at(-1)?.time;
   this.studyView=null;this.markerApi=createSeriesMarkers(this.series,[]);this.renderIndicators();
   if(range)this.chart.timeScale().setVisibleLogicalRange(range);else this.setViewPreset(this.viewPreset==='recent'?'recent':'all');this.notifyWindow();
   this.chart.subscribeCrosshairMove(p=>{const el=this.host.querySelector('.crosshair-hud');if(!el)return;const b=p.seriesData.get(this.series);el.textContent=b?('open'in b?`O ${num(b.open,8)}   H ${num(b.high,8)}   L ${num(b.low,8)}   C ${num(b.close,8)}`:`Price ${num(b.value,8)}`)+(this.markerDescriptions?.has(p.time)?' · '+this.markerDescriptions.get(p.time):''):'';});
   this.chart.subscribeClick(p=>{if(this.drawMode==='cursor'||!p.point||!p.time||(p.paneIndex!==undefined&&p.paneIndex!==0))return;const value=this.series.coordinateToPrice(p.point.y);if(!Number.isFinite(value)||value<=0)return;const point={time:+p.time,price:value};if(this.drawMode==='horizontal'||this.drawMode==='label'){this.addDrawing([point]);}else if(this.pendingPoint){this.addDrawing([this.pendingPoint,point]);this.pendingPoint=null;}else{this.pendingPoint=point;toast('Click the second anchor on the price chart.');}});
-  this.gestureController?.abort();this.gestureController=new AbortController();const gesture=()=>{this.viewPreset='custom';this.scheduleRangeRender(true);};for(const name of ['wheel','touchmove'])this.host.addEventListener(name,gesture,{capture:true,passive:true,signal:this.gestureController.signal});this.host.addEventListener('pointermove',e=>{if(e.buttons)gesture();},{capture:true,passive:true,signal:this.gestureController.signal});this.chart.timeScale().subscribeVisibleLogicalRangeChange(()=>this.scheduleRangeRender());this.chart.timeScale().subscribeSizeChange(()=>this.scheduleRangeRender());this.observer=new ResizeObserver(()=>requestAnimationFrame(()=>this.resizeView()));this.observer.observe(this.host);this.draw();requestAnimationFrame(()=>{if(!this.disposed)this.notifyWindow();});
+  this.gestureController?.abort();
+  this.gestureController=new AbortController();
+  const listenerOptions={capture:true,passive:true,signal:this.gestureController.signal};
+  const gesture=()=>{this.markViewportGesture();this.scheduleRangeRender();};
+  for(const name of ['wheel','touchmove'])this.host.addEventListener(name,gesture,listenerOptions);
+  this.host.addEventListener('pointermove',event=>{if(event.buttons)gesture();},listenerOptions);
+  this.chart.timeScale().subscribeVisibleLogicalRangeChange(()=>this.scheduleRangeRender());
+  this.chart.timeScale().subscribeSizeChange(()=>this.scheduleRangeRender());
+  this.observer=new ResizeObserver(()=>requestAnimationFrame(()=>this.resizeView()));
+  this.observer.observe(this.host);this.draw();requestAnimationFrame(()=>{if(!this.disposed)this.notifyWindow();});
  }
  renderIndicators(incremental=false,{refreshAnalysis=true}={}){
   if(!this.chart)return;const p=palette(),cutoff=this.completedCutoff();
   this.studyView=renderStudies(this.chart,this.series,this.studyView,this.bars,this.activeStudies(),{period:this.period,rsiPeriod:this.rsiPeriod,interval:this.interval,completedBefore:cutoff,palette:p,incremental,confirmed:this.studyBars});
   if(refreshAnalysis)this.renderAnalysis(cutoff,p);
+  else if(periodGuides.has(this.autoGuide)&&Math.floor(this.bars.at(-1)?.time/DAY)!==this.periodBeforeAt){
+   this.syncPeriodGuide(cutoff);
+   this.analysisRevision++;
+   this.updateSummary();
+  }
   if(this.studyView.paneChanged&&this.studyView.hasPane&&this.chart.panes().length>1){this.chart.panes()[0].setHeight(Math.max(120,this.host.clientHeight-118));this.chart.panes()[1].setHeight(100);}
   this.draw();
  }
@@ -64,6 +82,7 @@ export class TerminalChart {
    const extra=structureTools(closed,step,cutoff);
    this.autoSetup={...this.autoSetup,zones:extra.zones,profile:extra.profile,guides:[...this.autoSetup.guides,...extra.guides]};
   }
+  this.syncPeriodGuide(cutoff);
   const marks=new Map();
   this.markerDescriptions=new Map();
   for(const signal of this.visibleSignals){
@@ -76,6 +95,42 @@ export class TerminalChart {
    const latest=this.visibleSignals.find(event=>event.id===this.focusedSignal.id)??null;
    this.setFocusedSignal(latest);
   }else this.paintSignalMarkers(colors);
+ }
+ setAutoGuide(key){
+  if(!AUTO_GUIDES.includes(key))return false;
+  this.autoGuide=key;
+  this.syncPeriodGuide(this.completedCutoff());
+  this.draw();
+  return true;
+ }
+ syncPeriodGuide(cutoff){
+  const key=this.autoGuide,visibleTime=this.bars.at(-1)?.time;
+  if(!this.autoSetup||!periodGuides.has(key)||!Number.isFinite(visibleTime))return;
+  this.periodBeforeAt=Math.floor(visibleTime/DAY);
+  const result=previousPeriodLevels(this.studyBars,seconds[this.interval],visibleTime,cutoff,key)
+   ?? previousPeriodLevels(this.referenceDays??[],DAY,visibleTime,cutoff,key);
+  this.autoSetup[key]=result;
+  this.autoSetup.guides=this.autoSetup.guides.filter(guide=>!guide.id.startsWith(key+'-'));
+  if(result)this.autoSetup.guides.push(...result.guides);
+  else if(this.interval!=='1d')this.fetchPeriodGuide(visibleTime);
+ }
+ fetchPeriodGuide(visibleTime){
+  const cursor=Math.floor(visibleTime/DAY)*DAY;
+  if(this.referenceRequest||this.referenceCursor===cursor||Date.now()<(this.referenceRetryAt??0))return;
+  const generation=this.generation,{venue,symbol}=this.instrument,request={};
+  this.referenceRequest=request;
+  this.fetch(`candles?venue=${venue}&symbol=${symbol}&interval=1d&before=${cursor}`)
+   .then(response=>{
+    if(this.disposed||this.generation!==generation||this.referenceRequest!==request)return;
+    this.referenceDays=normalizeCandles(response.data?.bars??[]).filter(bar=>bar.time+DAY<=cursor);
+    this.referenceCursor=cursor;
+    this.syncPeriodGuide(this.completedCutoff());
+    this.analysisRevision++;
+    this.draw();
+    this.updateSummary();
+   })
+   .catch(()=>{if(this.generation===generation)this.referenceRetryAt=Date.now()+HISTORY_RETRY_MS;})
+   .finally(()=>{if(this.referenceRequest===request)this.referenceRequest=null;});
  }
  paintSignalMarkers(colors=palette()){
   const marks=this.signalMarks??[],selected=this.focusedSignal;
@@ -101,7 +156,7 @@ export class TerminalChart {
   const span=Math.min(this.bars.length+4,Math.max(16,Math.min(80,view?view.to-view.from:32)));
   const from=Math.max(-1,Math.min(this.bars.length+3-span,index-span/2));
   this.viewPreset='custom';
-  this.pendingRangePrefetch=false;
+  this.lastRangeGesture=null;
   scale.setVisibleLogicalRange({from,to:from+span});
   this.chart.setCrosshairPosition(signal.price,signal.time,this.series);
   this.setFocusedSignal(signal);
@@ -262,12 +317,19 @@ export class TerminalChart {
   if(k.x)this.updateSummary();
   return true;
  }
- scheduleRangeRender(wantOlder=false){
-  this.pendingRangePrefetch=this.pendingRangePrefetch||wantOlder;
+ markViewportGesture(now=Date.now()){this.viewPreset='custom';this.lastRangeGesture=now;}
+ maybeFetchViewportHistory(range,now=Date.now()){
+  if(!range||range.from>=HISTORY_EDGE||!Number.isFinite(this.lastRangeGesture)
+   ||now-this.lastRangeGesture>HISTORY_GESTURE_MS||this.viewPreset!=='custom')return;
+  const retry=this.historyStatus==='error';
+  if(retry&&(now<(this.historyRetryAt??0)||this.lastRangeGesture<=(this.historyFailureAt??0)))return;
+  this.loadOlder({automatic:true,retry});
+ }
+ scheduleRangeRender(){
   if(this.rangeFrame)return;const chart=this.chart;
-  this.rangeFrame=requestAnimationFrame(()=>{this.rangeFrame=0;const prefetch=this.pendingRangePrefetch;this.pendingRangePrefetch=false;
+  this.rangeFrame=requestAnimationFrame(()=>{this.rangeFrame=0;
    if(this.disposed||chart!==this.chart)return;this.draw();this.notifyWindow();
-   if(prefetch&&this.chart?.timeScale().getVisibleLogicalRange()?.from<HISTORY_EDGE)this.loadOlder({automatic:true});
+   this.maybeFetchViewportHistory(chart?.timeScale().getVisibleLogicalRange());
   });
  }
  loadOlder({automatic=false,retry=false}={}){
@@ -303,7 +365,10 @@ export class TerminalChart {
     // Move one screen left from the old boundary; retain a sliver of overlap for orientation.
     const to=Math.min(this.bars.length+3,old.length+Math.min(12,span*.12));scale.setVisibleLogicalRange({from:Math.max(-1,to-span),to});
    }
-  }catch(error){if(isCurrent()){this.historyStatus='error';this.historyNotice='Earlier candles unavailable. Use Older candles to retry.';}}
+  }catch(error){if(isCurrent()){
+   this.historyStatus='error';this.historyFailureAt=Date.now();this.historyRetryAt=this.historyFailureAt+HISTORY_RETRY_MS;
+   this.historyNotice='Past data is temporarily unavailable. Pan or zoom again to retry.';
+  }}
   finally{if(isCurrent())this.notifyWindow();}
  }
  updateSeries({live=false,closed=false,preserveIndexShift=0}={}){
@@ -321,14 +386,20 @@ export class TerminalChart {
  notifyWindow(){if(!this.chart)return;this.onWindow?.({...windowInfo(this.bars,this.chart.timeScale().getVisibleLogicalRange()),preset:this.viewPreset,selection:classifyRange(this.chart.timeScale().getVisibleLogicalRange(),this.bars.length),historyStatus:this.historyStatus,historyNotice:this.historyNotice,historyAnchor:this.historyAnchor});}
  resizeView(){if(this.disposed||!this.chart)return;if(['all','recent'].includes(this.viewPreset))this.setViewPreset(this.viewPreset);this.draw();}
  jumpToDate(date){const before=historyCursor(date,seconds[this.interval]);if(!before)return false;this.load(this.instrument,this.interval,{before});return true;}
- showLatest(){this.clearSignalFocus();if(this.historyAnchor){this.viewPreset='recent';return this.load();}this.setViewPreset('recent');}
- setViewPreset(preset){if(!this.chart||!['all','recent'].includes(preset))return;this.viewPreset=preset;this.lastRangeGesture=0;if(preset==='all')this.chart.timeScale().fitContent();else this.chart.timeScale().setVisibleLogicalRange(rangeForPreset(this.bars.length,preset));this.notifyWindow();}
+ resetView(){
+  this.clearSignalFocus();
+  if(this.historyAnchor){this.viewPreset='recent';return this.load();}
+  this.series?.priceScale?.()?.applyOptions({autoScale:true});
+  this.setViewPreset('recent');
+ }
+ showLatest(){return this.resetView();}
+ setViewPreset(preset){if(!this.chart||!['all','recent'].includes(preset))return;this.viewPreset=preset;this.lastRangeGesture=null;if(preset==='all')this.chart.timeScale().fitContent();else this.chart.timeScale().setVisibleLogicalRange(rangeForPreset(this.bars.length,preset));this.notifyWindow();}
  zoom(factor){if(!this.chart)return;const range=zoomRange(this.chart.timeScale().getVisibleLogicalRange(),factor,this.bars.length);if(range){this.viewPreset='custom';this.chart.timeScale().setVisibleLogicalRange(range);this.notifyWindow();if(factor>1&&range.from<HISTORY_EDGE)this.loadOlder({automatic:true});}}
  setTool(mode,label=''){this.drawMode=mode;this.drawLabel=label;this.pendingPoint=null;this.chart?.applyOptions({handleScroll:mode==='cursor'});this.host.classList.toggle('drawing',mode!=='cursor');}
  addDrawing(points){const a=this.workspace.drawings[this.key]??=[];if(a.length>=40){toast('Maximum 40 drawings per chart.');return;}a.push({id:crypto.randomUUID(),type:this.drawMode,points,label:this.drawLabel||''});this.save();this.draw();this.onDrawings();toast('Drawing saved. Edit its levels in Drawings.');}
  draw(){
   if(!this.chart||!this.svg)return;
-  const guidePrefix={range:'range-',trend:'swing-trend',fibonacci:'fibonacci-',zones:'zones-',profile:'profile-'}[this.autoGuide];
+  const guidePrefix={range:'range-',trend:'swing-trend',fibonacci:'fibonacci-',zones:'zones-',profile:'profile-','prev-day':'prev-day-','prev-week':'prev-week-'}[this.autoGuide];
   const automatic=!this.manualDrawing&&guidePrefix
    ? (this.autoSetup?.guides??[]).filter(({id})=>id.startsWith(guidePrefix))
    : [];
@@ -341,11 +412,19 @@ export class TerminalChart {
   const {clientWidth:width,clientHeight:height}=this.host;
   const plotWidth=scale.width(),paneHeight=this.chart.panes()[0]?.getHeight()??height;
   const anchors=drawing=>drawing.points.map(({time,price})=>({x:scale.timeToCoordinate(time),y:this.series.priceToCoordinate(price)}));
+  const timeAfter=timestamp=>{
+   let left=0,right=this.bars.length;
+   while(left<right){const mid=(left+right)>>1;if(this.bars[mid].time<timestamp)left=mid+1;else right=mid;}
+   const nearest=this.bars[left]?.time;
+   return Number.isFinite(nearest)?scale.timeToCoordinate(nearest):null;
+  };
   const labelX=x=>Math.max(8,Math.min(x,plotWidth-104));
   const autoLine=drawing=>{
    const [first,second]=anchors(drawing),trend=drawing.type==='trend';
-   if(first.y===null||trend&&(!second||second.x===null||second.y===null||first.x===null))return '';
-   const x1=first.x??0,x2=trend?second.x:plotWidth,y2=trend?second.y:first.y;
+   if(!Number.isFinite(first.y)||trend&&(!second||![first.x,second.x,second.y].every(Number.isFinite)))return '';
+   const x1=first.x??timeAfter(drawing.points[0].time),x2=trend?second.x:plotWidth,y2=trend?second.y:first.y;
+   const bothAbove=first.y<0&&y2<0,bothBelow=first.y>paneHeight&&y2>paneHeight;
+   if(!Number.isFinite(x1)||Math.min(x1,x2)>=plotWidth||Math.max(x1,x2)<0||bothAbove||bothBelow)return '';
    const color=colors[drawing.color]??colors.gold,label=esc((drawing.label||drawing.type).slice(0,34));
    const line=`<line data-auto-guide="${drawing.id}" x1="${x1}" y1="${first.y}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-dasharray="5 4"/>`;
    const text=drawing.id.startsWith('fibonacci-')?'':`<text x="${labelX(x1+6)}" y="${first.y-5}" fill="${color}">${label}</text>`;
@@ -380,6 +459,6 @@ export class TerminalChart {
   if(!this.chart||!this.svg||this.exporting)return;this.exporting=true;const instrument={...this.instrument},interval=this.interval;
   try{const blob=await capturePNG({chart:this.chart,overlay:new XMLSerializer().serializeToString(this.svg),watermark:`CRYPTOZ · ${instrument.venue.toUpperCase()} ${instrument.symbol} ${interval} · exported ${new Date().toISOString()}`,color:palette().accent});downloadBlob(`cryptoz-${instrument.venue}-${instrument.symbol}-${interval}.png`,blob);}catch(error){toast('Snapshot export failed: '+error.message);}finally{this.exporting=false;}
  }
- stopNetwork(){if(this.rangeFrame){cancelAnimationFrame(this.rangeFrame);this.rangeFrame=0;}this.pendingRangePrefetch=false;this.networkController?.abort();this.historyPage=null;this.pollToken=null;clearInterval(this.pollTimer);clearInterval(this.healthTimer);clearTimeout(this.reconnectTimer);this.closeSocket();this.polling=false;}
+ stopNetwork(){if(this.rangeFrame){cancelAnimationFrame(this.rangeFrame);this.rangeFrame=0;}this.lastRangeGesture=null;this.networkController?.abort();this.historyPage=null;this.pollToken=null;clearInterval(this.pollTimer);clearInterval(this.healthTimer);clearTimeout(this.reconnectTimer);this.closeSocket();this.polling=false;}
  dispose(){this.disposed=true;this.generation++;this.stopNetwork();this.gestureController?.abort();this.observer?.disconnect();this.chart?.remove();}
 }

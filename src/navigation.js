@@ -10,13 +10,14 @@ export const GROUPS = {
  home: [
   { route: 'overview', label: 'Overview' },
   { route: 'news', label: 'News' },
-  { route: 'analysts', label: 'Analyst views' }
+  { route: 'analysts', label: 'Analyst research' },
+  { route: 'studio', label: 'Market maps', context:false },
+  { route: 'market-insights', label: 'Market insights', context:false },
+  { route: 'screener', label: 'Asset screener', context:false },
+  { route: 'workspace', label: 'Watchlist & alerts', context:false }
  ],
  markets: [
-  { route: 'markets', label: 'Prices' },
-  { route: 'studio', label: 'Market maps' },
-  { route: 'market-insights', label: 'Insights' },
-  { route: 'workspace', label: 'Watchlist & alerts' }
+  { route: 'markets', label: 'Markets' }
  ],
  research: [
   { route: 'terminal', label: 'Workbench' },
@@ -70,8 +71,9 @@ export function groupFor(route) {
 export function navigationFor(route) {
  const group = groupFor(route);
  const primary = PRIMARY.find(item => item.id === group);
- const items = GROUPS[group];
- const current = items.find(item => item.route === route) ?? items[0];
+ const entries=GROUPS[group];
+ const current=entries.find(item=>item.route===route)??entries[0];
+ const items=entries.filter(item=>item.context!==false||item===current);
  return { group, primary, items, current, primaryCurrent: primary.route === current.route ? 'page' : 'location' };
 }
 

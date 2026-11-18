@@ -1,23 +1,26 @@
 import {esc,icon,price} from './ui.js';
-import {getAnalystResearch} from './study-pov.js';
+import {getAnalystResearch} from './analyst-research.js';
 
 export function analystPanel(asset){
  const analysis=getAnalystResearch(asset);
- return `<div class="analyst-banner panel"><div><span class="page-kicker">SOURCE REVIEW</span><h2>${esc(asset)} analyst views</h2><p>${esc(analysis.coverage)}</p></div><p>${esc(analysis.synthesis)} <span class="source">Reviewed ${esc(analysis.asOf)}</span></p></div><div class="analyst-grid">${analysis.views.map(view=>`<article class="panel analyst-card">
-   <div class="analyst-meta"><strong>${esc(view.publisher)}</strong><time datetime="${esc(view.published)}">${esc(view.published)}</time></div>
+ const {name,symbol}=analysis.asset;
+ const title=name===symbol||!symbol?esc(name):`${esc(name)} <small class="analyst-ticker">${esc(symbol)}</small>`;
+ const reviewed=new Date(analysis.asOf+'T00:00:00Z').toLocaleDateString(undefined,{dateStyle:'medium',timeZone:'UTC'});
+ return `<header class="analyst-banner panel era-surface"><div><h2>${title}</h2><p>${esc(analysis.coverage)}</p></div><p>${esc(analysis.synthesis)}${analysis.views.length?` <span class="source">Sources reviewed <time datetime="${esc(analysis.asOf)}">${esc(reviewed)}</time></span>`:''}</p></header>${analysis.views.length?`<div class="analyst-grid">${analysis.views.map(view=>`<article class="panel analyst-card era-surface">
+   <div class="analyst-meta"><strong>${esc(view.publisher)}</strong><time datetime="${esc(view.published)}">${esc(new Date(view.published+'T00:00:00Z').toLocaleDateString(undefined,{dateStyle:'medium',timeZone:'UTC'}))}</time></div>
    <h3><a href="${esc(view.url)}" target="_blank" rel="noopener noreferrer">${esc(view.title)} ${icon('arrow-up-right')}</a></h3>
-   ${view.author?`<p class="source">${esc(view.author)}</p>`:''}<p>${esc(view.view)}</p><div class="analyst-scope"><span>${esc(view.period)}${view.periodEnded?' · Horizon ended':''}</span><small>${esc(view.context)}</small></div>
-  </article>`).join('')||'<p class="panel analyst-card">No verified source for this market.</p>'}</div>`;
+   ${view.author?`<p class="source">${esc(view.author)}</p>`:''}<p>${esc(view.view)}</p><div class="analyst-scope"><span>${esc(view.type)}${view.period?' · '+esc(view.period):''}${view.periodEnded?' · Horizon ended':''}</span><small>${esc(view.context)}</small></div>
+  </article>`).join('')}</div>`:''}`;
 }
 
 export function chartGuide(pov,setup,mode,studies=[],studyCatalog={}){
  const core=pov.ready?`<div class="chart-reading-state"><strong>${esc(pov.trend)}</strong><time datetime="${new Date(pov.closedAt*1000).toISOString()}">${new Date(pov.closedAt*1000).toISOString().slice(0,16).replace('T',' ')} UTC</time></div>
- <dl class="chart-observations">${pov.observations.map(x=>`<div><dt>${esc(x.label)}</dt><dd>${esc(x.text)}${mode==='pro'?'<small>'+esc(x.detail)+'</small>':''}</dd></div>`).join('')}</dl>`:`<p class="source">${esc(pov.reason)}</p>`;
+ <dl class="chart-observations">${pov.observations.map(x=>`<div><dt>${esc(x.label)}</dt><dd>${esc(x.text)}${mode!=='basic'?'<small>'+esc(x.detail)+'</small>':''}</dd></div>`).join('')}</dl>`:`<p class="source">${esc(pov.reason)}</p>`;
  const latestSetup=setup?.ready&&!setup.stale?setup.events?.at(-1):null;
  const selectedGuide=setup?.[setup.activeGuide];
  return `${pov.stale?'<p class="source warn">Latest confirmed history is delayed.</p>':''}${core}
  ${pov.ready?`<details class="guide-disclosure"><summary>What to watch next</summary><dl class="chart-observations">${pov.scenarios.map(s=>`<div><dt>${esc(s.label)}</dt><dd>${esc(s.text)}</dd></div>`).join('')}</dl></details>`:''}
- ${mode==='basic'?'<details class="guide-disclosure"><summary>How to read a candle</summary><p>The body shows the opening and closing price. The thin lines show the highest and lowest prices. The last candle can change until its interval ends.</p></details>':''}
+ <details class="guide-disclosure"><summary>How to read a candle</summary><p>The body shows the opening and closing price. The thin lines show the highest and lowest prices. The unfinished candle can change until its interval ends.</p><a href="#learn?view=readings" class="text-link">Try a guided chart</a></details>
  ${studies.length?`<details class="guide-disclosure"><summary>What your studies mean</summary><dl class="chart-observations">${studies.filter(id=>studyCatalog[id]).map(id=>`<div><dt>${esc(studyCatalog[id].label)}</dt><dd>${esc(studyCatalog[id].meaning)} <small>${esc(studyCatalog[id].check)}</small></dd></div>`).join('')}</dl></details>`:''}
  ${setup&&setup.activeGuide!=='none'?`<details class="guide-disclosure"><summary>${esc(selectedGuide?.label??'Automatic drawing')}</summary><p>${esc(selectedGuide?.detail??setup.reason??'No confirmed anchors for this setup yet.')}</p>${selectedGuide?.anchors?.length?`<dl class="chart-observations">${selectedGuide.anchors.map(a=>`<div><dt>${esc(a.kind)} · ${price(a.price,'')}</dt><dd>Anchor ${new Date(a.time*1000).toISOString().slice(0,16).replace('T',' ')} UTC</dd></div>`).join('')}</dl>`:''}${selectedGuide?.levels?.length?`<dl class="fib-levels">${selectedGuide.levels.map(level=>`<div><dt>${(level.ratio*100).toFixed(1)}%</dt><dd>${price(level.price,'')}</dd></div>`).join('')}</dl>`:''}</details>`:''}
  ${latestSetup?`<p class="setup-event"><b>Last closed-bar event</b><br>${esc(latestSetup.label)} <time datetime="${new Date(latestSetup.confirmedAt*1000).toISOString()}">${esc(new Date(latestSetup.confirmedAt*1000).toISOString().slice(0,16).replace('T',' '))} UTC</time><br><small>${esc(latestSetup.detail)}</small></p>`:''}`;
@@ -53,7 +56,7 @@ export function learningPrimer(){
 
 export function renderGuideAudit(setup,key,quote){
  const detail=setup?.[key];
- if(key==='none')return '<p class="data-note">Select an automatic drawing to inspect its levels, or use the manual tools in Pro.</p>';
+ if(key==='none')return '<p class="data-note">Open Drawings to choose an automatic overlay or mark your own levels.</p>';
  if(!detail)return '<p class="data-note">This drawing needs more confirmed structure. A sparse market or gaps can leave no valid levels.</p>';
  const rows=detail.levels??detail.anchors??[];
  const label=(row)=>row.name??(Number.isFinite(row.ratio)?Math.round(row.ratio*1000)/10+'%':row.kind??'Anchor');

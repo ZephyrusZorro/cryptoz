@@ -7,6 +7,15 @@ const bars = (closes) => closes.map((close, i) => ({
   time: day + i * 3600, open: close - 1, high: close + 2, low: close - 2, close, volume: i + 1
 }));
 const rising = bars(Array.from({length: 60}, (_, i) => i + 10));
+test('Hull moving average and Williams range preserve warmup and scale',()=>{
+ const sample=bars(Array(30).fill(100));
+ const hma=studies.calculateStudies(sample,['hma'],{period:16})[0].series[0].values;
+ assert.equal(hma[17],null);
+ assert.equal(hma[18],100);
+ const range=studies.calculateStudies(rising,['williams'])[0].series[0].values;
+ assert.equal(range[12],null);
+ assert.ok(range[13]<0&&range[13]>-20);
+});
 const study = (id, candles = rising, options) => studies.calculateStudies(candles, [id], options)[0];
 const values = (id, key, candles, options) => study(id, candles, options).series.find(s => s.key === key).values;
 const near = (value, expected) => assert.ok(Number.isFinite(value) && Math.abs(value - expected) < 1e-9, `${value} != ${expected}`);

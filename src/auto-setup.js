@@ -58,9 +58,14 @@ function swingTrend(swings) {
 }
 
 function fibonacciLeg(swings) {
-  const end = swings.at(-1);
-  if (!end) return null;
-  const start = swings.findLast(swing => swing.kind !== end.kind);
+  const alternating = [];
+  for (const swing of swings) {
+    const last = alternating.at(-1);
+    if (last?.kind !== swing.kind) alternating.push(swing);
+    else if (swing.kind === 'high' ? swing.price > last.price : swing.price < last.price) alternating[alternating.length - 1] = swing;
+  }
+  if (alternating.length < 2) return null;
+  const [start, end] = alternating.slice(-2);
   const up = end.kind === 'high';
   if (!start || (up ? start.price >= end.price : start.price <= end.price)) return null;
   return {
@@ -68,7 +73,7 @@ function fibonacciLeg(swings) {
     direction: up ? 'up' : 'down',
     anchors: [start, end],
     confirmedAt: end.confirmedAt,
-    detail: 'Measures retracement from the end of the latest leg between opposite confirmed swings.',
+    detail: 'Measures retracement between opposite confirmed swings. When successive swings are on the same side, the more extreme pivot stays in place.',
     levels: RETRACEMENTS.map(ratio => ({ratio, price: end.price + (start.price - end.price) * ratio}))
   };
 }
@@ -81,15 +86,16 @@ function setupGuides(range, trend, fibonacci, lastTime) {
   const guides = [];
   if (range) {
     guides.push(
-      horizontalGuide('range-high', 'Auto range high', 'gold', range.high, range.startTime, lastTime),
-      horizontalGuide('range-low', 'Auto range low', 'cyan', range.low, range.startTime, lastTime)
+      horizontalGuide('range-high', 'Auto range high', 'gold', range.high, range.anchors[0].time, lastTime),
+      horizontalGuide('range-low', 'Auto range low', 'cyan', range.low, range.anchors[1].time, lastTime)
     );
   }
   if (trend) guides.push({id: 'swing-trend', type: 'trend', label: trend.label, color: 'accent', points: trend.anchors});
   if (fibonacci) {
+    guides.push({id: 'fibonacci-leg', type: 'trend', label: fibonacci.label, color: 'violet', points: fibonacci.anchors});
     for (const {ratio, price} of fibonacci.levels) {
       const label = `Auto Fib ${Math.round(ratio * 1000) / 10}%`;
-      guides.push(horizontalGuide(`fibonacci-${ratio}`, label, 'violet', price, fibonacci.anchors[0].time, lastTime));
+      guides.push(horizontalGuide(`fibonacci-${ratio}`, label, 'violet', price, fibonacci.anchors[1].time, lastTime));
     }
   }
   return guides;

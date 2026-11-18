@@ -4,7 +4,10 @@ import {PRIMARY,GROUPS,resolveRoute,groupFor,normalizeDock,readDock,saveDock} fr
 import * as navigation from '../src/navigation.js';
 test('five focused primary destinations separate Learn and Practice from Charts',()=>{
  assert.deepEqual(PRIMARY.map(x=>x.id),['home','markets','research','practice','learn']);
- for(const [path,group] of Object.entries({overview:'home',news:'home',analysts:'home',markets:'markets',studio:'markets','market-insights':'markets',terminal:'research',compare:'research',learn:'learn',practice:'practice',replay:'practice',backtest:'practice',risk:'practice',workspace:'markets'}))assert.equal(groupFor(path),group);
+ for(const [path,group] of Object.entries({overview:'home',news:'home',analysts:'home',markets:'markets',studio:'home','market-insights':'home',screener:'home',terminal:'research',compare:'research',learn:'learn',practice:'practice',replay:'practice',backtest:'practice',risk:'practice',workspace:'home'}))assert.equal(groupFor(path),group);
+ assert.deepEqual(navigation.navigationFor('markets').items.map(item=>item.route),['markets']);
+ assert.equal(navigation.navigationFor('overview').items.some(item=>item.route==='screener'),false);
+ assert.equal(navigation.navigationFor('screener').current.label,'Asset screener');
  assert.equal(GROUPS.research.some(x=>['practice','learn'].includes(x.route)),false);
  assert.equal(Object.values(GROUPS).flat().some(x=>x.route==='sources'),false);
 });

@@ -76,3 +76,28 @@ test('crossing a close while an upstream request is in flight does not confirm t
  chart.observeStudyBars([bar(B-3600),bar(B)],cut);
  assert.deepEqual(chart.studyBars.map(b=>b.time),[B-3600]);chart.dispose();
 });
+
+test('restore resets the price scale and brings the live chart to its standard recent window',()=>{
+ const chart=terminal();chart.bars=Array.from({length:180},(_,i)=>bar(B+i*3600));
+ let range,price;
+ chart.series={priceScale:()=>({applyOptions:options=>{price=options;}})};
+ chart.chart={timeScale:()=>({getVisibleLogicalRange:()=>range,setVisibleLogicalRange:value=>{range=value;}})};
+ chart.viewPreset='custom';
+ chart.resetView();
+ assert.deepEqual(range,{from:80,to:183});
+ assert.deepEqual(price,{autoScale:true});
+ assert.equal(chart.viewPreset,'recent');
+});
+
+test('moving near the chart edge requests history after the range changes, while programmatic fits stay local',()=>{
+ const chart=terminal();chart.bars=[bar(B)];
+ let requested;
+ chart.loadOlder=options=>{requested=options;};
+ chart.maybeFetchViewportHistory({from:1,to:20},20);
+ assert.equal(requested,undefined);
+ chart.markViewportGesture(20);
+ chart.maybeFetchViewportHistory({from:70,to:100},21);
+ assert.equal(requested,undefined);
+ chart.maybeFetchViewportHistory({from:1,to:20},21);
+ assert.deepEqual(requested,{automatic:true,retry:false});
+});

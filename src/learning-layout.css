@@ -1,0 +1,157 @@
+.learning-room {
+ display: grid;
+ gap: clamp(12px, 2vw, 22px);
+ min-width: 0;
+}
+
+.learning-shelf {
+ display: grid;
+ grid-template-columns: repeat(5, minmax(0, 1fr));
+ gap: 5px;
+ padding: 6px;
+ border: 1px solid var(--nav-edge);
+ border-radius: 17px;
+ background: var(--header-glass);
+ box-shadow: inset 0 1px 0 var(--glass-shine), var(--shadow);
+ backdrop-filter: blur(16px) saturate(135%);
+}
+
+.learning-shelf-tab {
+ display: flex;
+ gap: 9px;
+ align-items: center;
+ min-width: 0;
+ min-height: 57px;
+ padding: 8px 11px;
+ text-align: left;
+ border: 1px solid transparent;
+ border-radius: 12px;
+ color: var(--muted);
+}
+
+.learning-shelf-tab:is(:hover, [aria-selected=true]) {
+ border-color: var(--nav-edge);
+ background: var(--nav-highlight);
+ color: var(--text);
+}
+
+.learning-shelf-tab[aria-selected=true] {
+ box-shadow: inset 0 1px 0 var(--glass-shine), 0 4px 14px #06102515;
+}
+
+.learning-shelf-tab:focus-visible, .learning-view-content:focus-visible {
+ outline: 2px solid var(--focus);
+ outline-offset: -2px;
+}
+
+.learning-shelf-icon {
+ display: grid;
+ place-items: center;
+ flex: 0 0 31px;
+ block-size: 31px;
+ border-radius: 9px;
+ background: var(--tint);
+ color: var(--lime);
+}
+
+.learning-shelf-icon svg {inline-size: 16px; block-size: 16px}
+.learning-shelf-label {min-width: 0}
+.learning-shelf-label strong {display: block; font-size: 12px; overflow-wrap: anywhere}
+.learning-shelf-label small {display: block; margin-block-start: 3px; color: var(--muted); font-size: 10px}
+.learning-view-content {min-width: 0; border-radius: 17px}
+.learning-view-content[hidden] {display: none}
+
+.learning-room .getting-started .panel-top, .learning-room .glossary-panel .panel-top {
+ align-items: center;
+ flex-wrap: wrap;
+ gap: 8px;
+}
+
+.learning-room .step-content h3 {margin-block: 0 4px}
+.learning-room .research-steps li {padding-block: 16px}
+.learning-room .step-check {border-radius: 9px}
+.learning-room .step-check:hover {background: var(--tint)}
+.learning-room .learning-sources {margin-block: 8px 0}
+.learning-room .glossary-panel .search-field {box-sizing: border-box; width: auto}
+.learning-room .lesson-primer {margin: 0}
+.learning-room .foundation-topics {display: grid; gap: 7px}
+.learning-room .lesson-primer .guide-disclosure {margin: 0; padding: 10px 13px; border: 1px solid var(--border); border-radius: 12px; background: var(--tint)}
+.learning-room .foundation-topics .text-link {display: inline-flex; margin-block-start: 5px}
+.learning-room .lesson-primer .panel-top p, .learning-room .learning-example .panel-top p {margin-block-start: 4px; color: var(--muted); font-size: 12px}
+
+.learning-room .learning-layout {
+ grid-template-columns: minmax(0, 1fr);
+ gap: 14px;
+}
+
+.learning-room .learning-controls {
+ display: grid;
+ grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+ align-items: end;
+ gap: 10px;
+}
+
+.learning-room .learning-controls label {min-width: 0}
+.learning-room .learning-controls select {min-width: 0; max-width: 100%}
+.learning-room .learning-controls .button {white-space: nowrap}
+.learning-room .learning-chart {height: clamp(230px, 33vw, 390px); margin-inline: 12px}
+.learning-room .learning-chart:empty {height: 60px}
+.learning-room .learning-chart-footer {flex-wrap: wrap; gap: 8px}
+.learning-color-key {display: flex; flex-wrap: wrap; gap: 7px 14px; list-style: none; padding: 0; margin: 0}
+.learning-color-key li {display: inline-flex; align-items: center; gap: 5px}
+.learning-color-key li::before {content: ""; inline-size: 10px; block-size: 2px; border-radius: 3px; background: var(--learning-close, #8aa4ff)}
+.learning-color-key li:nth-child(2)::before {background: var(--learning-gold, #f1c28a)}
+.learning-color-key li:nth-child(3)::before {background: var(--learning-violet, #b9a2ff)}
+:root[data-theme=light] .learning-color-key {--learning-close: #2863da; --learning-gold: #ab650e; --learning-violet: #8052c9}
+.learning-room .signal-grid {grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr))}
+.learning-room .signal-card {padding: 14px; background: var(--tint)}
+.learning-room .learning-disclosure {margin-block-start: 10px}
+.learning-room .lesson-nav {margin-inline: 16px; padding: 0 0 8px; border-block-end: 1px solid var(--border)}
+.learning-room .lesson-nav button {min-height: 40px}
+
+.learning-room .academy-exercise {
+ max-width: 760px;
+ padding: clamp(16px, 3vw, 30px);
+ gap: 14px;
+}
+
+.learning-room .academy-exercise fieldset {margin-block: 0 12px}
+.learning-room .academy-choice {padding: 12px; margin-block-end: 8px; background: var(--tint); cursor: pointer}
+.learning-room .academy-choice:has(input:checked) {border-color: var(--lime); background: var(--nav-highlight)}
+.learning-room .academy-choice:focus-within {outline: 2px solid var(--focus); outline-offset: 2px}
+.learning-room .academy-exercise h2 {line-height: 1.35}
+.learning-room #academy-feedback:empty {display: none}
+.learning-room #academy-feedback:not(:empty) {padding: 10px 12px; border-radius: 10px; background: var(--tint)}
+
+@media (prefers-reduced-motion: no-preference) {
+ :root:not([data-motion=reduced]) .learning-shelf-tab {
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease;
+ }
+ :root:not([data-motion=reduced]) .learning-view-content:not([hidden]) {
+  animation: learn-panel-arrive .2s cubic-bezier(.22,1,.36,1);
+ }
+}
+
+@keyframes learn-panel-arrive {
+ from {opacity: .64; transform: translateY(4px)}
+ to {opacity: 1; transform: translateY(0)}
+}
+
+:root[data-material=solid] .learning-shelf {background: var(--surface-deep); backdrop-filter: none}
+@media (prefers-reduced-transparency: reduce) {
+ .learning-shelf {background: var(--surface-deep); backdrop-filter: none}
+}
+
+@media (max-width: 940px) {
+ .learning-shelf {grid-template-columns: repeat(3, minmax(0, 1fr))}
+}
+
+@media (max-width: 680px) {
+ .learning-shelf {grid-template-columns: repeat(2, minmax(0, 1fr))}
+ .learning-shelf-tab {gap: 6px; padding: 7px; min-height: 46px}
+ .learning-shelf-icon {flex-basis: 23px; block-size: 23px}
+ .learning-shelf-label small {display: none}
+ .learning-room .learning-controls {grid-template-columns: repeat(2, minmax(0, 1fr))}
+ .learning-room .learning-controls .button {justify-self: start}
+ .learning-room .learning-chart {height: 235px}
+}

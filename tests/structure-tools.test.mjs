@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {structureTools} from '../src/structure-tools.js';
+import {structureTools, previousPeriodLevels} from '../src/structure-tools.js';
 const T=1700000040,step=60;
 const feed=Array.from({length:80},(_,i)=>{const x=100+Math.sin(i*Math.PI/4)*2;return {time:T+i*step,open:x,close:x,high:x+1,low:x-1,volume:10+i};});
 test('profile accounts for selected candle volume and excludes forming or future data',()=>{
@@ -16,4 +16,24 @@ test('swing clusters require multiple confirmed pivots and stop at a gap',()=>{
  for(const x of sample.zones.levels){assert.ok(x.anchors.length>=2);assert.ok(x.anchors.every(a=>a.confirmedAt-a.time===3*step));}
  const gap=feed.filter((_,i)=>i!==70);
  assert.equal(structureTools(gap,step,feed.at(-1).time+step).profile,null);
+});
+
+test('previous day levels use the complete UTC day and begin with the next session',()=>{
+ const start=Date.parse('2026-11-16T00:00:00Z')/1000,hour=3600,day=24*hour;
+ const bars=Array.from({length:28},(_,i)=>({time:start+i*hour,open:100,high:i===6?112:104,low:i===10?84:96,close:i===23?101:100,volume:5}));
+ const visible=start+day+2*hour;
+ const result=previousPeriodLevels(bars,hour,visible,visible,'prev-day');
+ assert.deepEqual(result.levels.map(level=>[level.name,level.price]),[['High',112],['Low',84],['Close',101]]);
+ assert.ok(result.guides.every(guide=>guide.points[0].time===start+day));
+ assert.equal(previousPeriodLevels(bars.filter((_,i)=>i!==3),hour,visible,visible,'prev-day'),null);
+});
+
+test('weekly levels need a complete Monday-to-Sunday UTC week',()=>{
+ const day=86400,start=Date.parse('2026-11-09T00:00:00Z')/1000;
+ const bars=Array.from({length:9},(_,i)=>({time:start+i*day,open:100,high:i===7?200:103+i,low:91+i,close:100,volume:5}));
+ const visible=start+7*day;
+ const result=previousPeriodLevels(bars,day,visible,visible,'prev-week');
+ assert.deepEqual(result.levels.map(level=>level.price),[109,91,100]);
+ assert.equal(previousPeriodLevels(bars,day,visible,visible-1,'prev-week'),null);
+ assert.equal(previousPeriodLevels(bars.slice(1),day,visible,visible,'prev-week'),null);
 });

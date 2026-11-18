@@ -10,6 +10,8 @@ const catalog = [
     meaning: 'The average close over the chosen number of candles.', check: 'Look at the slope and where price sits relative to the line.', warmup: 'One full lookback of closes.'},
   {id: 'wma', label: 'Weighted moving average', group: 'Trend', placement: 'overlay', proOnly: true,
     meaning: 'An average of closes with linearly increasing weights for recent candles.', check: 'Compare the slope with price and a simple average of the same length.', warmup: 'One full lookback of closes.'},
+  {id: 'hma', label: 'Hull moving average', group: 'Trend', placement: 'overlay',
+    meaning: 'A weighted price average designed to respond quickly to changes.', check: 'Compare its slope with price. Quick changes can reverse in a sideways market.', warmup: 'One lookback plus the square-root smoothing window.'},
   {id: 'donchian', label: 'Donchian channel', group: 'Trend', placement: 'overlay',
     meaning: 'The high and low of the latest 20 candles.', check: 'Compare this candle with the prior channel to identify a new range extreme.', warmup: '20 candles.'},
   {id: 'levels', label: 'Recent high and low', group: 'Trend', placement: 'overlay',
@@ -20,6 +22,8 @@ const catalog = [
     meaning: 'The gap between the 12- and 26-candle EMAs, with a 9-candle signal EMA.', check: 'Compare MACD with its signal line. The bars show the difference.', warmup: '26 candles for MACD and 34 for the signal and bars.'},
   {id: 'stoch', label: 'Stochastic', group: 'Momentum', placement: 'pane',
     meaning: 'Shows where the close sits within its 14-candle range, smoothed twice.', check: 'Compare %K with %D around the 20 and 80 guides.', warmup: '16 candles for %K and 18 for %D, with a nonzero range.'},
+  {id: 'williams', label: 'Williams %R', group: 'Momentum', placement: 'pane',
+    meaning: 'Shows where the close sits in the 14-candle high–low range, on a −100 to 0 scale.', check: 'Read −20 and −80 as reference levels. Near 0 means the close is near the high.', warmup: '14 candles with a nonzero range.'},
   {id: 'roc', label: 'Rate of change', group: 'Momentum', placement: 'pane',
     meaning: 'The percent change from the close 12 candles ago.', check: 'Compare the sign and size with the current move in price.', warmup: '13 closes.'},
   {id: 'cci', label: 'Commodity Channel Index', group: 'Momentum', placement: 'pane', proOnly: true,
@@ -136,10 +140,25 @@ function moneyFlow(bars) {
 
 function weightedAverage(closes, period) {
   const totalWeight = period * (period + 1) / 2;
-  return closes.map((_, i) => {
-    if (i + 1 < period) return null;
-    return closes.slice(i - period + 1, i + 1).reduce((sum, close, j) => sum + close * (j + 1), 0) / totalWeight;
+  let count=0,sum=0,weighted=0;
+  return closes.map((close, i) => {
+    if(!Number.isFinite(close)){count=0;sum=0;weighted=0;return null;}
+    if(count<period){
+      count++;
+      weighted+=count*close;
+      sum+=close;
+    }else{
+      weighted+=period*close-sum;
+      sum+=close-closes[i-period];
+    }
+    return count===period?weighted/totalWeight:null;
   });
+}
+
+function hullAverage(closes, period) {
+  const fast=weightedAverage(closes,Math.max(1,Math.floor(period/2)));
+  const slow=weightedAverage(closes,period);
+  return weightedAverage(slow.map((value,i)=>value===null?null:2*fast[i]-value),Math.max(1,Math.floor(Math.sqrt(period))));
 }
 
 function commodityChannel(bars) {
@@ -192,6 +211,7 @@ const calculate = {
   ]}),
   sma: ({closes, period}) => ({series: [line('main', `SMA ${period}`, sma(closes, period), 'accent')]}),
   wma: ({closes, period}) => ({series: [line('main', `WMA ${period}`, weightedAverage(closes, period), 'gold', {dashed: true})]}),
+  hma: ({closes, period}) => ({series: [line('main', `HMA ${period}`, hullAverage(closes, period), 'violet')]}),
   bb: ({closes, period}) => ({series: bands('BB', bollinger(closes, period), 'cyan')}),
   bbw: ({closes, period}) => {
     const {middle, upper, lower} = bollinger(closes, period);
@@ -229,6 +249,11 @@ const calculate = {
   stoch: ({bars}) => {
     const {k, d} = stochastic(bars);
     return {series: [line('k', '%K', k, 'gold'), line('d', '%D', d, 'violet')], guides: [20, 80], bounds: [0, 100]};
+  },
+  williams: ({bars}) => {
+    const {upper,lower}=channel(bars,14);
+    const values=bars.map((bar,i)=>upper[i]>lower[i]?100*(bar.close-upper[i])/(upper[i]-lower[i]):null);
+    return {series:[line('main','Williams %R 14',values,'violet')],guides:[-80,-20],bounds:[-100,0]};
   },
   roc: ({closes}) => ({series: [line('main', 'ROC 12', closes.map((value, i) => i >= 12 ? (value / closes[i - 12] - 1) * 100 : null), 'gold', {format: 'percent'})], guides: [0]}),
   obv: ({bars}) => {

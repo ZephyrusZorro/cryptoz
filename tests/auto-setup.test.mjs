@@ -28,6 +28,7 @@ test('the recent range uses exactly 20 closed candles and exposes observed extre
   const guides = result.guides.filter(guide => guide.id.startsWith('range-'));
   assert.equal(guides.length, 2);
   assert.ok(guides.every(guide => guide.type === 'horizontal' && guide.label.startsWith('Auto ') && guide.points.at(-1).time === time(20)));
+  assert.deepEqual(guides.map(guide=>guide.points[0].time),[time(20),time(20)]);
 });
 
 test('gaps reset the automatic range and confirmation never exceeds wall clock', () => {
@@ -61,6 +62,14 @@ test('swing trend and Fibonacci anchors only appear after both right-side candle
   assert.equal(confirmed.direction, 'up');
   assert.equal(confirmed.levels.find(level => level.ratio === 0.5).price, 106);
   assert.equal(confirmed.levels.find(level => level.ratio === 0.618).price, 104.82);
+  assert.ok(setup(bars,14).guides.some(guide=>guide.id==='fibonacci-leg'&&guide.type==='trend'));
+});
+
+test('a weaker same-side swing does not relocate the Fibonacci leg',()=>{
+ const bars=candles([103,102,98,102,106,110,106,103,105,108,104,102]).map((bar,index)=>({...bar,low:index===2?96:98+index/10}));
+ const first=setup(bars,8).fibonacci,past=setup(bars,12).fibonacci;
+ assert.deepEqual(past?.anchors,first?.anchors);
+ assert.deepEqual(first?.anchors.map(anchor=>anchor.time),[time(2),time(5)]);
 });
 
 test('falling swing highs form resistance even when the swing lows are falling too', () => {

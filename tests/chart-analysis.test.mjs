@@ -153,6 +153,16 @@ test('automatic guides end at the actual chart plot boundary and stay in the pri
   assert.equal(chart.svg.style.clipPath, 'inset(0 190px 130px 0)');
 });
 
+test('automatic levels cannot paint on a window before their actual candle anchor', () => {
+ const chart=make();
+ chart.autoSetup={guides:[{id:'range-high',type:'horizontal',label:'Range high',points:[{time:origin+step,price:100}]}]};
+ chart.chart={timeScale:()=>({width:()=>450,timeToCoordinate:()=>560}),panes:()=>[{getHeight:()=>350}]};
+ chart.series={priceToCoordinate:()=>25};
+ chart.svg={setAttribute(){},style:{}};
+ chart.draw();
+ assert.equal(chart.svg.innerHTML,'');
+});
+
 test('a range guide cannot measure an unconfirmed provisional wick', () => {
   const confirmed = Array.from({length:20}, (_, i) => candle(i));
   const bars = [...confirmed, candle(20, 130)];

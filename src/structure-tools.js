@@ -1,5 +1,6 @@
 import {normalizeCandles} from './analytics.js';
 const MIN_BARS=28,WINDOW=120,BINS=18;
+const DAY=86_400, WEEK=7*DAY, MONDAY_OFFSET=4*DAY;
 const pin=(id,label,color,price,from,to)=>({id,label,color,type:'horizontal',points:[{time:from,price},{time:to,price}]});
 function groupPivots(rows,wiggle,kind,cutoff,step){
  const groups=[];
@@ -31,6 +32,32 @@ function priceProfile(rows){
   else{++right;amount+=bins[right].volume;}
  }
  return {label:'Candle-volume profile',detail:'Each closed candle’s volume is distributed evenly across its high–low span. These are approximate levels, not trade-by-trade volume.',bins,total,window:rows.length,levels:[{name:'Heavy activity price',price:(bins[peak].min+bins[peak].max)/2},{name:'70% area low',price:bins[left].min},{name:'70% area high',price:bins[right].max}]};
+}
+
+export function previousPeriodLevels(bars,step,visibleTime,cutoff,key){
+ const weekly=key==='prev-week';
+ if(!weekly&&key!=='prev-day'||!Number.isSafeInteger(step)||step<=0||DAY%step||
+  !Number.isFinite(visibleTime)||!Number.isFinite(cutoff))return null;
+ const period=weekly?WEEK:DAY,offset=weekly?MONDAY_OFFSET:0;
+ const end=Math.floor((visibleTime-offset)/period)*period+offset;
+ const begin=end-period;
+ if(cutoff<end)return null;
+ const rows=bars.filter(bar=>bar.time>=begin&&bar.time<end);
+ if(rows.length!==period/step||!rows.every((bar,index)=>bar.time===begin+index*step))return null;
+ const high=rows.reduce((best,bar)=>bar.high>best.high?bar:best);
+ const low=rows.reduce((best,bar)=>bar.low<best.low?bar:best);
+ const last=rows.at(-1),word=weekly?'week':'day';
+ const levels=[
+  {name:'High',price:high.high,time:high.time},
+  {name:'Low',price:low.low,time:low.time},
+  {name:'Close',price:last.close,time:last.time}
+ ];
+ const guides=levels.map(({name,price},i)=>pin(`${key}-${i}`,`Previous ${word} ${name.toLowerCase()}`,['gold','cyan','violet'][i],price,end,visibleTime));
+ return {
+  label:`Previous ${word} levels`,
+  detail:`High, low and closing price from the previous complete ${weekly?'Monday–Sunday UTC week':'UTC day'}. The lines begin when that ${word} has closed.`,
+  startTime:begin,endTime:end,levels,guides
+ };
 }
 export function structureTools(bars,step,closedThrough){
  const empty={zones:null,profile:null,guides:[]};if(!Number.isSafeInteger(step)||step<=0||!Number.isFinite(closedThrough))return empty;
