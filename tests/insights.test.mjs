@@ -138,3 +138,15 @@ test('the browser API requests Insights exclusively through its same-origin gate
   }, loadDirect: () => assert.fail('Unexpected browser fallback') });
   assert.equal((await api('insights?section=macro')).data.section, 'macro');
 });
+
+test('Insight fallback fills only unavailable observations from the same section', async()=>{
+ const observations={binance:{status:'observed',values:{funding:1}},dvol:{status:'unavailable'}};
+ const recovered={binance:{status:'observed',values:{funding:2}},dvol:{status:'dated',values:{dvol:52}}};
+ let requests=0;
+ const {api}=createApiClient({fetcher:async()=>Response.json({data:{section:'derivatives',feeds:observations}}),loadDirect:async()=>async(path)=>{
+  assert.equal(path,'insights?section=derivatives');requests++;return {data:{section:'derivatives',feeds:recovered}};
+ }});
+ const data=(await api('insights?section=derivatives')).data;
+ assert.equal(requests,1);assert.equal(data.feeds.binance.values.funding,1);
+ assert.equal(data.feeds.dvol.values.dvol,52);assert.equal(data.feeds.dvol.transport,'browser-direct');
+});

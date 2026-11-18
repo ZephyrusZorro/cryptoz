@@ -48,6 +48,7 @@ function feedFooter(feed) {
   const retrieved = timeLabel(feed.fetchedAt);
   return `<footer class="market-insight-source">${sourceLink(feed.provider, feed.sourceUrl)}
     ${dated ? timeMarkup(feed.values?.date ?? feed.asOf, dated) : retrieved ? 'Retrieved ' + timeMarkup(feed.fetchedAt, retrieved) : ''}
+    ${feed.transport==='browser-direct'?'<span>Browser direct</span>':''}
     ${feed.warning ? '<span class="market-insight-warning">' + esc(feed.warning) + '</span>' : ''}</footer>`;
 }
 
