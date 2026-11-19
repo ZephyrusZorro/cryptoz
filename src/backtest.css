@@ -1,6 +1,7 @@
 /* Backtest Studio — native CRYPTOZ liquid-glass design language */
 .bt-studio {
  display: grid;
+ grid-template-columns: minmax(0, 1fr);
  gap: 16px;
  min-width: 0;
 }
@@ -12,8 +13,17 @@
 .bt-studio > .panel {
  padding: 16px 18px;
  display: grid;
+ grid-template-columns: minmax(0, 1fr);
  gap: 12px;
  min-width: 0;
+}
+
+.bt-studio > .panel > *,
+#bt-results-body,
+.bt-chart-card,
+.bt-wf-box {
+ min-width: 0;
+ max-width: 100%;
 }
 
 .bt-studio .panel-top {
@@ -22,7 +32,26 @@
  flex-wrap: wrap;
  align-items: flex-start;
  justify-content: space-between;
- gap: 10px;
+ gap: 10px 14px;
+ min-width: 0;
+}
+
+.bt-studio .panel-top > div:first-child {
+ min-width: 0;
+ flex: 1 1 220px;
+}
+
+.bt-studio .source {
+ white-space: normal;
+ overflow-wrap: anywhere;
+ display: block;
+ line-height: 1.45;
+ margin-top: 2px;
+}
+
+.bt-studio .bt-result-tabs {
+ max-width: 100%;
+ flex-shrink: 0;
 }
 
 .bt-hint {
@@ -81,7 +110,9 @@
 
 .bt-custom-import {
  display: grid;
+ grid-template-columns: minmax(0, 1fr);
  gap: 9px;
+ min-width: 0;
 }
 
 .bt-import-row,
@@ -109,7 +140,9 @@
 
 .bt-rules-shell {
  display: grid;
+ grid-template-columns: minmax(0, 1fr);
  gap: 10px;
+ min-width: 0;
 }
 
 .bt-rule-card {
@@ -118,7 +151,9 @@
  padding: 12px;
  background: var(--surface-deep);
  display: grid;
+ grid-template-columns: minmax(0, 1fr);
  gap: 10px;
+ min-width: 0;
 }
 
 .bt-rule-header {
@@ -145,7 +180,9 @@
 
 .bt-rule-list {
  display: grid;
+ grid-template-columns: minmax(0, 1fr);
  gap: 8px;
+ min-width: 0;
 }
 
 .bt-rule-row {
@@ -262,8 +299,10 @@
 
 .bt-charts-stack {
  display: grid;
+ grid-template-columns: minmax(0, 1fr);
  gap: 12px;
  margin: 12px 0;
+ min-width: 0;
 }
 
 .bt-chart-card {
@@ -330,9 +369,59 @@
   grid-template-columns: 1fr;
  }
  .bt-sweep-form {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+ }
+ .bt-sweep-form > label:first-child,
+ .bt-sweep-form > label:nth-child(5),
+ .bt-sweep-form button[type="submit"] {
+  grid-column: 1 / -1;
+ }
+ .bt-sweep-form button[type="submit"] {
+  min-height: 44px;
  }
  .bt-load-action {
   padding-bottom: 0;
+ }
+}
+
+@media (max-width: 700px) {
+ .bt-studio > .panel {
+  padding: 13px 12px;
+ }
+ .bt-studio .bt-result-tabs {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+ }
+ .bt-studio .bt-result-tabs .chip {
+  min-height: 42px;
+  padding: 6px 5px;
+  font-size: 11px;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.2;
+ }
+ .bt-kpi-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+ }
+ .bt-param input {
+  width: 92px;
+ }
+ .bt-inline-pair {
+  grid-template-columns: minmax(0, 1fr) 92px;
+ }
+ .bt-presets .chip {
+  min-height: 36px;
+ }
+ .bt-run-bar .button {
+  flex: 1 1 135px;
+  min-height: 44px;
+ }
+ .bt-price-chart {
+  height: clamp(245px, 37svh, 330px);
+ }
+ .bt-equity-chart {
+  height: clamp(270px, 40svh, 355px);
  }
 }

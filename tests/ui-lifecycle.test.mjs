@@ -6,6 +6,7 @@ test('independent datasets notify the UI before a slow news request completes',a
 test('refresh targets the active financial tool and propagates its completion',async()=>{
  const calls=[];let finish;const chart={refresh:()=>new Promise(r=>{calls.push('chart');finish=r;})};const pending=refreshPage({page:'terminal',terminal:chart,loadData:keys=>calls.push(keys)});assert.deepEqual(calls,['chart']);finish();await pending;
  await refreshPage({page:'compare',comparison:{refresh:async()=>calls.push('compare')},loadData:()=>calls.push('wrong')});assert.equal(calls.at(-1),'compare');
+ await refreshPage({page:'backtest',backtest:{refresh:async()=>calls.push('backtest')},loadData:()=>calls.push('wrong')});assert.equal(calls.at(-1),'backtest');
  await refreshPage({page:'news',loadData:async keys=>calls.push(keys)});assert.deepEqual(calls.at(-1),['news']);
 });
 test('dialogs make the background inert and restore focus after closing',async()=>{

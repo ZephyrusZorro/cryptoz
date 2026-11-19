@@ -1,5 +1,6 @@
 import {ago,pct,stamp,tone} from './ui.js';
 import {setMoneyText} from './currency.js';
+import {flashTick} from './motion.js';
 
 const statusLabels = {
   idle: 'Waiting for Binance markets',
@@ -41,7 +42,12 @@ export function createLiveMarketView(root, stream) {
     for (const view of targets) {
       const {time, change, volume, value} = view;
       if (view.timestamp !== quote.updatedAt) {
+        const prevPrice = view.lastPrice;
         setMoneyText(value,quote.price,'USDT');
+        if (Number.isFinite(prevPrice) && prevPrice !== quote.price) {
+          flashTick(value, quote.price > prevPrice ? 1 : -1);
+        }
+        view.lastPrice = quote.price;
         setMoneyText(volume,quote.volume,'USDT','compact');
         if (time) time.title = stamp(quote.updatedAt);
         if (change) change.title = stamp(quote.updatedAt);

@@ -42,7 +42,7 @@ export class TerminalChart {
  build(){
   if(this.rangeFrame){cancelAnimationFrame(this.rangeFrame);this.rangeFrame=0;}this.lastRangeGesture=null;
   const p=palette();const range=this.chart?.timeScale().getVisibleLogicalRange();this.observer?.disconnect();this.chart?.remove();this.host.innerHTML='<div class="chart-canvas"></div><svg class="drawing-layer" aria-hidden="true"></svg><div class="crosshair-hud"></div>';const el=this.host.querySelector('.chart-canvas');this.svg=this.host.querySelector('svg');
-  this.chart=createChart(el,{autoSize:true,layout:{background:{type:ColorType.Solid,color:p.panel},textColor:p.text,fontSize:11,fontFamily:'ui-monospace, monospace',attributionLogo:true,panes:{separatorColor:p.border,separatorHoverColor:p.accent,enableResize:true}},grid:{vertLines:{color:p.grid},horzLines:{color:p.grid}},crosshair:{mode:CrosshairMode.Normal,vertLine:{color:p.text,labelBackgroundColor:p.border},horzLine:{color:p.text,labelBackgroundColor:p.border}},rightPriceScale:{borderColor:p.border},timeScale:{borderColor:p.border,timeVisible:true,secondsVisible:false,rightOffset:3,minBarSpacing:.2,fixLeftEdge:true},handleScroll:chartScrollOptions(this.drawMode,this.phoneView?.matches),handleScale:true});
+  this.chart=createChart(el,{autoSize:true,layout:{background:{type:ColorType.Solid,color:p.panel},textColor:p.text,fontSize:11,fontFamily:'ui-monospace, monospace',attributionLogo:true,panes:{separatorColor:p.border,separatorHoverColor:p.accent,enableResize:true}},grid:{vertLines:{color:p.grid},horzLines:{color:p.grid}},crosshair:{mode:CrosshairMode.Normal,vertLine:{color:p.text,labelBackgroundColor:p.border},horzLine:{color:p.text,labelBackgroundColor:p.border}},rightPriceScale:{borderColor:p.border,scaleMargins:{top:.08,bottom:.14}},timeScale:{borderColor:p.border,timeVisible:true,secondsVisible:false,rightOffset:3,minBarSpacing:.2,fixLeftEdge:true},handleScroll:chartScrollOptions(this.drawMode,this.phoneView?.matches),handleScale:true});
   const options={upColor:p.up,downColor:p.down,borderVisible:false,wickUpColor:p.up,wickDownColor:p.down,color:p.accent,lineWidth:2,priceFormat:axisPriceFormat(pricePrecision(this.bars.at(-1)?.close),this.instrument.quote)};
   this.series=this.chart.addSeries(types[this.style],options);const display=this.style==='heikin'?heikinAshi(this.bars):this.bars;this.series.setData(this.style==='line'?display.map(b=>({time:b.time,value:b.close})):display);this.seriesFirstTime=this.bars[0]?.time;this.seriesLastTime=this.bars.at(-1)?.time;
   this.studyView=null;this.anchoredVwapSeries=null;this.host.classList.remove('stacked-study-panes');this.markerApi=createSeriesMarkers(this.series,[]);this.renderIndicators();
@@ -70,7 +70,8 @@ export class TerminalChart {
  }
  renderIndicators(incremental=false,{refreshAnalysis=true}={}){
   if(!this.chart)return;const p=palette(),cutoff=this.completedCutoff();
-  this.studyView=renderStudies(this.chart,this.series,this.studyView,this.bars,this.activeStudies(),{period:this.period,smaPeriods:this.smaPeriods,rsiPeriod:this.rsiPeriod,interval:this.interval,completedBefore:cutoff,palette:p,incremental,confirmed:this.studyBars,quote:this.instrument.quote,customStudies:this.workspace?.customStudies??[]});
+  const compact=Boolean(this.phoneView?.matches)||(this.host?.clientWidth>0&&this.host.clientWidth<520);
+  this.studyView=renderStudies(this.chart,this.series,this.studyView,this.bars,this.activeStudies(),{period:this.period,smaPeriods:this.smaPeriods,rsiPeriod:this.rsiPeriod,interval:this.interval,completedBefore:cutoff,palette:p,incremental,confirmed:this.studyBars,quote:this.instrument.quote,customStudies:this.workspace?.customStudies??[],compact});
   if(refreshAnalysis)this.renderAnalysis(cutoff,p);
   else if(periodGuides.has(this.autoGuide)&&Math.floor(this.bars.at(-1)?.time/DAY)!==this.periodBeforeAt){
    this.syncPeriodGuide(cutoff);
@@ -493,25 +494,31 @@ export class TerminalChart {
    const nearest=this.bars[left]?.time;
    return Number.isFinite(nearest)?scale.timeToCoordinate(nearest):null;
   };
-  const labelX=x=>Math.max(8,Math.min(x,plotWidth-104));
+  const compactPlot=plotWidth<460;
+  const labelX=x=>Math.max(8,Math.min(x,plotWidth-(compactPlot?86:104)));
   const placedLabels=[];
-  const placeY=(rawY,xAnchor,minGap=17)=>{
-   let y=Math.max(14,Math.min(paneHeight-6,rawY));
-   for(let tries=0;tries<8;tries++){
-    const clash=placedLabels.find(p=>Math.abs(p.y-y)<minGap&&Math.abs(p.x-xAnchor)<120);
+  const placeY=(rawY,xAnchor,minGap=compactPlot?16:18)=>{
+   let y=Math.max(14,Math.min(paneHeight-8,rawY));
+   const xSpan=compactPlot?190:120;
+   for(let tries=0;tries<10;tries++){
+    const clash=placedLabels.find(p=>Math.abs(p.y-y)<minGap&&Math.abs(p.x-xAnchor)<xSpan);
     if(!clash)break;
     y=clash.y+minGap;
-    if(y>paneHeight-6)y=Math.max(14,clash.y-minGap);
+    if(y>paneHeight-8)y=Math.max(14,clash.y-minGap);
    }
    placedLabels.push({x:xAnchor,y});
    return y;
   };
   const pill=(text,x,y,color,align='end')=>{
-   const clean=esc(text.slice(0,28));
-   const estWidth=Math.max(30,clean.length*6.4+10);
-   const rx=align==='end'?x-estWidth:align==='middle'?x-estWidth/2:x;
-   const tx=align==='end'?x-5:align==='middle'?x:x+5;
-   return `<g class="auto-pill"><rect x="${rx.toFixed(1)}" y="${(y-11).toFixed(1)}" width="${estWidth.toFixed(1)}" height="15" rx="3.5" fill="${colors.panel}" fill-opacity="0.88" stroke="${color}" stroke-opacity="0.45" stroke-width="0.8"/><text x="${tx.toFixed(1)}" y="${y.toFixed(1)}" fill="${color}" font-size="10" font-weight="600" text-anchor="${align}">${clean}</text></g>`;
+   const clean=esc(text.slice(0,compactPlot?14:26));
+   const charW=compactPlot?5.6:6.4;
+   const fontSize=compactPlot?9:10;
+   const pillH=compactPlot?13.5:15;
+   const estWidth=Math.max(26,clean.length*charW+10);
+   let rx=align==='end'?x-estWidth:align==='middle'?x-estWidth/2:x;
+   rx=Math.max(4,Math.min(rx,Math.max(4,plotWidth-estWidth-6)));
+   const tx=rx+5;
+   return `<g class="auto-pill"><rect x="${rx.toFixed(1)}" y="${(y-pillH+3.5).toFixed(1)}" width="${estWidth.toFixed(1)}" height="${pillH.toFixed(1)}" rx="3.5" fill="${colors.panel}" fill-opacity="0.9" stroke="${color}" stroke-opacity="0.45" stroke-width="0.8"/><text x="${tx.toFixed(1)}" y="${y.toFixed(1)}" fill="${color}" font-size="${fontSize}" font-weight="600" text-anchor="start">${clean}</text></g>`;
   };
   const shortTitle=drawing=>{
    if(drawing.shortLabel)return drawing.shortLabel;

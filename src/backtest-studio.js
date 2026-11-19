@@ -14,6 +14,8 @@ import { serializeCSV } from './exports.js';
 import { axisPriceFormat, displayPrice, moneyMarkup } from './currency.js';
 import { pricePrecision } from './numbers.js';
 import { palette } from './theme.js';
+import { PHONE_LAYOUT, chartScrollOptions } from './phone-layout.js';
+import { reveal } from './motion.js';
 import { download, esc, icon, num, pct, toast, tone } from './ui.js';
 
 echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, MarkLineComponent, CanvasRenderer]);
@@ -402,13 +404,15 @@ export function mountBacktestStudio({ root, instrument, getInstruments, storage,
     const eqHost = $('#bt-equity-chart');
     const quote = quoteLabel();
 
+    const isPhone = typeof matchMedia !== 'undefined' && matchMedia(PHONE_LAYOUT).matches;
     if (priceHost && loadedBars.length) {
       priceChart = createChart(priceHost, {
         autoSize: true,
+        handleScroll: chartScrollOptions('cursor', isPhone),
         layout: { background: { type: ColorType.Solid, color: p.panel }, textColor: p.text, fontSize: 11, fontFamily: 'ui-monospace, monospace' },
         grid: { vertLines: { color: p.grid }, horzLines: { color: p.grid } },
         crosshair: { mode: CrosshairMode.Normal },
-        rightPriceScale: { borderColor: p.border },
+        rightPriceScale: { borderColor: p.border, scaleMargins: { top: 0.08, bottom: 0.1 } },
         timeScale: { borderColor: p.border, timeVisible: true, secondsVisible: false },
       });
       const candleSeries = priceChart.addSeries(CandlestickSeries, {
@@ -453,16 +457,16 @@ export function mountBacktestStudio({ root, instrument, getInstruments, storage,
         legend: { top: 0, right: 12, textStyle: { color: p.text, fontSize: 11 } },
         axisPointer: { link: [{ xAxisIndex: 'all' }] },
         grid: [
-          { left: 66, right: 18, top: 42, height: '50%' },
-          { left: 66, right: 18, top: '71%', height: '21%' },
+          { left: isPhone ? 52 : 66, right: isPhone ? 12 : 18, top: 42, height: '49%' },
+          { left: isPhone ? 52 : 66, right: isPhone ? 12 : 18, top: '71%', height: '21%' },
         ],
         xAxis: [
           { type: 'category', data: times, gridIndex: 0, axisLabel: { show: false }, axisLine: { lineStyle: { color: p.border } } },
-          { type: 'category', data: times, gridIndex: 1, axisLabel: { color: p.text, fontSize: 10 }, axisLine: { lineStyle: { color: p.border } } },
+          { type: 'category', data: times, gridIndex: 1, axisLabel: { color: p.text, fontSize: isPhone ? 9 : 10, hideOverlap: true }, axisLine: { lineStyle: { color: p.border } } },
         ],
         yAxis: [
-          { type: 'value', gridIndex: 0, scale: true, splitLine: { lineStyle: { color: p.grid } }, axisLabel: { color: p.text } },
-          { type: 'value', gridIndex: 1, max: 0, splitLine: { lineStyle: { color: p.grid } }, axisLabel: { color: p.text, formatter: v => `${v}%` } },
+          { type: 'value', gridIndex: 0, scale: true, splitLine: { lineStyle: { color: p.grid } }, axisLabel: { color: p.text, fontSize: isPhone ? 9.5 : 11 } },
+          { type: 'value', gridIndex: 1, max: 0, splitLine: { lineStyle: { color: p.grid } }, axisLabel: { color: p.text, fontSize: isPhone ? 9.5 : 11, formatter: v => `${v}%` } },
         ],
         series: [
           {
@@ -524,13 +528,13 @@ export function mountBacktestStudio({ root, instrument, getInstruments, storage,
       const wfTable = wf && wf.inSample && wf.outOfSample ? `<div class="bt-wf-box">
        <h3>Walk-Forward Overfitting Check (${wf.splitPct}% In-Sample vs ${100 - wf.splitPct}% Out-of-Sample)</h3>
        <p class="bt-hint">Compares earlier training window against unseen later candles (split at ${fmtTime(wf.splitTime)}).</p>
-       <table class="forecast-comparison">
+       <div class="practice-table" tabindex="0"><table>
         <thead><tr><th>Segment</th><th>Bars</th><th>Trades</th><th>Net Return</th><th>Sharpe</th><th>Max DD</th><th>Win Rate</th><th>Profit Factor</th></tr></thead>
         <tbody>
          <tr><th scope="row">In-Sample (${wf.splitPct}%)</th><td>${wf.inSample.bars}</td><td>${wf.inSample.tradesCount}</td><td class="${tone(wf.inSample.totalReturnPct)}">${pct(wf.inSample.totalReturnPct)}</td><td>${fmtRatio(wf.inSample.sharpe)}</td><td class="negative">${pct(wf.inSample.maxDrawdownPct)}</td><td>${wf.inSample.winRatePct !== null ? pct(wf.inSample.winRatePct) : '—'}</td><td>${fmtRatio(wf.inSample.profitFactor)}</td></tr>
          <tr><th scope="row">Out-of-Sample (${100 - wf.splitPct}%)</th><td>${wf.outOfSample.bars}</td><td>${wf.outOfSample.tradesCount}</td><td class="${tone(wf.outOfSample.totalReturnPct)}">${pct(wf.outOfSample.totalReturnPct)}</td><td>${fmtRatio(wf.outOfSample.sharpe)}</td><td class="negative">${pct(wf.outOfSample.maxDrawdownPct)}</td><td>${wf.outOfSample.winRatePct !== null ? pct(wf.outOfSample.winRatePct) : '—'}</td><td>${fmtRatio(wf.outOfSample.profitFactor)}</td></tr>
         </tbody>
-       </table>
+       </table></div>
       </div>` : '';
 
       body.innerHTML = `
@@ -776,6 +780,7 @@ export function mountBacktestStudio({ root, instrument, getInstruments, storage,
     if (rtab) {
       activeResultTab = rtab.dataset.btRtab;
       renderResults();
+      reveal($('#bt-results-body'), { offset: 5, duration: 220 });
     }
   }, { signal });
 
@@ -835,7 +840,13 @@ export function mountBacktestStudio({ root, instrument, getInstruments, storage,
 
   return {
     options: syncPairs,
+    refresh() { return dataSource === 'exchange' ? loadExchangeHistory() : executeBacktest(); },
     applyTheme() { if (lastResult?.ready && activeResultTab === 'overview') mountVisualCharts(lastResult); },
+    applyCurrency() { if (lastResult?.ready) renderResults(); },
+    syncScrollOptions() {
+      const isPhone = typeof matchMedia !== 'undefined' && matchMedia(PHONE_LAYOUT).matches;
+      priceChart?.applyOptions({ handleScroll: chartScrollOptions('cursor', isPhone) });
+    },
     dispose() { controller.abort(); },
   };
 }

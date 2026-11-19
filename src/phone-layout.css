@@ -185,7 +185,11 @@
  #app .wb-tabs button{grid-column:span 2;min-height:44px;padding-inline:2px;font-size:12px;line-height:1.2}
  #app .wb-tabs button:nth-last-child(-n+2){grid-column:span 3}
  #app .wb-pane{padding:10px;overflow-wrap:anywhere}
- #app :is(.forecast-fields,.forecast-metrics,.risk-inputs){grid-template-columns:repeat(2,minmax(0,1fr))}
+ #app :is(.forecast-metrics,.risk-inputs){grid-template-columns:repeat(2,minmax(0,1fr))}
+ #app .forecast-fields{grid-template-columns:minmax(0,1fr)}
+ #app .comparison-controls{grid-template-columns:minmax(0,1fr)}
+ #app select,#modal-root select{white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+ #modal-root .sma-add-inline input{width:96px}
  #app .forecast-comparison{width:100%;table-layout:fixed;font-size:11px}
  #app .forecast-comparison :is(td,th){padding-inline:4px;overflow-wrap:anywhere}
  body.chart-focus #app main{padding-block-start:max(5px,env(safe-area-inset-top,0px))}

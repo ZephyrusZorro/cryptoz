@@ -14,9 +14,11 @@
 .wb-quote>strong{font-size:clamp(19px,2.1vw,27px);font-variant-numeric:tabular-nums}
 .wb-24h{font-size:11px;line-height:1.5;color:var(--muted)}
 .wb-24h b{padding-left:3px;color:var(--text)}
-.wb-toolbar{border-top:1px solid var(--border);padding:10px 14px;background:var(--header-glass)}
-.wb-toolbar .button{min-height:34px;padding:6px 9px;font-size:11px}.wb-toolbar .button svg{width:14px}
-.wb-toolbar .chart-menu summary{min-height:34px;white-space:nowrap}
+.wb-toolbar{border-top:1px solid var(--border);padding:9px 12px;background:var(--header-glass);gap:7px 9px}
+.wb-toolbar .wb-tools{margin-left:auto;gap:6px}
+.wb-toolbar .button{min-height:34px;padding:6px 8px;font-size:11px;white-space:nowrap}.wb-toolbar .button svg{width:14px}
+.wb-toolbar .chart-menu summary{min-height:34px;white-space:nowrap;padding:6px 8px}
+.wb-toolbar .timeframes button{padding:6px 8px}
 .wb-toolbar .timeframes button.selected{color:var(--text)}
 .wb-toolbar select{font-size:11px;min-height:34px;width:auto;margin:0;max-width:100%}
 .wb-mobile-interval,.wb-visually-hidden{display:none!important}

@@ -562,8 +562,9 @@ function pointAt(plot, bars, i, colors) {
   return point;
 }
 
-function seriesOptions(plot, result, colors, priceFormat) {
-  const options = {title: plot.title, priceLineVisible: false, lastValueVisible: false};
+function seriesOptions(plot, result, colors, priceFormat, compact = false) {
+  const hideOverlayTitle = compact && result.placement === 'overlay';
+  const options = {title: hideOverlayTitle ? '' : plot.title, priceLineVisible: false, lastValueVisible: false};
   if (plot.kind === 'line') Object.assign(options, {
     color: colors[plot.color] ?? colors.cyan, lineWidth: 1,
     lineStyle: plot.dashed ? LineStyle.Dashed : LineStyle.Solid,
@@ -621,9 +622,9 @@ export function renderStudies(chart, priceSeries, previousView, bars, ids, optio
     for (const [index, plot] of result.series.entries()) {
       const key = `${result.id}:${plot.key}`;
       const old = previousView?.series.get(key);
-      const signature = `${plot.title}:${plot.color ? colors[plot.color] : ''}:${precision}`;
-      const s = old?.series ?? chart.addSeries(plot.kind === 'line' ? LineSeries : HistogramSeries, seriesOptions(plot, result, colors, priceFormat), pane);
-      if (old && signature !== old.signature) s.applyOptions(seriesOptions(plot, result, colors, priceFormat));
+      const signature = `${plot.title}:${plot.color ? colors[plot.color] : ''}:${precision}:${options.compact ? 1 : 0}`;
+      const s = old?.series ?? chart.addSeries(plot.kind === 'line' ? LineSeries : HistogramSeries, seriesOptions(plot, result, colors, priceFormat, options.compact), pane);
+      if (old && signature !== old.signature) s.applyOptions(seriesOptions(plot, result, colors, priceFormat, options.compact));
       const lastIndex = bars.length - 1;
       const point = lastIndex >= 0 ? pointAt(plot, bars, lastIndex, colors) : null;
       const priorPoint = lastIndex > 0 ? pointAt(plot, bars, lastIndex - 1, colors) : null;

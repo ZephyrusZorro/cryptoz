@@ -1,0 +1,458 @@
+/* Living liquid-glass atmosphere, floating ambient wallpaper (dark & light),
+   tactile tab selections, and silky-smooth GPU-composited micro-interactions. */
+
+/* 1. Living Floating Wallpaper Stage (Dark & Light) */
+body::before {
+ z-index: -2;
+}
+
+.ambient-stage {
+ position: fixed;
+ inset: 0;
+ z-index: -1;
+ overflow: hidden;
+ pointer-events: none;
+ contain: strict;
+}
+
+.ambient-wallpaper {
+ position: absolute;
+ inset: -7%;
+ background: var(--bg) url('/media/glass-wallpaper.webp') center / cover no-repeat;
+ will-change: transform;
+ transform: translate3d(0, 0, 0) scale(1.04);
+}
+
+:root[data-theme="light"] .ambient-wallpaper {
+ background: #e4efff url('/media/glass-light.webp') center / cover no-repeat;
+}
+
+.ambient-parallax {
+ position: absolute;
+ inset: -5%;
+ will-change: transform;
+}
+
+.ambient-orb,
+.ambient-ribbon {
+ position: absolute;
+ pointer-events: none;
+ will-change: transform, opacity;
+}
+
+.ambient-orb {
+ border-radius: 50%;
+ filter: blur(64px);
+}
+
+/* Dark theme orbs — faithful to glass-wallpaper.webp sapphire & amethyst palette */
+.ambient-orb-1 {
+ width: clamp(320px, 46vw, 720px);
+ height: clamp(320px, 46vw, 720px);
+ left: -12%;
+ bottom: -18%;
+ background: radial-gradient(circle at 42% 45%, rgba(56, 163, 255, 0.34), rgba(37, 99, 235, 0.14) 52%, transparent 74%);
+ opacity: 0.78;
+}
+
+.ambient-orb-2 {
+ width: clamp(300px, 44vw, 680px);
+ height: clamp(300px, 44vw, 680px);
+ right: -10%;
+ top: -16%;
+ background: radial-gradient(circle at 55% 45%, rgba(155, 114, 255, 0.30), rgba(124, 58, 237, 0.12) 54%, transparent 74%);
+ opacity: 0.74;
+}
+
+.ambient-orb-3 {
+ width: clamp(240px, 34vw, 520px);
+ height: clamp(240px, 34vw, 520px);
+ left: 36%;
+ top: 38%;
+ background: radial-gradient(circle at 50% 50%, rgba(81, 217, 176, 0.15), rgba(56, 189, 248, 0.08) 54%, transparent 74%);
+ opacity: 0.65;
+}
+
+/* Gossamer drifting liquid-glass caustic ribbons */
+.ambient-ribbon-1 {
+ width: 135vw;
+ height: clamp(190px, 28vh, 340px);
+ left: -18vw;
+ bottom: 8vh;
+ border-radius: 48%;
+ background: linear-gradient(112deg, transparent 14%, rgba(92, 178, 255, 0.14) 44%, rgba(162, 126, 255, 0.12) 64%, transparent 86%);
+ filter: blur(34px);
+ transform: rotate(-11deg);
+ opacity: 0.75;
+}
+
+.ambient-ribbon-2 {
+ width: 120vw;
+ height: clamp(150px, 22vh, 270px);
+ right: -14vw;
+ top: 6vh;
+ border-radius: 50%;
+ background: linear-gradient(124deg, transparent 16%, rgba(156, 122, 255, 0.13) 48%, rgba(96, 196, 255, 0.09) 68%, transparent 88%);
+ filter: blur(32px);
+ transform: rotate(9deg);
+ opacity: 0.68;
+}
+
+/* Light theme orbs & ribbons — faithful to glass-light.webp porcelain sky & iridescent violet */
+:root[data-theme="light"] .ambient-orb-1 {
+ background: radial-gradient(circle at 42% 45%, rgba(56, 189, 248, 0.36), rgba(59, 130, 246, 0.16) 54%, transparent 75%);
+ opacity: 0.85;
+}
+
+:root[data-theme="light"] .ambient-orb-2 {
+ background: radial-gradient(circle at 55% 45%, rgba(139, 92, 246, 0.24), rgba(99, 102, 241, 0.11) 54%, transparent 75%);
+ opacity: 0.78;
+}
+
+:root[data-theme="light"] .ambient-orb-3 {
+ background: radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.18), rgba(255, 255, 255, 0.45) 52%, transparent 76%);
+ opacity: 0.82;
+}
+
+:root[data-theme="light"] .ambient-ribbon-1 {
+ background: linear-gradient(112deg, transparent 14%, rgba(255, 255, 255, 0.62) 42%, rgba(56, 189, 248, 0.24) 62%, transparent 86%);
+ opacity: 0.85;
+}
+
+:root[data-theme="light"] .ambient-ribbon-2 {
+ background: linear-gradient(124deg, transparent 16%, rgba(139, 92, 246, 0.18) 48%, rgba(255, 255, 255, 0.56) 66%, transparent 88%);
+ opacity: 0.8;
+}
+
+:root[data-material="solid"] .ambient-stage {
+ display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+ :root:not([data-motion="reduced"]) .ambient-wallpaper {
+  animation: ambient-wallpaper-float 38s ease-in-out infinite alternate;
+ }
+ :root:not([data-motion="reduced"]) .ambient-orb-1 {
+  animation: ambient-orb-drift-a 24s ease-in-out infinite alternate;
+ }
+ :root:not([data-motion="reduced"]) .ambient-orb-2 {
+  animation: ambient-orb-drift-b 31s ease-in-out infinite alternate;
+ }
+ :root:not([data-motion="reduced"]) .ambient-orb-3 {
+  animation: ambient-orb-drift-c 37s ease-in-out infinite alternate;
+ }
+ :root:not([data-motion="reduced"]) .ambient-ribbon-1 {
+  animation: ambient-ribbon-float-a 28s ease-in-out infinite alternate;
+ }
+ :root:not([data-motion="reduced"]) .ambient-ribbon-2 {
+  animation: ambient-ribbon-float-b 34s ease-in-out infinite alternate;
+ }
+}
+
+@keyframes ambient-wallpaper-float {
+ 0% { transform: translate3d(-1.4%, -1.1%, 0) scale(1.04) rotate(-0.45deg); }
+ 50% { transform: translate3d(1.2%, 0.9%, 0) scale(1.075) rotate(0.4deg); }
+ 100% { transform: translate3d(-0.6%, 1.6%, 0) scale(1.055) rotate(-0.25deg); }
+}
+
+@keyframes ambient-orb-drift-a {
+ 0% { transform: translate3d(0, 0, 0) scale(1); }
+ 50% { transform: translate3d(8vw, -6vh, 0) scale(1.12); }
+ 100% { transform: translate3d(3vw, -11vh, 0) scale(0.95); }
+}
+
+@keyframes ambient-orb-drift-b {
+ 0% { transform: translate3d(0, 0, 0) scale(1); }
+ 50% { transform: translate3d(-7vw, 7vh, 0) scale(1.14); }
+ 100% { transform: translate3d(-11vw, 2vh, 0) scale(0.96); }
+}
+
+@keyframes ambient-orb-drift-c {
+ 0% { transform: translate3d(-4vw, -3vh, 0) scale(0.94); opacity: 0.55; }
+ 50% { transform: translate3d(6vw, 4vh, 0) scale(1.16); opacity: 0.85; }
+ 100% { transform: translate3d(-2vw, 7vh, 0) scale(1.02); opacity: 0.65; }
+}
+
+@keyframes ambient-ribbon-float-a {
+ 0% { transform: translate3d(-3vw, 1vh, 0) rotate(-12deg) scaleY(1); }
+ 50% { transform: translate3d(4vw, -3.5vh, 0) rotate(-8.5deg) scaleY(1.12); }
+ 100% { transform: translate3d(1vw, 2vh, 0) rotate(-11deg) scaleY(0.96); }
+}
+
+@keyframes ambient-ribbon-float-b {
+ 0% { transform: translate3d(2vw, -1vh, 0) rotate(9.5deg) scaleY(1); }
+ 50% { transform: translate3d(-4.5vw, 3.5vh, 0) rotate(6.5deg) scaleY(1.14); }
+ 100% { transform: translate3d(-1.5vw, -2vh, 0) rotate(10.5deg) scaleY(0.95); }
+}
+
+/* Mobile battery-friendly ambient stage (still genuinely alive & floating!) */
+@media (max-width: 700px), (hover: none) {
+ .ambient-orb { filter: blur(46px); }
+ .ambient-orb-3, .ambient-ribbon-2 { display: none; }
+}
+
+/* Smooth Dark <-> Light Theme Cross-Fade */
+:root.theme-transitioning body,
+:root.theme-transitioning .ambient-wallpaper,
+:root.theme-transitioning .panel,
+:root.theme-transitioning .stat-card,
+:root.theme-transitioning .topbar,
+:root.theme-transitioning .sidebar::before,
+:root.theme-transitioning .phone-dock,
+:root.theme-transitioning .section-heading {
+ transition: background-color 280ms ease, color 240ms ease, border-color 260ms ease, opacity 260ms ease !important;
+}
+
+/* 2. Living Navigation Dock, Phone Dock & Context Sub-Nav Selection Pills */
+#app .sidebar nav a {
+ isolation: isolate;
+}
+
+#app .sidebar nav a.active {
+ background: transparent !important;
+ border-color: transparent !important;
+ box-shadow: none !important;
+}
+
+.dock-selection {
+ display: none;
+ position: absolute;
+ inset: 0;
+ z-index: -1;
+ pointer-events: none;
+ border-radius: inherit;
+ background: var(--selected-glass);
+ border: 1px solid var(--chrome-rim);
+ box-shadow: inset 0 1px 0 var(--glass-shine), 0 6px 20px color-mix(in srgb, var(--lime) 18%, transparent);
+}
+
+#app .sidebar nav a.active .dock-selection {
+ display: block;
+}
+
+:root[data-theme="light"] .dock-selection {
+ background: rgba(255, 255, 255, 0.78);
+ border-color: rgba(255, 255, 255, 0.96);
+ box-shadow: inset 0 1px 0 #ffffff, 0 6px 18px rgba(40, 99, 218, 0.14);
+}
+
+:root[data-material="solid"] .dock-selection {
+ background: var(--panel2);
+ box-shadow: none;
+}
+
+#app .sidebar nav a.active::before {
+ box-shadow: 0 0 10px color-mix(in srgb, var(--lime) 70%, transparent);
+}
+
+/* Living Phone Bottom Dock active elevation & glow */
+.phone-dock .phone-selection {
+ box-shadow: inset 0 1px 0 var(--glass-shine), 0 5px 16px color-mix(in srgb, var(--lime) 20%, transparent);
+}
+
+.phone-dock a.active svg {
+ transform: translateY(-1.5px) scale(1.08);
+ filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--lime) 38%, transparent));
+}
+
+/* Living Secondary Context Sub-Nav Sliding Glass Pill */
+#app #context-root .context-nav a {
+ position: relative;
+ isolation: isolate;
+}
+
+#app #context-root .context-nav a[aria-current="page"] {
+ background: transparent !important;
+ border-color: transparent !important;
+}
+
+.context-selection {
+ display: none;
+ position: absolute;
+ inset: 0;
+ z-index: -1;
+ pointer-events: none;
+ border-radius: inherit;
+ background: var(--selected-glass);
+ border: 1px solid var(--chrome-rim);
+ box-shadow: inset 0 1px 0 var(--glass-shine), 0 4px 14px color-mix(in srgb, var(--lime) 14%, transparent);
+}
+
+#app #context-root .context-nav a[aria-current="page"] .context-selection {
+ display: block;
+}
+
+:root[data-material="solid"] .context-selection {
+ background: var(--panel2);
+ box-shadow: none;
+}
+
+/* Living Workbench Tabs, Studio Tabs, News Tabs, Backtest Tabs & Learning Shelf */
+.wb-tabs button[aria-selected="true"] > .selection-surface {
+ box-shadow: inset 0 1px 0 var(--glass-shine), 0 4px 15px color-mix(in srgb, var(--lime) 18%, transparent);
+}
+
+.studio-tabs .chip.selected,
+.bt-result-tabs .chip.selected,
+.bt-presets .chip.selected,
+.news-toolbar .tab.active,
+.news-sort-toggle button[aria-pressed="true"],
+.home-news-tabs button[aria-pressed="true"],
+.era-segment button[aria-pressed="true"],
+.timeframes button.selected,
+.learning-shelf-tab[aria-selected="true"] {
+ box-shadow: inset 0 1px 0 var(--glass-shine), 0 4px 14px color-mix(in srgb, var(--lime) 18%, transparent);
+}
+
+/* 3. Living Sections, Glass Specular Sheen & Tactile Micro-Interactions */
+@media (prefers-reduced-motion: no-preference) {
+ /* Every page hero heading gently breathes in harmony with the wallpaper */
+ :root:not([data-motion="reduced"]) .section-heading::before {
+  animation: era-light 18s ease-in-out infinite alternate;
+ }
+
+ /* Living brand mark & heading icons */
+ :root:not([data-motion="reduced"]) .cryptoz-mark > span {
+  transition: transform 280ms var(--era-ease);
+ }
+ :root:not([data-motion="reduced"]) .dock-brand:hover .cryptoz-mark > span:nth-child(1),
+ :root:not([data-motion="reduced"]) .topbar-brand:hover .cryptoz-mark > span:nth-child(1) {
+  transform: translate(-1px, -1px) scale(1.06);
+ }
+ :root:not([data-motion="reduced"]) .dock-brand:hover .cryptoz-mark > span:nth-child(4),
+ :root:not([data-motion="reduced"]) .topbar-brand:hover .cryptoz-mark > span:nth-child(4) {
+  transform: translate(1px, 1px) scale(1.06);
+ }
+
+ /* Live streaming status subtle breathing dot */
+ :root:not([data-motion="reduced"]) .live-dot {
+  animation: live-pulse 2.4s ease-in-out infinite;
+ }
+
+ /* Smooth transitions on all interactive cards, rows, pills, inputs & controls */
+ :root:not([data-motion="reduced"]) :is(
+  .panel, .stat-card, .live-quote, .news-card, .analyst-card,
+  .market-insight-card, .market-discovery-card, .bt-kpi-grid > div,
+  .signal-card, .sector-pulse button, .watch-row, .market-table tbody tr,
+  .studio-tabs .chip, .bt-result-tabs .chip, .bt-presets .chip,
+  .news-sort-toggle button, .analyst-quick-bar .chip,
+  .learning-shelf-tab, .learning-shelf-icon, .heading-icon,
+  input, select, textarea
+ ) {
+  transition:
+   transform 210ms var(--era-ease),
+   background-color 210ms ease,
+   border-color 220ms ease,
+   box-shadow 240ms var(--era-ease),
+   color 180ms ease;
+ }
+
+ /* Smooth details/accordion content entrance */
+ :root:not([data-motion="reduced"]) details[open] > :not(summary) {
+  animation: glass-detail-in 220ms var(--era-ease) both;
+ }
+
+ /* Smooth toast glide */
+ :root:not([data-motion="reduced"]) #toast {
+  transition: opacity 220ms var(--era-ease), transform 260ms var(--era-ease);
+ }
+}
+
+@keyframes live-pulse {
+ 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--positive) 45%, transparent); }
+ 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--positive) 0%, transparent); }
+}
+
+@keyframes glass-detail-in {
+ from { opacity: 0; transform: translateY(-4px); }
+ to { opacity: 1; transform: translateY(0); }
+}
+
+/* Subtle interactive glass lift & pointer spotlight on hover-capable desktops */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+ :root:not([data-motion="reduced"]) :is(.stat-card, .analyst-card, .market-insight-card, .bt-kpi-grid > div, .signal-card, .era-shortcuts a, .live-quote, .learning-shelf-tab) {
+  position: relative;
+  overflow: hidden;
+ }
+
+ :root:not([data-motion="reduced"]) :is(.stat-card, .analyst-card, .market-insight-card, .bt-kpi-grid > div, .signal-card, .era-shortcuts a, .live-quote, .learning-shelf-tab)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: 0;
+  background: radial-gradient(220px circle at var(--spot-x, 50%) var(--spot-y, 20%), rgba(186, 218, 255, 0.14), transparent 72%);
+  transition: opacity 260ms ease;
+ }
+
+ :root[data-theme="light"]:not([data-motion="reduced"]) :is(.stat-card, .analyst-card, .market-insight-card, .bt-kpi-grid > div, .signal-card, .era-shortcuts a, .live-quote, .learning-shelf-tab)::after {
+  background: radial-gradient(220px circle at var(--spot-x, 50%) var(--spot-y, 20%), rgba(255, 255, 255, 0.62), rgba(56, 140, 255, 0.08) 48%, transparent 74%);
+ }
+
+ :root:not([data-motion="reduced"]) [data-glow="on"]::after {
+  opacity: 1;
+ }
+
+ :root:not([data-motion="reduced"]) :is(.stat-card, .analyst-card, .market-insight-card, .bt-kpi-grid > div, .signal-card, .era-shortcuts a, .sector-pulse button):hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--lime) 48%, var(--chrome-rim));
+  box-shadow: inset 0 1px 0 var(--glass-shine), 0 12px 30px color-mix(in srgb, var(--lime) 10%, rgba(4, 10, 30, 0.22));
+ }
+
+ :root:not([data-motion="reduced"]) .live-quote:hover {
+  transform: translateY(-1.5px);
+ }
+
+ :root:not([data-motion="reduced"]) .news-reading-panel .news-card:hover {
+  background: color-mix(in srgb, var(--tint) 160%, transparent);
+ }
+
+ :root:not([data-motion="reduced"]) .news-reading-panel .news-card:hover .news-headline {
+  color: var(--lime);
+ }
+
+ :root:not([data-motion="reduced"]) .learning-shelf-tab:hover .learning-shelf-icon {
+  transform: scale(1.07);
+ }
+
+ :root:not([data-motion="reduced"]) .button.primary:hover {
+  transform: translateY(-1.5px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 8px 22px color-mix(in srgb, var(--primary-bg) 34%, transparent);
+ }
+
+ :root:not([data-motion="reduced"]) .chip:hover,
+ :root:not([data-motion="reduced"]) .studio-tabs .chip:hover,
+ :root:not([data-motion="reduced"]) .bt-result-tabs .chip:hover,
+ :root:not([data-motion="reduced"]) .news-sort-toggle button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--lime) 45%, var(--border));
+ }
+}
+
+/* Touch feedback on phones */
+@media (hover: none) and (prefers-reduced-motion: no-preference) {
+ :root:not([data-motion="reduced"]) :is(.era-shortcuts a, .market-discovery-card, .live-quote, .news-card, .learning-shelf-tab, .bt-result-tabs .chip, .studio-tabs .chip):active {
+  transform: scale(0.98);
+ }
+}
+
+/* Desktop chart workbench toolbar single-row alignment (fixes Focus chart wrap at 1440px) */
+@media (min-width: 1120px) {
+ #app .wb-toolbar {
+  flex-wrap: nowrap;
+  gap: 7px;
+  padding: 9px 12px;
+ }
+ #app .wb-toolbar .wb-study-button {
+  margin-left: auto;
+ }
+ #app .wb-toolbar .timeframes button {
+  padding: 6px 8px;
+ }
+}
+
+@media (forced-colors: active) {
+ .ambient-stage { display: none; }
+ .dock-selection, .context-selection { border: 2px solid Highlight; }
+}
