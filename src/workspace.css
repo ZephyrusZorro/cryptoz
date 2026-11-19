@@ -23,12 +23,7 @@ body[data-page=overview] .stats-grid{gap:12px;margin-bottom:18px}body[data-page=
 @media(prefers-reduced-motion:reduce){.ambient-canvas{display:none}}[data-motion=reduced] .ambient-canvas,[data-ambient=off] .ambient-canvas{display:none}
 
 #app .topbar,#app .context-nav{background:transparent!important}
-[data-material=glass] .panel,[data-material=glass] .stat-card,[data-material=glass] .news-reading-panel{background:var(--glass)!important;backdrop-filter:blur(12px) saturate(145%)!important;-webkit-backdrop-filter:blur(12px) saturate(145%)!important}
-[data-material=glass] #app .sidebar::before{background:rgba(23,33,60,.44)!important;backdrop-filter:blur(22px) saturate(170%)!important;-webkit-backdrop-filter:blur(22px) saturate(170%)!important}
-[data-theme=light][data-material=glass] #app .sidebar::before{background:rgba(244,250,255,.46)!important}
-[data-material=glass] .terminal-main,[data-material=glass] .dashboard-news .news-reading-panel{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}[data-material=glass] .terminal-main{background:var(--panel)!important}[data-material=glass] .dashboard-news .news-reading-panel{background:transparent!important}
 [data-material=solid] .panel,[data-material=solid] .stat-card,[data-material=solid] .news-reading-panel,[data-material=solid] #app .sidebar::before{background:var(--panel)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-@media(max-width:760px){[data-material=glass] .panel,[data-material=glass] .stat-card,[data-material=glass] .news-reading-panel{backdrop-filter:blur(7px) saturate(125%)!important;-webkit-backdrop-filter:blur(7px) saturate(125%)!important}[data-material=glass] .terminal-main,[data-material=glass] .dashboard-news .news-reading-panel{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}}
 
 .dashboard-news .news-card-top{display:flex;align-items:center;flex-wrap:nowrap}
 @media(min-width:901px){body[data-page=overview] .stat-card{padding:14px 15px;min-height:117px}body[data-page=overview] .stat-card>div:not(.dominance-track){font-size:25px;line-height:1.15;margin-top:8px}body[data-page=overview] .stat-card p{margin-top:4px;font-size:9px}.home-dashboard .panel-top{padding:16px 19px}.dashboard-news .news-reading-panel .news-card{padding:12px 19px;gap:7px;min-height:84px}.home-dashboard .benchmark-chart{height:190px}.home-dashboard .benchmark-quote{padding:12px 19px}.home-dashboard .panel-bottom{padding:11px 19px}.workspace-launcher .section-card{padding-top:14px;padding-bottom:14px}}

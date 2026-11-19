@@ -4,10 +4,37 @@ import {palette,normalizeAppearance} from '../src/theme.js';
 import {parseMarketTicker,acceptTicker,parsePartialBook,MarketStream} from '../src/live-market.js';
 import {signalSnapshot} from '../src/signals.js';
 import {TerminalChart} from '../src/chart.js';
+import {moveSelection,reveal} from '../src/motion.js';
 test('appearance validates imported values and separates semantic candle colors',()=>{
  assert.deepEqual(normalizeAppearance({theme:'evil',motion:'spin'}),{theme:'dark',motion:'auto'});
  assert.equal(palette('invalid'),palette('dark'));
  for(const t of ['dark','light']){assert.notEqual(palette(t).up,palette(t).down);assert.notEqual(palette(t).text,palette(t).panel);}
+});
+test('Liquid Glass slides the selected tab at its previous size without fading the page backdrop',t=>{
+ const dataset={material:'glass'};
+ const previousDocument=globalThis.document,previousMatchMedia=globalThis.matchMedia;
+ globalThis.document={documentElement:{dataset}};
+ globalThis.matchMedia=()=>({matches:false});
+ t.after(()=>{globalThis.document=previousDocument;globalThis.matchMedia=previousMatchMedia;});
+
+ const calls=[];
+ const surface={
+  getBoundingClientRect:()=>({left:120,top:15,width:100,height:40}),
+  animate:frames=>{calls.push(frames);return {cancel(){}};}
+ };
+ const previous={left:20,top:10,width:80,height:40};
+ reveal(surface);
+ moveSelection(previous,surface);
+ assert.ok(calls[0].every(frame=>!Object.hasOwn(frame,'opacity')));
+ assert.equal(calls[1][0].transform,'translate(-100px, -5px) scale(0.8, 1)');
+ assert.equal(calls[1].at(-1).transform,'none');
+ dataset.material='solid';
+ reveal(surface);
+ assert.equal(calls[2][0].opacity,.68);
+ dataset.motion='reduced';
+ moveSelection(previous,surface);
+ reveal(surface);
+ assert.equal(calls.length,3);
 });
 const raw={s:'BTCUSDT',c:'100',P:'2',q:'3000',h:'105',l:'90',E:10000};
 test('live quotes reject unknown symbols, invalid prices and time reversal',()=>{
