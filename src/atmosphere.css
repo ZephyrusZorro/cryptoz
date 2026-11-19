@@ -1,7 +1,8 @@
-/* CRYPTOZ Living Liquid-Glass Atmosphere, 4 Responsive Wallpapers (Dark/Light × Desktop/Phone),
-   Middle-Canvas Particle Field, True Glassmorphism & Solid Mode, Scrollbar Polish & Mobile Wide Chart. */
+/* CRYPTOZ Institutional Liquid-Glass Polish
+   Crisp 2K HD Responsive Wallpapers (Dark/Light × Desktop/Phone), Compact Editorial Headings,
+   True Glassmorphism & Solid Surface Parity, Rounded Scrollbars & Mobile Wide Chart Controls. */
 
-/* 0. Theme Color Cohesion with the 4 Sapphire & Amethyst Glass Wallpapers */
+/* 0. Theme Color Tokens Harmonized with the 4 HD Glass Wallpapers */
 :root {
  --bg: #05081d;
  --panel: #0d1530;
@@ -11,21 +12,18 @@
  --lime: #9bc0ff;
  --primary-bg: #a8c7ff;
  --primary-text: #0b193d;
- --glass: rgba(12, 20, 48, 0.56);
- --header-glass: rgba(10, 17, 42, 0.54);
- --nav-glass: rgba(14, 22, 52, 0.44);
- --nav-edge: rgba(196, 218, 255, 0.28);
- --nav-highlight: rgba(178, 206, 255, 0.16);
- --chrome-rim: rgba(186, 214, 255, 0.34);
- --selected-glass: rgba(164, 198, 255, 0.22);
- --era-control: linear-gradient(155deg, rgba(182, 210, 255, 0.14), transparent 64%), rgba(12, 21, 50, 0.56);
- --era-content: linear-gradient(149deg, rgba(148, 176, 255, 0.09), transparent 58%), rgba(10, 17, 42, 0.62);
- --era-floating: linear-gradient(145deg, rgba(172, 200, 255, 0.18), transparent 60%), rgba(13, 21, 49, 0.84);
- --era-outline: rgba(188, 212, 255, 0.24);
- --heading-halo: rgba(114, 134, 255, 0.32);
- --heading-trim: rgba(154, 184, 255, 0.18);
- --heading-surface: linear-gradient(104deg, rgba(16, 26, 62, 0.82) 7%, rgba(22, 34, 76, 0.42) 68%, rgba(12, 19, 46, 0.28));
- --shadow: 0 14px 40px rgba(3, 6, 22, 0.34);
+ --glass: rgba(12, 20, 48, 0.6);
+ --header-glass: rgba(10, 17, 42, 0.58);
+ --nav-glass: rgba(14, 22, 52, 0.48);
+ --nav-edge: rgba(196, 218, 255, 0.26);
+ --nav-highlight: rgba(178, 206, 255, 0.15);
+ --chrome-rim: rgba(186, 214, 255, 0.3);
+ --selected-glass: rgba(164, 198, 255, 0.2);
+ --era-control: linear-gradient(155deg, rgba(182, 210, 255, 0.12), transparent 64%), rgba(12, 21, 50, 0.6);
+ --era-content: linear-gradient(149deg, rgba(148, 176, 255, 0.07), transparent 58%), rgba(10, 17, 42, 0.66);
+ --era-floating: linear-gradient(145deg, rgba(172, 200, 255, 0.16), transparent 60%), rgba(13, 21, 49, 0.88);
+ --era-outline: rgba(188, 212, 255, 0.22);
+ --shadow: 0 12px 32px rgba(3, 6, 22, 0.3);
 }
 
 :root[data-theme="light"] {
@@ -37,34 +35,31 @@
  --lime: #245cd4;
  --primary-bg: #2660d8;
  --primary-text: #ffffff;
- --glass: rgba(255, 255, 255, 0.58);
- --header-glass: rgba(246, 251, 255, 0.64);
- --nav-glass: rgba(255, 255, 255, 0.48);
- --nav-edge: rgba(255, 255, 255, 0.9);
+ --glass: rgba(255, 255, 255, 0.62);
+ --header-glass: rgba(246, 251, 255, 0.68);
+ --nav-glass: rgba(255, 255, 255, 0.52);
+ --nav-edge: rgba(255, 255, 255, 0.88);
  --nav-highlight: rgba(255, 255, 255, 0.72);
- --chrome-rim: rgba(255, 255, 255, 0.92);
- --selected-glass: rgba(255, 255, 255, 0.8);
- --era-control: linear-gradient(152deg, rgba(255, 255, 255, 0.82), transparent 62%), rgba(236, 245, 255, 0.64);
- --era-content: linear-gradient(149deg, rgba(255, 255, 255, 0.74), transparent 58%), rgba(243, 249, 255, 0.68);
- --era-floating: linear-gradient(145deg, rgba(255, 255, 255, 0.94), transparent 70%), rgba(238, 246, 255, 0.9);
+ --chrome-rim: rgba(255, 255, 255, 0.9);
+ --selected-glass: rgba(255, 255, 255, 0.82);
+ --era-control: linear-gradient(152deg, rgba(255, 255, 255, 0.82), transparent 62%), rgba(236, 245, 255, 0.68);
+ --era-content: linear-gradient(149deg, rgba(255, 255, 255, 0.74), transparent 58%), rgba(243, 249, 255, 0.72);
+ --era-floating: linear-gradient(145deg, rgba(255, 255, 255, 0.94), transparent 70%), rgba(238, 246, 255, 0.92);
  --era-outline: rgba(128, 158, 212, 0.34);
- --heading-halo: rgba(132, 168, 252, 0.42);
- --heading-trim: rgba(114, 146, 224, 0.22);
- --heading-surface: linear-gradient(104deg, rgba(248, 252, 255, 0.86) 7%, rgba(238, 246, 255, 0.62) 68%, rgba(220, 234, 254, 0.48));
- --shadow: 0 14px 36px rgba(46, 82, 146, 0.12);
+ --shadow: 0 12px 30px rgba(46, 82, 146, 0.1);
 }
 
-/* 1. Living 4-Variant Wallpaper Stage + Middle Particle Canvas */
+/* 1. Crisp 2K HD Wallpaper Stage (Zero Blur Overlays, Zero Stars) */
 body::before {
  z-index: -2;
 }
 
 @media (max-width: 700px), (orientation: portrait) and (max-width: 900px) {
  body::before {
-  background: var(--bg) url('/media/wallpaper-dark-phone.jpg') center / cover no-repeat;
+  background: var(--bg) url('/media/wallpaper-dark-phone.webp') center / cover no-repeat;
  }
  :root[data-theme="light"] body::before {
-  background: #d9e7fb url('/media/wallpaper-light-phone.jpg') center / cover no-repeat;
+  background: #d9e7fb url('/media/wallpaper-light-phone.webp') center / cover no-repeat;
  }
 }
 
@@ -79,202 +74,153 @@ body::before {
 
 .ambient-wallpaper {
  position: absolute;
- inset: -5%;
- background: var(--bg) url('/media/wallpaper-dark-desktop.jpg') center / cover no-repeat;
+ inset: -1.8%;
+ background: var(--bg) url('/media/wallpaper-dark-desktop.webp') center / cover no-repeat;
  will-change: transform;
- transform: translate3d(0, 0, 0) scale(1.035);
+ transform: translate3d(0, 0, 0) scale(1.008);
 }
 
 :root[data-theme="light"] .ambient-wallpaper {
- background: #d9e7fb url('/media/wallpaper-light-desktop.jpg') center / cover no-repeat;
+ background: #d9e7fb url('/media/wallpaper-light-desktop.webp') center / cover no-repeat;
 }
 
 @media (max-width: 700px), (orientation: portrait) and (max-width: 900px) {
  .ambient-wallpaper {
-  background-image: url('/media/wallpaper-dark-phone.jpg');
+  background-image: url('/media/wallpaper-dark-phone.webp');
   background-position: center center;
  }
  :root[data-theme="light"] .ambient-wallpaper {
-  background-image: url('/media/wallpaper-light-phone.jpg');
+  background-image: url('/media/wallpaper-light-phone.webp');
   background-position: center center;
  }
-}
-
-.ambient-parallax {
- position: absolute;
- inset: -4%;
- will-change: transform;
-}
-
-.ambient-particles {
- position: absolute;
- inset: 0;
- width: 100%;
- height: 100%;
- display: block;
- pointer-events: none;
-}
-
-.ambient-orb,
-.ambient-ribbon {
- position: absolute;
- pointer-events: none;
- will-change: transform, opacity;
-}
-
-.ambient-orb {
- border-radius: 50%;
- filter: blur(68px);
-}
-
-/* Corner-harmonized living glows matching the sapphire bottom-left & amethyst top-right glass ribbons */
-.ambient-orb-1 {
- width: clamp(280px, 42vw, 640px);
- height: clamp(280px, 42vw, 640px);
- left: -12%;
- bottom: -16%;
- background: radial-gradient(circle at 44% 46%, rgba(44, 148, 255, 0.28), rgba(37, 99, 235, 0.11) 54%, transparent 76%);
- opacity: 0.72;
-}
-
-.ambient-orb-2 {
- width: clamp(270px, 40vw, 600px);
- height: clamp(270px, 40vw, 600px);
- right: -10%;
- top: -15%;
- background: radial-gradient(circle at 56% 45%, rgba(162, 108, 255, 0.26), rgba(124, 58, 237, 0.10) 54%, transparent 76%);
- opacity: 0.7;
-}
-
-.ambient-orb-3 {
- width: clamp(220px, 32vw, 460px);
- height: clamp(220px, 32vw, 460px);
- left: 38%;
- top: 38%;
- background: radial-gradient(circle at 50% 50%, rgba(100, 168, 255, 0.11), rgba(154, 120, 255, 0.06) 54%, transparent 75%);
- opacity: 0.62;
-}
-
-.ambient-ribbon-1 {
- width: 130vw;
- height: clamp(160px, 24vh, 290px);
- left: -16vw;
- bottom: 4vh;
- border-radius: 48%;
- background: linear-gradient(112deg, transparent 14%, rgba(62, 162, 255, 0.12) 44%, rgba(154, 114, 255, 0.1) 66%, transparent 86%);
- filter: blur(36px);
- transform: rotate(-9deg);
- opacity: 0.7;
-}
-
-.ambient-ribbon-2 {
- width: 115vw;
- height: clamp(140px, 20vh, 240px);
- right: -12vw;
- top: 4vh;
- border-radius: 50%;
- background: linear-gradient(124deg, transparent 16%, rgba(166, 118, 255, 0.12) 48%, rgba(86, 184, 255, 0.08) 68%, transparent 88%);
- filter: blur(34px);
- transform: rotate(8deg);
- opacity: 0.66;
-}
-
-:root[data-theme="light"] .ambient-orb-1 {
- background: radial-gradient(circle at 44% 46%, rgba(56, 189, 248, 0.26), rgba(59, 130, 246, 0.12) 54%, transparent 75%);
- opacity: 0.78;
-}
-
-:root[data-theme="light"] .ambient-orb-2 {
- background: radial-gradient(circle at 56% 45%, rgba(154, 108, 246, 0.22), rgba(124, 58, 237, 0.09) 54%, transparent 75%);
- opacity: 0.74;
-}
-
-:root[data-theme="light"] .ambient-orb-3 {
- background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.45), rgba(147, 197, 253, 0.14) 55%, transparent 76%);
- opacity: 0.75;
-}
-
-:root[data-theme="light"] .ambient-ribbon-1 {
- background: linear-gradient(112deg, transparent 14%, rgba(255, 255, 255, 0.5) 42%, rgba(56, 189, 248, 0.18) 62%, transparent 86%);
- opacity: 0.76;
-}
-
-:root[data-theme="light"] .ambient-ribbon-2 {
- background: linear-gradient(124deg, transparent 16%, rgba(154, 108, 246, 0.16) 48%, rgba(255, 255, 255, 0.46) 66%, transparent 88%);
- opacity: 0.72;
 }
 
 @media (prefers-reduced-motion: no-preference) {
  :root:not([data-motion="reduced"]) .ambient-wallpaper {
-  animation: ambient-wallpaper-float 34s ease-in-out infinite alternate;
- }
- :root:not([data-motion="reduced"]) .ambient-orb-1 {
-  animation: ambient-orb-drift-a 24s ease-in-out infinite alternate;
- }
- :root:not([data-motion="reduced"]) .ambient-orb-2 {
-  animation: ambient-orb-drift-b 30s ease-in-out infinite alternate;
- }
- :root:not([data-motion="reduced"]) .ambient-orb-3 {
-  animation: ambient-orb-drift-c 36s ease-in-out infinite alternate;
- }
- :root:not([data-motion="reduced"]) .ambient-ribbon-1 {
-  animation: ambient-ribbon-float-a 27s ease-in-out infinite alternate;
- }
- :root:not([data-motion="reduced"]) .ambient-ribbon-2 {
-  animation: ambient-ribbon-float-b 33s ease-in-out infinite alternate;
+  animation: hd-wallpaper-drift 32s ease-in-out infinite alternate;
  }
 }
 
-@keyframes ambient-wallpaper-float {
- 0% { transform: translate3d(-1.2%, -0.9%, 0) scale(1.035) rotate(-0.35deg); }
- 50% { transform: translate3d(1.1%, 0.8%, 0) scale(1.065) rotate(0.35deg); }
- 100% { transform: translate3d(-0.5%, 1.3%, 0) scale(1.05) rotate(-0.2deg); }
+@keyframes hd-wallpaper-drift {
+ 0% { transform: translate3d(-0.45%, -0.35%, 0) scale(1.006); }
+ 100% { transform: translate3d(0.45%, 0.35%, 0) scale(1.024); }
 }
 
-@keyframes ambient-orb-drift-a {
- 0% { transform: translate3d(0, 0, 0) scale(1); }
- 50% { transform: translate3d(7vw, -5vh, 0) scale(1.12); }
- 100% { transform: translate3d(2vw, -9vh, 0) scale(0.95); }
+/* 2. Compact, Crisp Institutional Page Headings (Replaces Bulgy Hero Banners) */
+#app .section-heading,
+#app .section-heading.era-hero {
+ min-height: 0;
+ padding: 11px 16px;
+ margin: 0 0 12px;
+ gap: 10px 16px;
+ border-radius: 14px;
+ border: 1px solid var(--era-outline);
+ background: var(--era-control);
+ box-shadow: inset 0 1px 0 var(--glass-shine), 0 6px 18px rgba(4, 9, 28, 0.14);
 }
 
-@keyframes ambient-orb-drift-b {
- 0% { transform: translate3d(0, 0, 0) scale(1); }
- 50% { transform: translate3d(-6vw, 6vh, 0) scale(1.12); }
- 100% { transform: translate3d(-9vw, 2vh, 0) scale(0.96); }
+#app .section-heading::before,
+#app .section-heading.era-hero::before {
+ display: none !important;
+ content: none !important;
+ animation: none !important;
 }
 
-@keyframes ambient-orb-drift-c {
- 0% { transform: translate3d(-3vw, -2vh, 0) scale(0.94); opacity: 0.45; }
- 50% { transform: translate3d(5vw, 3vh, 0) scale(1.14); opacity: 0.78; }
- 100% { transform: translate3d(-2vw, 5vh, 0) scale(1.02); opacity: 0.56; }
+#app .heading-identity {
+ gap: 11px;
+ align-items: center;
 }
 
-@keyframes ambient-ribbon-float-a {
- 0% { transform: translate3d(-2.5vw, 1vh, 0) rotate(-10deg) scaleY(1); }
- 50% { transform: translate3d(3.5vw, -3vh, 0) rotate(-7deg) scaleY(1.12); }
- 100% { transform: translate3d(1vw, 1.5vh, 0) rotate(-9.5deg) scaleY(0.96); }
+#app .heading-icon {
+ width: 34px;
+ height: 34px;
+ border-radius: 9px;
+ box-shadow: inset 0 1px 0 var(--glass-shine);
 }
 
-@keyframes ambient-ribbon-float-b {
- 0% { transform: translate3d(2vw, -1vh, 0) rotate(8.5deg) scaleY(1); }
- 50% { transform: translate3d(-4vw, 3vh, 0) rotate(6deg) scaleY(1.12); }
- 100% { transform: translate3d(-1.5vw, -1.5vh, 0) rotate(9deg) scaleY(0.95); }
+#app .heading-icon svg {
+ width: 17px;
+ height: 17px;
 }
 
-@media (max-width: 700px), (hover: none) {
- .ambient-orb { filter: blur(44px); }
- .ambient-orb-3, .ambient-ribbon-2 { display: none; }
+#app .section-heading h1,
+#app .section-heading.era-hero h1,
+#app .terminal-heading h1 {
+ font-size: clamp(19px, 1.55vw, 23px);
+ font-weight: 700;
+ letter-spacing: -0.025em;
+ line-height: 1.2;
+ margin: 0;
 }
 
-/* 2. Complete Glassmorphism & Solid Surface Parity across ALL Components */
+#app .section-heading p,
+#app .section-heading.era-hero p {
+ margin: 2px 0 0;
+ font-size: 12.5px;
+ line-height: 1.4;
+ color: var(--muted);
+ max-width: 72ch;
+}
+
+#app .heading-actions .button {
+ min-height: 34px;
+ padding: 7px 13px;
+ font-size: 12px;
+}
+
+#app main {
+ padding-top: 16px;
+}
+
+body[data-page="terminal"] .terminal-heading {
+ margin-bottom: 12px;
+}
+
+@media (max-width: 700px) {
+ #app .section-heading,
+ #app .section-heading.era-hero {
+  padding: 10px 12px;
+  gap: 8px 10px;
+  margin-block-end: 10px;
+  border-radius: 13px;
+ }
+ #app .section-heading h1,
+ #app .section-heading.era-hero h1,
+ #app .terminal-heading h1 {
+  font-size: 19px;
+  line-height: 1.2;
+ }
+ #app .section-heading p,
+ #app .section-heading.era-hero p {
+  font-size: 12px;
+  line-height: 1.38;
+ }
+ #app .heading-icon {
+  width: 30px;
+  height: 30px;
+ }
+ #app .heading-icon svg {
+  width: 15px;
+  height: 15px;
+ }
+ #app .heading-actions .button {
+  min-height: 38px;
+  padding: 7px 12px;
+ }
+ #app main {
+  padding-block-start: 11px;
+ }
+}
+
+/* 3. Complete Glassmorphism & Solid Surface Parity across ALL Components */
 .panel,
 .stat-card,
 .news-reading-panel,
 .market-insight-card,
 .bt-studio > .panel,
 .section-heading {
- backdrop-filter: blur(14px) saturate(145%);
- -webkit-backdrop-filter: blur(14px) saturate(145%);
+ backdrop-filter: blur(16px) saturate(140%);
+ -webkit-backdrop-filter: blur(16px) saturate(140%);
 }
 
 .terminal-main,
@@ -309,15 +255,11 @@ body::before {
  background: var(--panel) !important;
  backdrop-filter: none !important;
  -webkit-backdrop-filter: none !important;
- box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14) !important;
+ box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12) !important;
 }
 
 :root[data-material="solid"] :is(.era-segment, .bt-rule-row, .forecast-corridor > div, .chart-path-grid > div, .wb-reader .chart-observations > div, #modal-root .modal .study-choice) {
  background: var(--surface-deep) !important;
-}
-
-:root[data-material="solid"] .section-heading::before {
- display: none !important;
 }
 
 /* Smooth Dark <-> Light Theme Cross-Fade */
@@ -329,10 +271,10 @@ body::before {
 :root.theme-transitioning .sidebar::before,
 :root.theme-transitioning .phone-dock,
 :root.theme-transitioning .section-heading {
- transition: background-color 280ms ease, color 240ms ease, border-color 260ms ease, opacity 260ms ease !important;
+ transition: background-color 240ms ease, color 200ms ease, border-color 220ms ease, opacity 220ms ease !important;
 }
 
-/* 3. Sleek Rounded Theme-Aware Scrollbars + Clipped Modal Body (Fixes Screenshot #5) */
+/* 4. Sleek Rounded Theme-Aware Scrollbars + Clipped Modal Body */
 #modal-root .modal {
  display: flex;
  flex-direction: column;
@@ -350,7 +292,7 @@ body::before {
  overflow-y: auto;
  overscroll-behavior: contain;
  scrollbar-width: thin;
- scrollbar-color: color-mix(in srgb, var(--lime) 34%, var(--border)) transparent;
+ scrollbar-color: color-mix(in srgb, var(--lime) 30%, var(--border)) transparent;
 }
 
 #modal-root .modal-body > form {
@@ -400,7 +342,6 @@ body::before {
  }
 }
 
-/* Custom WebKit scrollbars so native rectangular tracks never cut rounded glass corners */
 :is(#modal-root .modal-body, .practice-table, .command-results, .sidebar, .chart-workspace)::-webkit-scrollbar {
  width: 8px;
  height: 8px;
@@ -412,19 +353,19 @@ body::before {
 }
 
 :is(#modal-root .modal-body, .practice-table, .command-results, .sidebar, .chart-workspace)::-webkit-scrollbar-thumb {
- background: color-mix(in srgb, var(--lime) 30%, var(--border));
+ background: color-mix(in srgb, var(--lime) 28%, var(--border));
  border-radius: 999px;
  border: 2px solid transparent;
  background-clip: content-box;
 }
 
 :is(#modal-root .modal-body, .practice-table, .command-results, .sidebar, .chart-workspace)::-webkit-scrollbar-thumb:hover {
- background: color-mix(in srgb, var(--lime) 52%, var(--border));
+ background: color-mix(in srgb, var(--lime) 48%, var(--border));
  border: 2px solid transparent;
  background-clip: content-box;
 }
 
-/* 4. Screenshot #1 Fix + Restore Hidden Data on Desktop/Tablet/Phone */
+/* 5. Market Maps "Reading this view" Uniform Inset + Restored Hidden Data */
 #app .studio-insights {
  display: block !important;
 }
@@ -500,7 +441,7 @@ body::before {
  margin: 12px 20px 16px;
 }
 
-/* 5. Screenshot #2 Fix: Desktop Chart Toolbar Alignment + Single-Row Balance */
+/* 6. Desktop Chart Toolbar Single-Row Alignment */
 @media (min-width: 701px) {
  #app .wb-toolbar {
   align-items: center;
@@ -555,7 +496,7 @@ body::before {
  }
 }
 
-/* 6. Screenshot #4 Fix: Indicators Modal Multi-SMA Quick Row Alignment & Input Width */
+/* 7. Indicators Modal Multi-SMA Row Alignment & Input Width */
 #modal-root .study-lengths .sma-quick-row {
  display: flex;
  flex-wrap: wrap;
@@ -591,7 +532,7 @@ body::before {
  margin: 0;
 }
 
-/* 7. Phone Chart Viewing Experience + Wide 2x Horizontal Enlargement + Landscape */
+/* 8. Phone Chart Viewing Experience + Wide 2x Horizontal Enlargement + Landscape */
 .phone-chart-quickbar,
 .phone-wide-hint {
  display: none;
@@ -675,7 +616,6 @@ body::before {
   text-align: center;
  }
 
- /* Give portrait phone charts generous breathing height & legible crosshair HUD */
  #app .wb-main .price-chart {
   height: clamp(315px, 47svh, 440px);
  }
@@ -685,7 +625,6 @@ body::before {
   padding: 4px 8px;
  }
 
- /* Horizontal Wide 2.2x Chart Stage on Phone */
  #app .wb-main.chart-wide .chart-workspace {
   overflow-x: auto;
   overflow-y: hidden;
@@ -704,14 +643,12 @@ body::before {
   height: 100%;
  }
 
- /* Keep the phone quick bar visible even in Focus mode so users can switch timeframes / toggle Wide 2x / Exit easily */
  body.chart-focus #app .phone-chart-quickbar {
   display: flex;
   flex-shrink: 0;
  }
 }
 
-/* Native Phone Landscape Optimization (when physically rotated sideways) */
 @media (max-width: 1000px) and (max-height: 500px) {
  body[data-page="terminal"] #app .terminal-heading {
   display: none;
@@ -725,7 +662,7 @@ body::before {
  }
 }
 
-/* 8. Living Navigation Dock, Phone Dock & Context Sub-Nav Selection Pills */
+/* 9. Clean Sliding Navigation Dock, Phone Dock & Context Sub-Nav Selection Pills */
 #app .sidebar nav a {
  isolation: isolate;
 }
@@ -745,7 +682,7 @@ body::before {
  border-radius: inherit;
  background: var(--selected-glass);
  border: 1px solid var(--chrome-rim);
- box-shadow: inset 0 1px 0 var(--glass-shine), 0 6px 20px color-mix(in srgb, var(--lime) 18%, transparent);
+ box-shadow: inset 0 1px 0 var(--glass-shine);
 }
 
 #app .sidebar nav a.active .dock-selection {
@@ -753,27 +690,14 @@ body::before {
 }
 
 :root[data-theme="light"] .dock-selection {
- background: rgba(255, 255, 255, 0.8);
+ background: rgba(255, 255, 255, 0.82);
  border-color: rgba(255, 255, 255, 0.96);
- box-shadow: inset 0 1px 0 #ffffff, 0 6px 18px rgba(36, 92, 212, 0.14);
+ box-shadow: inset 0 1px 0 #ffffff, 0 3px 10px rgba(36, 92, 212, 0.08);
 }
 
 :root[data-material="solid"] .dock-selection {
  background: var(--panel2);
  box-shadow: none;
-}
-
-#app .sidebar nav a.active::before {
- box-shadow: 0 0 10px color-mix(in srgb, var(--lime) 70%, transparent);
-}
-
-.phone-dock .phone-selection {
- box-shadow: inset 0 1px 0 var(--glass-shine), 0 5px 16px color-mix(in srgb, var(--lime) 20%, transparent);
-}
-
-.phone-dock a.active svg {
- transform: translateY(-1.5px) scale(1.08);
- filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--lime) 38%, transparent));
 }
 
 #app #context-root .context-nav a {
@@ -795,7 +719,7 @@ body::before {
  border-radius: inherit;
  background: var(--selected-glass);
  border: 1px solid var(--chrome-rim);
- box-shadow: inset 0 1px 0 var(--glass-shine), 0 4px 14px color-mix(in srgb, var(--lime) 14%, transparent);
+ box-shadow: inset 0 1px 0 var(--glass-shine);
 }
 
 #app #context-root .context-nav a[aria-current="page"] .context-selection {
@@ -807,145 +731,39 @@ body::before {
  box-shadow: none;
 }
 
-.wb-tabs button[aria-selected="true"] > .selection-surface {
- box-shadow: inset 0 1px 0 var(--glass-shine), 0 4px 15px color-mix(in srgb, var(--lime) 18%, transparent);
-}
-
-.studio-tabs .chip.selected,
-.bt-result-tabs .chip.selected,
-.bt-presets .chip.selected,
-.news-toolbar .tab.active,
-.news-sort-toggle button[aria-pressed="true"],
-.home-news-tabs button[aria-pressed="true"],
-.era-segment button[aria-pressed="true"],
-.timeframes button.selected,
-.learning-shelf-tab[aria-selected="true"] {
- box-shadow: inset 0 1px 0 var(--glass-shine), 0 4px 14px color-mix(in srgb, var(--lime) 18%, transparent);
-}
-
-/* 9. Living Sections, Glass Specular Sheen & Tactile Micro-Interactions */
+/* 10. Restrained, Crisp Transitions (Zero Neon Glows, Zero Jumpy Cards) */
 @media (prefers-reduced-motion: no-preference) {
- :root:not([data-motion="reduced"]) .section-heading::before {
-  animation: era-light 18s ease-in-out infinite alternate;
- }
-
- :root:not([data-motion="reduced"]) .cryptoz-mark > span {
-  transition: transform 280ms var(--era-ease);
- }
- :root:not([data-motion="reduced"]) .dock-brand:hover .cryptoz-mark > span:nth-child(1),
- :root:not([data-motion="reduced"]) .topbar-brand:hover .cryptoz-mark > span:nth-child(1) {
-  transform: translate(-1px, -1px) scale(1.06);
- }
- :root:not([data-motion="reduced"]) .dock-brand:hover .cryptoz-mark > span:nth-child(4),
- :root:not([data-motion="reduced"]) .topbar-brand:hover .cryptoz-mark > span:nth-child(4) {
-  transform: translate(1px, 1px) scale(1.06);
- }
-
- :root:not([data-motion="reduced"]) .live-dot {
-  animation: live-pulse 2.4s ease-in-out infinite;
- }
-
  :root:not([data-motion="reduced"]) :is(
-  .panel, .stat-card, .live-quote, .news-card, .analyst-card,
-  .market-insight-card, .market-discovery-card, .bt-kpi-grid > div,
-  .signal-card, .sector-pulse button, .watch-row, .market-table tbody tr,
-  .studio-tabs .chip, .bt-result-tabs .chip, .bt-presets .chip,
-  .news-sort-toggle button, .analyst-quick-bar .chip,
-  .learning-shelf-tab, .learning-shelf-icon, .heading-icon,
+  .button, .icon-button, .chip, .tab, .context-nav a, .sidebar nav a,
+  .wb-tabs button, .era-shortcuts a, .news-card, .watch-row,
+  .market-table tbody tr, .news-sort-toggle button, .learning-shelf-tab,
   .phone-tf-strip button, .phone-view-actions .chip,
   input, select, textarea
  ) {
   transition:
-   transform 210ms var(--era-ease),
-   background-color 210ms ease,
-   border-color 220ms ease,
-   box-shadow 240ms var(--era-ease),
-   color 180ms ease;
- }
-
- :root:not([data-motion="reduced"]) details[open] > :not(summary) {
-  animation: glass-detail-in 220ms var(--era-ease) both;
+   background-color 180ms ease,
+   border-color 180ms ease,
+   color 160ms ease,
+   transform 160ms var(--era-ease);
  }
 
  :root:not([data-motion="reduced"]) #toast {
-  transition: opacity 220ms var(--era-ease), transform 260ms var(--era-ease);
+  transition: opacity 200ms var(--era-ease), transform 220ms var(--era-ease);
  }
 }
 
-@keyframes live-pulse {
- 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--positive) 45%, transparent); }
- 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--positive) 0%, transparent); }
-}
-
-@keyframes glass-detail-in {
- from { opacity: 0; transform: translateY(-4px); }
- to { opacity: 1; transform: translateY(0); }
-}
-
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
- :root:not([data-motion="reduced"]) :is(.stat-card, .analyst-card, .market-insight-card, .bt-kpi-grid > div, .signal-card, .era-shortcuts a, .live-quote, .learning-shelf-tab) {
-  position: relative;
-  overflow: hidden;
+@media (hover: hover) {
+ .news-reading-panel .news-card:hover {
+  background: color-mix(in srgb, var(--tint) 140%, transparent);
  }
-
- :root:not([data-motion="reduced"]) :is(.stat-card, .analyst-card, .market-insight-card, .bt-kpi-grid > div, .signal-card, .era-shortcuts a, .live-quote, .learning-shelf-tab)::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  opacity: 0;
-  background: radial-gradient(220px circle at var(--spot-x, 50%) var(--spot-y, 20%), rgba(186, 218, 255, 0.14), transparent 72%);
-  transition: opacity 260ms ease;
- }
-
- :root[data-theme="light"]:not([data-motion="reduced"]) :is(.stat-card, .analyst-card, .market-insight-card, .bt-kpi-grid > div, .signal-card, .era-shortcuts a, .live-quote, .learning-shelf-tab)::after {
-  background: radial-gradient(220px circle at var(--spot-x, 50%) var(--spot-y, 20%), rgba(255, 255, 255, 0.65), rgba(56, 140, 255, 0.08) 48%, transparent 74%);
- }
-
- :root:not([data-motion="reduced"]) [data-glow="on"]::after {
-  opacity: 1;
- }
-
- :root:not([data-motion="reduced"]) :is(.stat-card, .analyst-card, .market-insight-card, .bt-kpi-grid > div, .signal-card, .era-shortcuts a, .sector-pulse button):hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--lime) 48%, var(--chrome-rim));
-  box-shadow: inset 0 1px 0 var(--glass-shine), 0 12px 30px color-mix(in srgb, var(--lime) 10%, rgba(4, 10, 30, 0.22));
- }
-
- :root:not([data-motion="reduced"]) .live-quote:hover {
-  transform: translateY(-1.5px);
- }
-
- :root:not([data-motion="reduced"]) .news-reading-panel .news-card:hover {
-  background: color-mix(in srgb, var(--tint) 160%, transparent);
- }
-
- :root:not([data-motion="reduced"]) .news-reading-panel .news-card:hover .news-headline {
+ .news-reading-panel .news-card:hover .news-headline {
   color: var(--lime);
- }
-
- :root:not([data-motion="reduced"]) .learning-shelf-tab:hover .learning-shelf-icon {
-  transform: scale(1.07);
- }
-
- :root:not([data-motion="reduced"]) .button.primary:hover {
-  transform: translateY(-1.5px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 8px 22px color-mix(in srgb, var(--primary-bg) 34%, transparent);
- }
-
- :root:not([data-motion="reduced"]) .chip:hover,
- :root:not([data-motion="reduced"]) .studio-tabs .chip:hover,
- :root:not([data-motion="reduced"]) .bt-result-tabs .chip:hover,
- :root:not([data-motion="reduced"]) .news-sort-toggle button:hover {
-  transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--lime) 45%, var(--border));
  }
 }
 
 @media (hover: none) and (prefers-reduced-motion: no-preference) {
- :root:not([data-motion="reduced"]) :is(.era-shortcuts a, .market-discovery-card, .live-quote, .news-card, .learning-shelf-tab, .bt-result-tabs .chip, .studio-tabs .chip, .phone-view-actions .chip):active {
-  transform: scale(0.975);
+ :root:not([data-motion="reduced"]) :is(.era-shortcuts a, .market-discovery-card, .live-quote, .learning-shelf-tab, .bt-result-tabs .chip, .studio-tabs .chip, .phone-view-actions .chip):active {
+  transform: scale(0.98);
  }
 }
 

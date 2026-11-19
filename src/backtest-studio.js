@@ -129,7 +129,7 @@ export function mountBacktestStudio({ root, instrument, getInstruments, storage,
   <div class="bt-studio">
    <section class="panel bt-data-panel">
     <div class="panel-top">
-     <div><h2>1. Historical Market Data</h2><span class="source">Use live exchange history (up to 4,000 candles) or import any custom CSV / JSON OHLCV dataset</span></div>
+     <div><h2>Market data</h2><span class="source">Use live exchange history (up to 4,000 candles) or import any custom CSV / JSON OHLCV dataset</span></div>
      <div class="news-sort-toggle" role="group" aria-label="Backtest data source">
       <button type="button" data-bt-source="exchange" aria-pressed="true">Live exchange</button>
       <button type="button" data-bt-source="custom" aria-pressed="false">Import CSV / JSON</button>
@@ -158,7 +158,7 @@ export function mountBacktestStudio({ root, instrument, getInstruments, storage,
 
    <section class="panel bt-builder-panel">
     <div class="panel-top">
-     <div><h2>2. Open Strategy Builder (Unlimited Rules &amp; Parameters)</h2><span class="source">Pick a starter template or combine unlimited custom indicators, formulas &amp; risk controls</span></div>
+     <div><h2>Strategy builder</h2><span class="source">Start from a template or combine custom indicators, formulas and risk controls</span></div>
      <div class="bt-strategy-io">
       <button type="button" class="button" id="bt-import-strat">${icon('upload')} Import JSON</button>
       <button type="button" class="button" id="bt-export-strat">${icon('download')} Export JSON</button>
@@ -273,7 +273,7 @@ export function mountBacktestStudio({ root, instrument, getInstruments, storage,
 
    <section class="panel bt-results-panel" id="bt-results-shell">
     <div class="panel-top">
-     <div><h2>3. Performance, Visuals &amp; Optimizer</h2><span class="source" id="bt-result-subtitle">Run a backtest to inspect equity, drawdown, trade markers, walk-forward check and parameter sweep</span></div>
+     <div><h2>Performance &amp; analytics</h2><span class="source" id="bt-result-subtitle">Run a backtest to inspect equity, drawdown, trade markers, walk-forward check and parameter sweep</span></div>
      <div class="bt-result-tabs" role="tablist">
       <button type="button" class="chip selected" data-bt-rtab="overview">Overview &amp; Charts</button>
       <button type="button" class="chip" data-bt-rtab="optimizer">Parameter Optimizer</button>

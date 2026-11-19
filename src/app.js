@@ -37,8 +37,7 @@ import './era.css';
 import './desktop-polish.css';
 import './phone-layout.css';
 import './atmosphere.css';
-import {dismissSurface,motionEnabled as navigationMotion,moveSelection,reveal,staggerReveal,mountAtmosphere} from './motion.js';
-import {mountParticles} from './particles.js';
+import {dismissSurface,motionEnabled as navigationMotion,moveSelection,reveal} from './motion.js';
 import {PHONE_LAYOUT,chartScrollOptions} from './phone-layout.js';
 import {BENCHMARK_RANGES,benchmarkWindow,dashboardShortcuts} from './dashboard.js';
 import {createMarketMovers,marketMoversPanel} from './market-movers.js';
@@ -238,11 +237,10 @@ function route(){
   if(sameGroup){
    moveSelection(previousContextSelection,$('#context-root .context-nav a[aria-current="page"] .context-selection'));
   }else{
-   reveal($('#context-root .context-nav'),{direction:0,offset:3,duration:220});
+   reveal($('#context-root .context-nav'),{direction:0,offset:2,duration:190});
    if(phoneView.matches)moveSelection(previousPhoneSelection,$('.phone-dock .active .phone-selection'));
    else moveSelection(previousDockSelection,$('.sidebar .active .dock-selection'));
   }
-  staggerReveal($('#main'),'.stats-grid > .stat-card, .era-shortcuts > a, .analyst-grid > .analyst-card, .bt-studio > .panel, .news-reading-panel > .news-card',{offset:8,step:24,max:6,duration:270});
  }
 }
 function renderPage(){
@@ -357,8 +355,7 @@ function renderAnalystDesk(){
   $('#analyst-review').innerHTML=analystPanel(currentId===key&&asset?asset:currentId,quote);
   hydrate();
   if(animate){
-   reveal($('#analyst-review'),{offset:5,duration:220});
-   staggerReveal($('#analyst-review'),'.analyst-card',{offset:8,step:28,max:6,duration:260});
+   reveal($('#analyst-review'),{offset:4,duration:190});
   }
  };
  field.addEventListener('change',()=>{history.replaceState(null,'','#analysts?asset='+encodeURIComponent(field.value));update(true);});
@@ -525,7 +522,8 @@ function refreshIndicatorStrip(){
   const plots=result?.series??[];
   if(id==='supertrend'&&plots.length){const anyLive=plots.some(p=>Number.isFinite(p.values.at(-1)));return plots.map(plot=>`<li><span class="study-swatch" style="--swatch:${colors[plot.color]??colors.cyan}"></span>${esc(plot.title)}${Number.isFinite(plot.values.at(-1))?' · Active':anyLive?'':' · Awaiting history'}</li>`);}
   if(['ema','sma','ema-ribbon'].includes(id)&&plots.length)return plots.map(plot=>`<li><span class="study-swatch" style="--swatch:${colors[plot.color]??colors.cyan}"></span>${esc(plot.title)}${Number.isFinite(plot.values.at(-1))?'':' · Awaiting history'}</li>`);
-  return [`<li>${esc(STUDIES[id].label)}${result&&!result.ready?' · Awaiting data':''}</li>`];
+  const swatch=plots[0]?.color?`<span class="study-swatch" style="--swatch:${colors[plots[0].color]??colors.accent}"></span>`:'';
+  return [`<li>${swatch}${esc(STUDIES[id].label)}${result&&!result.ready?' · Awaiting data':''}</li>`];
  }).join('')}${custom.map(c=>`<li><span class="study-swatch" style="--swatch:${colors[c.color]??colors.cyan}"></span>${esc(c.name)} <small>(custom)</small></li>`).join('')}</ul></div>`).join('');
  if(lines.dataset.content!==content){lines.dataset.content=content;lines.innerHTML=content;}
 }
@@ -1317,10 +1315,10 @@ document.addEventListener('click',e=>{
 
  if(a==='export-markets'){const list=filteredMarkets();download('cryptoz-markets.csv',serializeCSV(['id','symbol','name','price','quote','change24h','marketCap','volume','updatedAt'],list.map(x=>[x.id,x.symbol,x.name,x.price,marketUniverse==='exchange'?'USDT':'USD',x.change,x.marketCap,x.volume,x.updatedAt])),'text/csv');return;}
 
- if(a==='home-news-tab'){homeNewsTopic=b.dataset.topic;document.querySelectorAll('[data-action="home-news-tab"]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));renderNewsResults();staggerReveal($('#news-results'),'.news-card',{offset:6,step:22,max:4,duration:220});return;}
- if(a==='news-more'){newsLimit+=20;renderNewsResults();reveal($('#news-results'),{offset:3,duration:200});return;}
- if(a==='news-topic'){newsTopic=b.dataset.topic;newsLimit=20;document.querySelectorAll('[data-action="news-topic"]').forEach(x=>{x.classList.toggle('active',x.dataset.topic===newsTopic);x.setAttribute('aria-pressed',x.dataset.topic===newsTopic);});renderNewsResults();staggerReveal($('#news-results'),'.news-card',{offset:6,step:20,max:6,duration:220});return;}
- if(a==='news-sort'){newsSort=b.dataset.sort==='latest'?'latest':'impact';newsLimit=20;document.querySelectorAll('[data-action="news-sort"]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.sort===newsSort)));renderNewsResults();staggerReveal($('#news-results'),'.news-card',{offset:6,step:20,max:6,duration:220});return;}
+ if(a==='home-news-tab'){homeNewsTopic=b.dataset.topic;document.querySelectorAll('[data-action="home-news-tab"]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));renderNewsResults();reveal($('#news-results'),{offset:3,duration:180});return;}
+ if(a==='news-more'){newsLimit+=20;renderNewsResults();reveal($('#news-results'),{offset:3,duration:180});return;}
+ if(a==='news-topic'){newsTopic=b.dataset.topic;newsLimit=20;document.querySelectorAll('[data-action="news-topic"]').forEach(x=>{x.classList.toggle('active',x.dataset.topic===newsTopic);x.setAttribute('aria-pressed',x.dataset.topic===newsTopic);});renderNewsResults();reveal($('#news-results'),{offset:3,duration:180});return;}
+ if(a==='news-sort'){newsSort=b.dataset.sort==='latest'?'latest':'impact';newsLimit=20;document.querySelectorAll('[data-action="news-sort"]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.sort===newsSort)));renderNewsResults();reveal($('#news-results'),{offset:3,duration:180});return;}
  if(a==='analyst-pick'){const sel=$('#analyst-asset');if(sel){sel.value=b.dataset.id;sel.dispatchEvent(new Event('change'));}return;}
  if(a==='analyst-open-chart'){const sym=b.dataset.symbol;const found=instruments[selected.venue].find(x=>x.base===sym)||instruments.binance.find(x=>x.base===sym)||instruments.coinbase.find(x=>x.base===sym)||{venue:'binance',symbol:sym+'USDT',base:sym,quote:'USDT'};selected=found;capturePreferences();location.hash='terminal';return;}
 
@@ -1416,8 +1414,6 @@ window.visualViewport?.addEventListener('resize',syncSheetViewport);
 window.visualViewport?.addEventListener('scroll',syncSheetViewport);
 window.addEventListener('hashchange',route);window.addEventListener('error',()=>{operationError='This view could not update. Retry the view.';syncNetworkState();});window.addEventListener('unhandledrejection',event=>{if(event.reason?.name==='AbortError')return;operationError='An operation could not finish. Retry the view.';syncNetworkState();});window.addEventListener('online',()=>{operationError='';syncNetworkState();refreshCurrent();});window.addEventListener('offline',syncNetworkState);
 
-mountAtmosphere(document);
-mountParticles(document);
 marketStream=new MarketStream({onBatch:patchLiveQuotes,onStatus:patchLiveStatus});liveMarketView=createLiveMarketView(document,marketStream);marketMoversView=createMarketMovers(document,marketStream,value=>moverDisplayPrice(value,'USDT'));shell();dialogController=createDialogController({root:$('#modal-root'),background:$('#app'),hydrate,animateExit:dismissSurface,fallbackFocus:()=>$('#main'),onClose:()=>{modalGeneration++;clearTimeout(searchTimer);catalogSearch.cancel();}});route();
 marketStream.setRegistry(BENCHMARK_ASSETS.map(base=>({symbol:base+'USDT',venue:'binance',quote:'USDT'})));
 fetchData(['markets','global','sentiment','news','exchange']);loadInstruments();

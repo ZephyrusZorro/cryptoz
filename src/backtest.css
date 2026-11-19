@@ -67,7 +67,7 @@
  display: grid;
  grid-template-columns: repeat(auto-fit, minmax(min(100%, 175px), 1fr));
  gap: 10px;
- align-items: end;
+ align-items: start;
 }
 
 .bt-grid-controls label,
@@ -95,7 +95,11 @@
 .bt-load-action {
  display: flex;
  align-items: flex-start;
- padding-bottom: 18px;
+ padding-top: 20px;
+}
+
+.bt-load-action .button {
+ min-height: 36px;
 }
 
 .bt-status-strip {
@@ -380,6 +384,7 @@
   min-height: 44px;
  }
  .bt-load-action {
+  padding-top: 0;
   padding-bottom: 0;
  }
 }
