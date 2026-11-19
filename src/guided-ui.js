@@ -12,7 +12,7 @@ export function riskSection(quote){
   <div class="risk-example"><button class="button" type="button" data-action="risk-example">Try an example</button><small id="risk-example-status" aria-live="polite">Use sample prices to see how the numbers work.</small></div>
   <form id="risk-form">
    <fieldset><legend><span>1</span> Set a loss budget</legend><div class="risk-inputs">
-    <label>Practice balance (<span id="risk-quote-label">${currency}</span>)<input name="equity" type="number" min="0" step="any" value="10000" required><small>Cash you’re modeling.</small></label>
+    <label><span>Practice balance (<span id="risk-quote-label">${currency}</span>)</span><input name="equity" type="number" min="0" step="any" value="10000" required><small>Cash you’re modeling.</small></label>
     <label>Maximum loss (%)<input name="riskPercent" type="number" min="0" max="100" step="any" value="1" required><small>1% of 1,000 is 10.</small></label>
    </div></fieldset>
    <fieldset><legend><span>2</span> Set price levels</legend><div class="risk-inputs risk-levels">

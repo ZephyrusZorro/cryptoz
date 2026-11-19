@@ -14,7 +14,10 @@
 .wb-quote>strong{font-size:clamp(19px,2.1vw,27px);font-variant-numeric:tabular-nums}
 .wb-24h{font-size:11px;line-height:1.5;color:var(--muted)}
 .wb-24h b{padding-left:3px;color:var(--text)}
-.wb-toolbar{border-top:1px solid var(--border);padding:10px 14px;background:var(--header-glass)}
+.wb-toolbar{border-top:1px solid var(--border);padding:10px 14px;background:var(--header-glass);justify-content:space-between;gap:8px 10px}
+.wb-toolbar .wb-tools{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;margin-left:auto}
+.wb-toolbar .wb-interval-style{display:flex;align-items:center;gap:8px}
+.wb-toolbar .wb-style{display:flex;align-items:center;gap:6px;flex-direction:row}
 .wb-toolbar .button{min-height:34px;padding:6px 9px;font-size:11px}.wb-toolbar .button svg{width:14px}
 .wb-toolbar .chart-menu summary{min-height:34px;white-space:nowrap}
 .wb-toolbar .timeframes button.selected{color:var(--text)}

@@ -11,6 +11,14 @@
 }
 .market-insight-toolbar {
   justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 10px;
+}
+.market-insight-retry {
+  flex-shrink: 0;
+}
+@media (max-width: 860px) {
+  .market-insight-toolbar { flex-wrap: wrap; }
 }
 .market-insight-tabs .button[aria-pressed="true"] {
   border-color: var(--lime);
