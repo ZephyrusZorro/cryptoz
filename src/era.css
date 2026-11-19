@@ -31,7 +31,37 @@ body.chart-focus #app main{padding-inline:12px}
 #app .topbar{border:1px solid var(--era-outline);border-radius:15px;margin-top:9px;padding-inline:14px;height:58px}
 #app #context-root{position:relative;top:auto}
 #app #context-root .context-nav{border:1px solid var(--era-outline);border-radius:13px;margin-top:6px;padding-inline:8px}
-#app .dock-brand .cryptoz-mark{width:38px;height:38px;border-radius:11px;object-fit:cover;box-shadow:0 2px 7px #0309164a}
+.cryptoz-mark{
+ display:grid;
+ grid-template:repeat(2,minmax(0,1fr))/repeat(2,minmax(0,1fr));
+ place-items:center;
+ gap:2px;
+ width:38px;
+ height:38px;
+ padding:6px;
+ border:1px solid var(--era-outline);
+ border-radius:12px;
+ background:linear-gradient(145deg,#c3e6ff29,#7cb9ff09 55%,#829dff1a);
+ box-shadow:inset 0 1px 0 var(--glass-shine);
+}
+.cryptoz-mark>span{
+ width:100%;
+ height:100%;
+ border-radius:30%;
+ background:linear-gradient(145deg,#a4e7ff,#48aeef 80%);
+ box-shadow:inset 0 1px 0 #e8f9ff63;
+}
+.cryptoz-mark>span:nth-child(2),.cryptoz-mark>span:nth-child(3){
+ width:74%;
+ height:74%;
+ background:linear-gradient(145deg,#66c7ff,#2a8fe0);
+}
+.cryptoz-mark>span:nth-child(2){justify-self:start;align-self:end}
+.cryptoz-mark>span:nth-child(3){justify-self:end;align-self:start}
+:root[data-theme=light] .cryptoz-mark{background:linear-gradient(145deg,#fff9,#8dbdff24)}
+:root[data-theme=light] .cryptoz-mark>span{background:linear-gradient(145deg,#54b6f2,#1674ba)}
+:root[data-theme=light] .cryptoz-mark>span:is(:nth-child(2),:nth-child(3)){background:linear-gradient(145deg,#389de2,#175fa4)}
+:root[data-material=solid] .cryptoz-mark{background:var(--panel2)}
 .section-heading{
  min-width:0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
  gap:12px;padding:clamp(14px,2vw,24px);margin-bottom:15px;
@@ -132,7 +162,7 @@ body.chart-focus #app main{padding-inline:12px}
 }
 @media(max-width:650px){
  #app .topbar{padding-inline:7px;height:52px;gap:3px}
- #app .dock-brand .cryptoz-mark{height:30px;width:30px;border-radius:8px}
+ .cryptoz-mark{height:30px;width:30px;padding:5px;border-radius:9px}
  .section-heading{align-items:flex-start}
  .section-heading p,.section-heading .terminal-description{font-size:12px}
  .wb-toolbar .chart-menu{position:static}

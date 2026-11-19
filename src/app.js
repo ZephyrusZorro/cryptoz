@@ -116,7 +116,9 @@ function shell(){
  const dockLinks=PRIMARY.map(item=>`<a href="#${item.route}" data-group="${item.id}" aria-label="${item.label}">${icon(item.icon)}<span class="dock-label" aria-hidden="true">${item.label}</span></a>`).join('');
  $('#app').innerHTML=`
   <aside class="sidebar" id="navigation-dock" aria-label="Navigation dock">
-   <a href="#overview" class="dock-brand" aria-label="CRYPTOZ Home"><img class="cryptoz-mark" src="/media/cryptoz-mark.png" alt="" width="38" height="38"></a>
+   <a href="#overview" class="dock-brand" aria-label="CRYPTOZ Home">
+    <span class="cryptoz-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+   </a>
    <nav aria-label="Primary">${dockLinks}</nav>
    <div class="dock-controls"><button type="button" class="icon-button" data-action="dock-hide" aria-controls="navigation-dock" aria-label="Hide navigation" title="Hide navigation">${icon('chevron-left')}</button></div>
   </aside>
