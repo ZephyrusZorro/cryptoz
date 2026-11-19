@@ -470,7 +470,8 @@ function refreshIndicatorStrip(){
   const result=results.find(item=>item.id===id);
   const plots=result?.series??[];
   if(['ema','sma'].includes(id)&&plots.length)return plots.map(plot=>`<li><span class="study-swatch" style="--swatch:${colors[plot.color]}"></span>${esc(plot.title)}${Number.isFinite(plot.values.at(-1))?'':' · Awaiting history'}</li>`);
-  return [`<li>${esc(STUDIES[id].label)}${result&&!result.ready?' · Awaiting data':''}</li>`];
+  const swatchColor=plots[0]?.color?colors[plots[0].color]:result?.levels?.[0]?.color?colors[result.levels[0].color]:colors.accent;
+  return [`<li><span class="study-swatch" style="--swatch:${swatchColor}"></span>${esc(STUDIES[id].label)}${result&&!result.ready?' · Awaiting data':''}</li>`];
  }).join('')}</ul></div>`).join('');
  if(lines.dataset.content!==content){lines.dataset.content=content;lines.innerHTML=content;}
 }
@@ -1044,7 +1045,7 @@ document.addEventListener('click',e=>{
  if(a==='clear-signal'&&terminal){terminal.clearSignalFocus();$('[data-action="show-signals"]')?.focus({preventScroll:true});return;}
  if(a==='forecast-csv'){exportForecastCases();return;}
  if(a==='forecast-journal-csv'){exportForecastJournal();return;}
- if(a==='suggest-studies'&&terminal){const state=buildStudyPov({bars:terminal.studyBars,instrument:selected,interval:selectedInterval,nowSeconds:terminal.historyAnchor??Date.now()/1000,candleMeta:terminal.candleMeta,confirmedThrough:terminal.confirmedThrough});if(!state.ready){toast('Wait for enough closed candles.');return;}const preset=STUDY_PRESETS[state.trend==='Mixed'?'range':'trend'];terminal.studyIds=normalizeStudyIds(preset.studies);terminal.renderIndicators();refreshIndicatorStrip();updateSummary();capturePreferences();toast(preset.label+' studies applied');return;}
+ if(a==='suggest-studies'&&terminal){const state=buildStudyPov({bars:terminal.studyBars,instrument:selected,interval:selectedInterval,nowSeconds:terminal.historyAnchor??Date.now()/1000,candleMeta:terminal.candleMeta,confirmedThrough:terminal.confirmedThrough});if(!state.ready){toast('Wait for enough closed candles.');return;}const highVol=Number.isFinite(state.metrics?.volumeRatio)&&state.metrics.volumeRatio>=1.5&&selectedInterval!=='1d';const presetKey=highVol?'volume':state.trend==='Mixed'?'range':'trend';const preset=STUDY_PRESETS[presetKey];const reason=highVol?'elevated intraday volume':state.trend==='Mixed'?'mixed / ranging structure':`${state.trend.toLowerCase()} trend`;terminal.studyIds=normalizeStudyIds(preset.studies);terminal.renderIndicators();refreshIndicatorStrip();updateSummary();capturePreferences();toast(`${preset.label} applied for ${reason}`);return;}
  if(a==='inspect-overlay'){
   activateChartPanel('levels');const tab=$('#wb-tab-levels');tab?.focus({preventScroll:true});tab?.scrollIntoView({block:'center',behavior:navigationMotion()?'smooth':'instant'});return;
  }

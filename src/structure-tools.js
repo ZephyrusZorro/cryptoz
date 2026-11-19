@@ -1,4 +1,4 @@
-import {normalizeCandles} from './analytics.js';
+import {atr, normalizeCandles} from './analytics.js';
 const MIN_BARS=28,WINDOW=120,BINS=18;
 const DAY=86_400, WEEK=7*DAY, MONDAY_OFFSET=4*DAY;
 const pin=(id,label,color,price,from,to)=>({id,label,color,type:'horizontal',points:[{time:from,price},{time:to,price}]});
@@ -92,11 +92,36 @@ export function previousPeriodLevels(bars,step,visibleTime,cutoff,key){
 export function structureTools(bars,step,closedThrough){
  const empty={zones:null,profile:null,guides:[]};if(!validCutoff(step,closedThrough))return empty;
  const rows=closedWindow(bars,step,closedThrough,WINDOW);if(rows.length<MIN_BARS)return empty;
- const latest=rows.at(-1),first=rows[0],wiggle=Math.max(latest.close*.001,rows.slice(-24).reduce((mean,b)=>mean+(b.high-b.low)/24,0)*.4);
- const above=groupPivots(rows,wiggle,'high',closedThrough,step).filter(x=>x.price>latest.close).sort((a,b)=>a.price-b.price)[0];
- const below=groupPivots(rows,wiggle,'low',closedThrough,step).filter(x=>x.price<latest.close).sort((a,b)=>b.price-a.price)[0];
- const levels=[below&&{name:'Support reference',price:below.price,anchors:below.anchors},above&&{name:'Resistance reference',price:above.price,anchors:above.anchors}].filter(Boolean);
- const zones=levels.length?{label:'Confirmed swing levels',detail:'Groups earlier confirmed highs or lows near the same price. Each level needs at least two distinct pivots. These are areas to watch, not barriers.',levels}:null;
+ const latest=rows.at(-1),first=rows[0];
+ const atrValue=atr(rows,14).at(-1);
+ const fallbackRange=rows.slice(-24).reduce((mean,b)=>mean+(b.high-b.low)/24,0);
+ const wiggle=Math.max(latest.close*.001,(Number.isFinite(atrValue)&&atrValue>0?atrValue:fallbackRange)*.45);
  const profile=priceProfile(rows);
- return {zones,profile,guides:[...(zones?.levels??[]).map((x,i)=>pin('zones-'+i,x.name,i?'gold':'cyan',x.price,x.anchors[0].time,latest.time)),...(profile?.levels??[]).map((x,i)=>pin('profile-'+i,x.name,i?'cyan':'gold',x.price,first.time,latest.time))]};
+ const pocPrice=profile?.levels?.[0]?.price??null;
+ const scoreZone=group=>{
+  const latestTouch=Math.max(...group.anchors.map(a=>a.time));
+  const recency=Math.max(0,1-(latest.time-latestTouch)/Math.max(step*WINDOW,1));
+  const volumeBoost=pocPrice!==null&&Math.abs(group.price-pocPrice)<=wiggle*1.5?0.6:0;
+  return group.anchors.length+recency*0.8+volumeBoost;
+ };
+ const pickSide=(groups,ascending)=>{
+  const sorted=[...groups].sort((a,b)=>(ascending?a.price-b.price:b.price-a.price));
+  if(sorted.length<=1)return sorted;
+  const primary=sorted[0];
+  const secondary=sorted.slice(1).filter(g=>Math.abs(g.price-primary.price)>wiggle*1.8)
+   .sort((a,b)=>scoreZone(b)-scoreZone(a))[0];
+  return secondary?[primary,secondary]:[primary];
+ };
+ const resistances=pickSide(groupPivots(rows,wiggle,'high',closedThrough,step).filter(x=>x.price>latest.close),true);
+ const supports=pickSide(groupPivots(rows,wiggle,'low',closedThrough,step).filter(x=>x.price<latest.close),false);
+ const dist=price=>latest.close>0?(price/latest.close-1)*100:null;
+ const levels=[
+  supports[0]&&{name:'Support reference',price:supports[0].price,anchors:supports[0].anchors,distancePct:dist(supports[0].price),role:'support'},
+  supports[1]&&{name:'Secondary support',price:supports[1].price,anchors:supports[1].anchors,distancePct:dist(supports[1].price),role:'support'},
+  resistances[0]&&{name:'Resistance reference',price:resistances[0].price,anchors:resistances[0].anchors,distancePct:dist(resistances[0].price),role:'resistance'},
+  resistances[1]&&{name:'Secondary resistance',price:resistances[1].price,anchors:resistances[1].anchors,distancePct:dist(resistances[1].price),role:'resistance'},
+ ].filter(Boolean);
+ const zones=levels.length?{label:'Confirmed swing levels',detail:'Clusters confirmed swing highs and lows using an ATR-scaled tolerance. Each level needs at least two distinct pivots confirmed by two subsequent closes. These are areas to watch, not barriers.',levels}:null;
+ const profileWithDist=profile?{...profile,levels:profile.levels.map(lv=>({...lv,distancePct:dist(lv.price)}))}:null;
+ return {zones,profile:profileWithDist,guides:[...(zones?.levels??[]).map((x,i)=>pin('zones-'+i,x.name,x.role==='resistance'?'gold':'cyan',x.price,x.anchors[0].time,latest.time)),...(profileWithDist?.levels??[]).map((x,i)=>pin('profile-'+i,x.name,i?'cyan':'gold',x.price,first.time,latest.time))]};
 }

@@ -97,6 +97,9 @@ export function renderGuideAudit(setup,key,quote){
  if(!detail)return '<p class="data-note">This drawing needs more confirmed structure. A sparse market or gaps can leave no valid levels.</p>';
  const rows=detail.levels??detail.anchors??[];
  const label=(row)=>row.name??(Number.isFinite(row.ratio)?Math.round(row.ratio*1000)/10+'%':row.kind??'Anchor');
- const records=rows.map(row=>`<div><dt>${esc(label(row))}</dt><dd>${moneyMarkup(row.price,quote,'parallel')}${Number.isFinite(row.time)?'<small>'+new Date(row.time*1000).toISOString().slice(0,16).replace('T',' ')+' UTC</small>':''}${row.anchors?.length?'<small>'+row.anchors.length+' distinct confirmed pivots</small>':''}</dd></div>`).join('');
+ const records=rows.map(row=>{
+  const dist=Number.isFinite(row.distancePct)?` <span class="level-distance ${row.distancePct>=0?'positive':'negative'}">${row.distancePct>=0?'+':''}${row.distancePct.toFixed(2)}%</span>`:'';
+  return `<div><dt>${esc(label(row))}${dist}</dt><dd>${moneyMarkup(row.price,quote,'parallel')}${Number.isFinite(row.time)?'<small>'+new Date(row.time*1000).toISOString().slice(0,16).replace('T',' ')+' UTC</small>':''}${row.anchors?.length?'<small>'+row.anchors.length+' distinct confirmed pivots</small>':''}</dd></div>`;
+ }).join('');
  return `<h3>${esc(detail.label)}</h3><p>${esc(detail.detail)}</p>${records?`<dl class="chart-observations">${records}</dl>`:''}${setup.stale?'<p class="source warn">The most recent confirmed data is delayed.</p>':''}`;
 }

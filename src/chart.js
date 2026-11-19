@@ -102,10 +102,8 @@ export class TerminalChart {
   this.analysisRevision++;
   const stale=this.candleMeta?.cache==='stale'&&!this.confirmedStreamBars.has(closed.at(-1)?.time);
   this.autoSetup=buildAutoSetup(closed,{interval:this.interval,completedBefore:cutoff,nowSeconds:this.historyAnchor??Date.now()/1000,stale,events:this.visibleSignals});
-  if(this.deskMode==='pro'){
-   const extra=structureTools(closed,step,cutoff);
-   this.autoSetup={...this.autoSetup,zones:extra.zones,profile:extra.profile,guides:[...this.autoSetup.guides,...extra.guides]};
-  }
+  const extra=structureTools(closed,step,cutoff);
+  this.autoSetup={...this.autoSetup,zones:extra.zones,profile:extra.profile,guides:[...this.autoSetup.guides,...extra.guides]};
   this.syncPeriodGuide(cutoff);
   this.syncAnchoredVwap(cutoff,colors);
   const marks=new Map();
@@ -461,18 +459,41 @@ export class TerminalChart {
    const nearest=this.bars[left]?.time;
    return Number.isFinite(nearest)?scale.timeToCoordinate(nearest):null;
   };
-  const labelX=x=>Math.max(8,Math.min(x,plotWidth-104));
+  const placedLabels=[];
+  const reserveLabelY=preferred=>{
+   let y=Math.max(15,Math.min(paneHeight-8,preferred));
+   for(let attempt=0;attempt<6;attempt++){
+    const clash=placedLabels.find(prev=>Math.abs(prev-y)<18);
+    if(clash===undefined)break;
+    const below=clash+18,above=clash-18;
+    y=below<=paneHeight-8?below:Math.max(15,above);
+   }
+   placedLabels.push(y);
+   return y;
+  };
+  const labelPill=(x,y,text,color,end=false)=>{
+   const w=Math.max(44,Math.min(185,text.length*6.2+12)),h=16;
+   const rx=end?Math.max(6,x-w):Math.min(Math.max(6,plotWidth-w-6),Math.max(6,x));
+   const ry=y-11.5;
+   return `<rect x="${rx}" y="${ry}" width="${w}" height="${h}" rx="4" fill="${colors.panel}" fill-opacity="0.88" stroke="${color}" stroke-opacity="0.45" stroke-width="0.75"/><text x="${rx+6}" y="${y}" fill="${color}">${text}</text>`;
+  };
+  const labelX=x=>Math.max(8,Math.min(x,plotWidth-114));
   const autoLine=drawing=>{
    const [first,second]=anchors(drawing),trend=drawing.type==='trend';
    if(!Number.isFinite(first.y)||trend&&(!second||![first.x,second.x,second.y].every(Number.isFinite)))return '';
    const x1=first.x??timeAfter(drawing.points[0].time),x2=trend?second.x:plotWidth,y2=trend?second.y:first.y;
    const bothAbove=first.y<0&&y2<0,bothBelow=first.y>paneHeight&&y2>paneHeight;
    if(!Number.isFinite(x1)||Math.min(x1,x2)>=plotWidth||Math.max(x1,x2)<0||bothAbove||bothBelow)return '';
-   const color=colors[drawing.color]??colors.gold,label=esc((drawing.label||drawing.type).slice(0,34));
+   const color=colors[drawing.color]??colors.gold,rawLabel=(drawing.label||drawing.type).slice(0,34),label=esc(rawLabel);
    const line=`<line data-auto-guide="${drawing.id}" x1="${x1}" y1="${first.y}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-dasharray="5 4"/>`;
-   const tuckLabel=this.phoneView?.matches&&!trend&&x1>=100;
-   const textX=tuckLabel?Math.max(96,Math.min(x1-6,plotWidth-78)):labelX(x1+6);
-   const text=drawing.id.startsWith('fibonacci-')?'':`<text x="${textX}" y="${first.y-5}" fill="${color}"${tuckLabel?' text-anchor="end"':''}>${label}</text>`;
+   let text='';
+   if(!drawing.id.startsWith('fibonacci-')){
+    const preferredY=first.y<24?first.y+15:first.y-6;
+    const textY=reserveLabelY(preferredY);
+    const leftSafe=!trend&&x1>plotWidth*0.65;
+    const textX=leftSafe?Math.max(8,x1-10):labelX(Math.max(8,x1+6));
+    text=labelPill(textX,textY,label,color,leftSafe);
+   }
    return line+text+(trend?`<circle cx="${x1}" cy="${first.y}" r="3" fill="${color}"/><circle cx="${x2}" cy="${y2}" r="3" fill="${color}"/>`:'');
   };
   const manualLine=drawing=>{
