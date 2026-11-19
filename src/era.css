@@ -120,19 +120,6 @@ body.chart-focus #app main{padding-inline:12px}
 .era-hero{min-height:124px;margin:0}
 .era-hero h1{font-size:clamp(28px,4vw,54px)}
 .era-hero::before{inset:-95% -11% -105% 32%;opacity:.95}
-.era-hero-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.basic-guide-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.basic-guide-strip a{display:flex;align-items:center;gap:10px;padding:12px 13px;min-width:0;border:1px solid var(--era-outline);border-radius:14px;background:var(--era-content);box-shadow:inset 0 1px 0 var(--glass-shine)}
-.basic-guide-strip a:hover{background:var(--era-control);border-color:var(--lime)}
-.basic-guide-strip strong,.basic-guide-strip small{display:block}
-.basic-guide-strip strong{font-size:13px;font-weight:650}
-.basic-guide-strip small{color:var(--muted);font-size:11px;line-height:1.4;margin-top:2px}
-.basic-guide-strip>a>svg{margin-left:auto;width:14px;color:var(--muted);flex:none}
-.basic-step-num{display:grid;place-items:center;flex:0 0 28px;height:28px;border-radius:9px;background:var(--nav-highlight);border:1px solid var(--era-outline);color:var(--lime);font:700 12px 'Manrope',sans-serif}
-.stat-explain{display:block;color:var(--muted);font-size:10px;line-height:1.35;margin-top:5px}
-.study-pro-note{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:14px;padding:10px 12px;border:1px solid var(--border);border-radius:11px;background:var(--surface-deep);font-size:12px;color:var(--muted)}
-.book-guide-note{padding:0 0 8px;margin:0}
-@media(max-width:760px){.basic-guide-strip{grid-template-columns:1fr}}
 .era-dashboard .live-strip{margin:0}
 .era-dashboard .stats-grid{margin-bottom:0}
 .era-market-grid{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(240px,1fr);align-items:start;gap:14px}
@@ -183,14 +170,12 @@ body.chart-focus #app main{padding-inline:12px}
 .study-actions .button{margin:0}
 .study-group[hidden],.study-choice[hidden]{display:none!important}
 @media(prefers-reduced-motion:no-preference){
- :root:not([data-motion=reduced]):not([data-material=solid]) .era-hero::before{animation:era-light 20s ease-in-out infinite alternate}
- :root:not([data-motion=reduced]):not([data-material=solid]) .section-heading:not(.era-hero)::before{animation:era-light 26s ease-in-out infinite alternate}
- .era-shortcuts a,.basic-guide-strip a,.era-segment button,.wb-tabs button,.home-news-tabs button,.context-nav a,#app .sidebar nav a,.heading-actions .button,.study-choice,.stat-card,.live-quote,.market-insight-card,.analyst-card{transition:transform .2s var(--era-ease),background-color .2s ease,color .18s ease,border-color .22s ease,box-shadow .22s ease}
+ .era-hero::before{animation:era-light 16s ease-in-out infinite alternate}
+ .era-shortcuts a,.era-segment button,.wb-tabs button,.home-news-tabs button,.context-nav a,#app .sidebar nav a,.heading-actions .button,.study-choice{transition:transform .19s var(--era-ease),background-color .19s,color .19s,border-color .19s,box-shadow .19s}
  .wb-pane:not([hidden]),.learning-room [role=tabpanel]:not([hidden]),.chart-menu[open] .chart-menu-body,.wb-study-legend[open] .wb-study-lines{animation:era-in .21s var(--era-ease) both}
 }
 @media(hover:hover) and (prefers-reduced-motion:no-preference){
- :root:not([data-motion=reduced]) :is(.heading-actions .button,.era-shortcuts a,.basic-guide-strip a,.study-choice):hover{transform:translateY(-1px)}
- :root:not([data-motion=reduced]) :is(.stat-card,.market-insight-card,.analyst-card):hover{border-color:var(--chrome-rim,var(--era-outline));box-shadow:var(--shadow),inset 0 1px 0 var(--glass-shine)}
+ :root:not([data-motion=reduced]) :is(.heading-actions .button,.era-shortcuts a,.study-choice):hover{transform:translateY(-1px)}
 }
 .era-shortcuts a:hover,.era-market-links a:hover{background:var(--era-control);border-color:var(--lime)}
 @keyframes era-light{to{transform:translate(-4%,3%) rotate(-8deg) scale(1.06)}}

@@ -8,7 +8,7 @@
   --phone-left:max(var(--phone-edge),env(safe-area-inset-left,0px));
   --phone-right:max(var(--phone-edge),env(safe-area-inset-right,0px));
   --phone-dock-bottom:max(8px,env(safe-area-inset-bottom,0px));
-  --phone-dock-space:calc(78px + var(--phone-dock-bottom));
+  --phone-dock-space:calc(68px + var(--phone-dock-bottom));
   scroll-padding-block-end:var(--phone-dock-space);
   scrollbar-gutter:auto;
  }
@@ -157,8 +157,7 @@
   gap:6px;padding:8px 10px;position:relative;
  }
  #app .wb-toolbar>.timeframes{display:none}
- #app .wb-interval-style,#app .wb-tools{display:grid;gap:6px;min-width:0;margin-left:0}
- #app .wb-toolbar .wb-style{display:grid;gap:4px}
+ #app .wb-interval-style,#app .wb-tools{display:grid;gap:6px;min-width:0}
  #app .wb-interval-style{grid-template-columns:repeat(2,minmax(0,1fr))}
  #app .wb-tools{grid-template-columns:minmax(0,1.15fr) minmax(0,1.1fr) minmax(0,.75fr) 44px}
  #app .wb-toolbar .wb-mobile-interval{display:grid!important}

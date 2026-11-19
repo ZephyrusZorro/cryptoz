@@ -41,14 +41,6 @@ export function createLiveMarketView(root, stream) {
     for (const view of targets) {
       const {time, change, volume, value} = view;
       if (view.timestamp !== quote.updatedAt) {
-        if (value && Number.isFinite(view.lastPrice) && quote.price !== view.lastPrice && quality === 'live') {
-          const dir = quote.price > view.lastPrice ? 'tick-up' : 'tick-down';
-          value.classList.remove('tick-up', 'tick-down');
-          value.classList.add(dir);
-          clearTimeout(view.tickTimer);
-          view.tickTimer = setTimeout(() => value.classList.remove('tick-up', 'tick-down'), 420);
-        }
-        view.lastPrice = quote.price;
         setMoneyText(value,quote.price,'USDT');
         setMoneyText(volume,quote.volume,'USDT','compact');
         if (time) time.title = stamp(quote.updatedAt);

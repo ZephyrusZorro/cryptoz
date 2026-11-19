@@ -9,24 +9,7 @@
 .forecast-presets [aria-pressed=true]{color:var(--text);box-shadow:inset 0 0 0 1px var(--lime);background:var(--nav-highlight)}
 .forecast-checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:6px 10px;list-style:none;margin:9px 0;padding:0}
 .forecast-checks li{border:1px solid var(--border);border-radius:9px;padding:7px 9px;line-height:1.4}
-.forecast-checks li.check-met{border-color:color-mix(in srgb,var(--positive) 32%,var(--border))}
 .forecast-checks li small{display:block;color:var(--muted)}
-.forecast-outcome.lean-up{border-color:color-mix(in srgb,var(--positive) 45%,var(--nav-edge))}
-.forecast-outcome.lean-down{border-color:color-mix(in srgb,var(--negative) 45%,var(--nav-edge))}
-.forecast-basic-note{padding:9px 11px;border-radius:10px;border:1px solid var(--border);background:var(--surface-deep);margin:8px 0;color:var(--subtle-text)}
-.forecast-basic-note strong{color:var(--text)}
-.forecast-regime{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 10px}
-.forecast-regime span{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface-deep);font-size:11px;color:var(--subtle-text);font-variant-numeric:tabular-nums}
-.forecast-regime b{color:var(--muted);font-weight:600}
-.forecast-regime em{font-style:normal;font-weight:650}
-.forecast-drivers{list-style:none;margin:8px 0 4px;padding:0;display:grid;gap:6px}
-.forecast-drivers li{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(70px,1.4fr) 54px;align-items:center;gap:8px;font-size:11px}
-.driver-label{color:var(--subtle-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.driver-bar-track{height:6px;border-radius:99px;background:var(--surface-deep);overflow:hidden}
-.driver-bar{display:block;height:100%;border-radius:inherit;background:var(--muted)}
-.driver-bar.up{background:var(--positive)}
-.driver-bar.down{background:var(--negative)}
-.driver-val{text-align:right;font-size:11px}
 .forecast-comparison{width:100%;border-collapse:collapse;text-align:left;margin:8px 0 12px;font-variant-numeric:tabular-nums}
 .forecast-comparison td,.forecast-comparison th{border-bottom:1px solid var(--border);padding:7px;overflow-wrap:anywhere}
 .forecast-evidence-label{color:var(--muted);font-size:12px}

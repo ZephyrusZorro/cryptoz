@@ -26,18 +26,15 @@ html{scrollbar-gutter:stable}
 :root[data-material=solid] .wb-tabs .selection-surface{background:var(--panel2)}
 
 @media(prefers-reduced-motion:no-preference){
- :root:not([data-motion=reduced]) .tick-up{color:var(--positive)!important;transition:color 140ms ease}
- :root:not([data-motion=reduced]) .tick-down{color:var(--negative)!important;transition:color 140ms ease}
  :is(#app .topbar,#app #context-root .context-nav,.wb-tabs,.wb-toolbar):focus-within{
   border-color:var(--chrome-rim);
   box-shadow:inset 0 1px 0 var(--glass-shine),0 7px 24px #08112717;
  }
- #app :is(.button,.icon-button,.tab,.chip,.context-nav a,.sidebar nav a,.timeframes button,.wb-tabs button,.chart-menu summary,.home-news-tabs button,.desk-switch button){
+ #app :is(.button,.icon-button,.tab,.chip,.context-nav a,.sidebar nav a,.timeframes button,.wb-tabs button,.chart-menu summary,.home-news-tabs button){
   transition:transform 180ms var(--era-ease),background-color 210ms ease,color 180ms ease,border-color 180ms ease;
  }
- #app :is(.button,.icon-button,.tab,.chip,.context-nav a,.sidebar nav a,.timeframes button,.wb-tabs button,.chart-menu summary,.home-news-tabs button,.desk-switch button):active{transform:scale(.97)}
+ #app :is(.button,.icon-button,.tab,.chip,.context-nav a,.sidebar nav a,.timeframes button,.wb-tabs button,.chart-menu summary,.home-news-tabs button):active{transform:scale(.97)}
 }
-.modal-shortcut{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 @media(max-width:650px){
  #app .topbar{height:50px;padding-inline:7px}
  #app #context-root .context-nav{padding-inline:5px}

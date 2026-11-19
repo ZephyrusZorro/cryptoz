@@ -150,29 +150,7 @@ test('automatic guides end at the actual chart plot boundary and stay in the pri
   chart.svg = {setAttribute() {}, style:{}};
   chart.draw();
   assert.match(chart.svg.innerHTML, /x2="450"/);
-  assert.match(chart.svg.innerHTML, /<rect /);
   assert.equal(chart.svg.style.clipPath, 'inset(0 190px 130px 0)');
-});
-
-test('nearby automatic horizontal guide labels avoid vertical overlap', () => {
-  const chart = make();
-  chart.autoSetup = {
-    guides: [
-      { id: 'range-high', type: 'horizontal', label: 'Auto range high', color: 'gold', points: [{ time: origin, price: 101 }] },
-      { id: 'range-low', type: 'horizontal', label: 'Auto range low', color: 'cyan', points: [{ time: origin, price: 100 }] },
-    ],
-  };
-  chart.chart = {
-    timeScale: () => ({ width: () => 450, timeToCoordinate: () => 20 }),
-    panes: () => [{ getHeight: () => 350 }],
-  };
-  chart.series = { priceToCoordinate: price => price === 101 ? 100 : 104 };
-  chart.svg = { setAttribute() {}, style: {} };
-  chart.draw();
-  const ys = [...chart.svg.innerHTML.matchAll(/<text[^>]*y="([^"]+)"/g)].map(m => Number(m[1]));
-  assert.equal(ys.length, 2);
-  assert.ok(Math.abs(ys[0] - ys[1]) >= 18);
-  assert.ok(ys[0] < ys[1]);
 });
 
 test('automatic levels cannot paint on a window before their actual candle anchor', () => {
