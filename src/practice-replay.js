@@ -1,7 +1,8 @@
 import { closedStudyCandles } from './adaptive-study.js';
 import { INTERVALS, validInstrument } from './preferences.js';
 import { createPracticeChart } from './practice-chart.js';
-import { esc, num, pct, price, tone } from './ui.js';
+import { esc, num, pct, tone } from './ui.js';
+import {moneyMarkup} from './currency.js';
 
 const utc = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC', timeZoneName: 'short' });
 export const practiceTime = seconds => utc.format(seconds * 1000);
@@ -146,7 +147,7 @@ export function mountReplay({ root, history, instrument, signal }) {
   const select = name => root.querySelector(`[data-replay-${name}]`);
   const form = select('form'), cancel = select('cancel'), reset = select('reset'), step = select('step'), play = select('play');
   const status = select('status');
-  const chart = createPracticeChart(select('chart'), 'candles', session.state().bar.close, signal);
+  const chart = createPracticeChart(select('chart'), 'candles', session.state().bar.close, signal, instrument.quote);
   const clock = root.ownerDocument.defaultView;
   let timer = null;
 
@@ -159,20 +160,20 @@ export function mountReplay({ root, history, instrument, signal }) {
   function render(state, updateChart = '') {
     if (!state.remaining) stop();
     const bar = state.bar;
-    select('candle').textContent = `${practiceTime(bar.time)} · O ${price(bar.open, '')} · H ${price(bar.high, '')} · L ${price(bar.low, '')} · C ${price(bar.close, '')} ${instrument.quote}`;
+    select('candle').innerHTML = `${esc(practiceTime(bar.time))} · O ${moneyMarkup(bar.open,instrument.quote)} · H ${moneyMarkup(bar.high,instrument.quote)} · L ${moneyMarkup(bar.low,instrument.quote)} · C ${moneyMarkup(bar.close,instrument.quote,'parallel')}`;
     if (updateChart === 'reset') chart.setData(state.bars);
     if (updateChart === 'step') chart.reveal(bar, state.bars.length);
     select('metrics').innerHTML = [
-      ['Replay cash', `${num(state.cash)} ${currency}`],
-      ['Equity at close', `${num(state.equity)} ${currency}`],
+      ['Replay cash', moneyMarkup(state.cash,instrument.quote,'parallel')],
+      ['Equity at close', moneyMarkup(state.equity,instrument.quote,'parallel')],
       ['Position', `${num(state.quantity, 12)} ${base}`],
       ['Return', pct(state.returnPct), tone(state.returnPct)],
-      ['Realized P&amp;L', `${num(state.realized)} ${currency}`, tone(state.realized)],
-      ['Total fees', `${num(state.totalFees, 6)} ${currency}`],
+      ['Realized P&amp;L', moneyMarkup(state.realized,instrument.quote,'parallel'), tone(state.realized)],
+      ['Total fees', moneyMarkup(state.totalFees,instrument.quote,'parallel')],
     ].map(([label, value, css = '']) => `<div><dt>${label}</dt><dd class="mono ${css}">${value}</dd></div>`).join('');
     select('fills').innerHTML = state.fills.length ? `<h4>Replay fills</h4><div class="practice-table" role="region" aria-label="Replay fills" tabindex="0">
       <table><thead><tr><th scope="col">Time</th><th scope="col">Side</th><th scope="col">Quantity</th><th scope="col">Fill (${currency})</th><th scope="col">Fee</th><th scope="col">Realized P&amp;L</th></tr></thead>
-      <tbody>${state.fills.map(fill => `<tr><th scope="row">${esc(practiceTime(fill.time))}</th><td>${fill.side === 'buy' ? 'Buy' : 'Sell'}</td><td>${num(fill.quantity, 12)}</td><td>${price(fill.price, '')}</td><td>${num(fill.fee, 6)}</td><td class="${tone(fill.pnl)}">${num(fill.pnl, 6)}</td></tr>`).join('')}</tbody></table>
+      <tbody>${state.fills.map(fill => `<tr><th scope="row">${esc(practiceTime(fill.time))}</th><td>${fill.side === 'buy' ? 'Buy' : 'Sell'}</td><td>${num(fill.quantity, 12)}</td><td>${moneyMarkup(fill.price,instrument.quote,'parallel')}</td><td>${moneyMarkup(fill.fee,instrument.quote,'parallel')}</td><td class="${tone(fill.pnl)}">${moneyMarkup(fill.pnl,instrument.quote,'parallel')}</td></tr>`).join('')}</tbody></table>
     </div>` : '';
     step.disabled = play.disabled = !state.remaining;
     form.querySelector('[type=submit]').disabled = Boolean(state.pending) || !state.remaining;

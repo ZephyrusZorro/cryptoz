@@ -5,12 +5,15 @@
  --era-floating:linear-gradient(145deg,#a5c8ff23,transparent 60%),rgba(17,26,51,.84);
  --era-outline:#d3e4ff33;
  --era-ease:cubic-bezier(.22,1,.36,1);
+ --heading-glow:#6e7fed2b;
+ --page-gutter:28px;
 }
 :root[data-theme=light]{
  --era-control:linear-gradient(152deg,#ffffffbb,transparent 60%),rgba(236,245,255,.70);
  --era-content:linear-gradient(149deg,#fff9,transparent 58%),rgba(245,250,255,.78);
  --era-floating:linear-gradient(145deg,#fff,transparent 70%),rgba(236,245,255,.91);
  --era-outline:#789bc452;
+ --heading-glow:#6599ec30;
 }
 #app .topbar,#app #context-root .context-nav,.wb-toolbar,.wb-tabs,.chart-menu .chart-menu-body,#modal-root .modal{
  background:var(--era-control)!important;
@@ -19,8 +22,31 @@
  -webkit-backdrop-filter:blur(16px) saturate(145%)!important;
  box-shadow:inset 0 1px 0 var(--glass-shine),0 7px 24px #08112717;
 }
-#app .topbar{border-radius:0 0 15px 15px}
-#app #context-root .context-nav{border:1px solid var(--era-outline);border-radius:13px;margin-top:4px;padding-inline:8px}
+#app .topbar,#app #context-root .context-nav,#app #connection-notice{
+ width:min(calc(100% - 2 * var(--page-gutter)),calc(1660px - 2 * var(--page-gutter)));
+ margin-inline:auto;
+}
+#app main{padding-inline:var(--page-gutter)}
+body.chart-focus #app main{padding-inline:12px}
+#app .topbar{border:1px solid var(--era-outline);border-radius:15px;margin-top:9px;padding-inline:14px;height:58px}
+#app #context-root{position:relative;top:auto}
+#app #context-root .context-nav{border:1px solid var(--era-outline);border-radius:13px;margin-top:6px;padding-inline:8px}
+#app .dock-brand .cryptoz-mark{width:38px;height:38px;border-radius:11px;object-fit:cover;box-shadow:0 2px 7px #0309164a}
+.section-heading{
+ min-width:0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
+ gap:12px;padding:clamp(14px,2vw,24px);margin-bottom:15px;
+ border:1px solid var(--era-outline);border-radius:16px;
+ background:radial-gradient(ellipse at 92% 8%,var(--heading-glow),transparent 72%),var(--era-content);
+ box-shadow:inset 0 1px 0 var(--glass-shine),var(--shadow);
+}
+.section-heading h1,.terminal-heading.section-heading h1{
+ font-size:clamp(26px,3vw,44px);letter-spacing:-.046em;line-height:1.1;margin:0;
+}
+.section-heading p,.section-heading .terminal-description{
+ margin:7px 0 0;color:var(--subtle-text);line-height:1.5;font-size:13px;
+}
+.section-heading>div{min-width:0}
+.section-heading>.hero-actions,.section-heading>.source{flex:none}
 #modal-root .modal,.chart-menu .chart-menu-body{background:var(--era-floating)!important;border:1px solid var(--era-outline)}
 #modal-root .modal .study-presets{padding:12px 18px 0}
 #modal-root .modal .study-choice,.wb-reader .chart-observations>div{background:var(--era-control);border-color:var(--era-outline)}
@@ -35,12 +61,21 @@
 .chart-menu .chart-menu-body>select{width:100%;padding:8px;margin-bottom:4px}
 .chart-menu .chart-menu-body>a{display:flex;align-items:center;gap:8px;padding:9px;border-radius:8px;font-size:11px;color:var(--subtle-text)}
 .chart-menu .chart-menu-body>a:hover{background:var(--nav-highlight);color:var(--text)}
+.overlay-controls{display:flex;align-items:center;gap:7px 12px;flex-wrap:wrap;padding:7px 14px;border-block-start:1px solid var(--border);background:var(--era-content)}
+.overlay-controls label{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:650;white-space:nowrap}
+.overlay-controls label svg{width:15px;color:var(--lime)}
+.overlay-controls select{min-width:0;max-width:100%;min-height:34px;margin:0;padding-block:5px;font-size:12px}
+.overlay-controls button{margin-inline-start:auto;min-height:32px;font-size:12px}
+.chart-menu summary{cursor:pointer}
+.analyst-picker{padding:13px 16px}
+.analyst-picker label{display:grid;gap:4px;font-weight:600;font-size:12px}
+.analyst-picker select{margin:0}
 .era-dashboard{display:grid;gap:14px}
-.era-hero{position:relative;isolation:isolate;overflow:hidden;min-height:130px;padding:23px clamp(17px,3vw,32px);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:13px}
-.era-hero:before{content:"";position:absolute;z-index:-1;inset:-64% -20% -150% 28%;background:radial-gradient(ellipse at 57% 31%,#9a76f94c,transparent 39%),radial-gradient(ellipse at 16% 58%,#659dff44,transparent 50%);pointer-events:none}
-.era-hero h1{font-size:clamp(29px,4vw,54px);line-height:1.06;letter-spacing:-.05em}
-.era-hero p{color:var(--subtle-text);margin-top:9px;max-width:47ch}
+.era-hero{position:relative;isolation:isolate;overflow:hidden;min-height:116px;margin:0}
+.era-hero:before{content:"";position:absolute;z-index:-1;inset:-38%;background:radial-gradient(ellipse at 64% 44%,var(--heading-glow),transparent 34%);pointer-events:none}
+.era-hero p{max-width:52ch}
 .era-hero .button{flex:none}
+.era-dashboard .live-strip{margin:0}
 .era-dashboard .stats-grid{margin-bottom:0}
 .era-market-grid{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(240px,1fr);align-items:start;gap:14px}
 .era-market-side{display:grid;gap:12px;min-width:0}
@@ -65,7 +100,13 @@
 .era-market-links{display:flex;flex-wrap:wrap;gap:8px}
 .era-market-links a{font-size:12px;color:var(--subtle-text)}
 .era-market-movers{margin-bottom:12px}
+.era-movers-heading{grid-column:1/-1;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 12px;color:var(--muted);font-size:11px;padding-inline:2px}
+.era-movers-heading [data-state=streaming]{color:var(--positive)}
 .era-movers .panel-top{padding:12px}.era-movers .panel-top small{color:var(--muted);font-weight:400}
+.era-movers .watch-row{gap:6px 12px;min-height:45px}
+.mover-identity{min-width:0;overflow-wrap:anywhere;text-align:start}
+.mover-quote{display:flex;justify-content:flex-end;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
+.mover-quote [data-mover-price]{color:var(--text);font-size:12px}
 .era-movers .watch-row b{font-variant-numeric:tabular-nums}
 .era-asset-research{padding:0 18px 8px}
 .era-study-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 18px 0}
@@ -80,12 +121,28 @@
 @keyframes era-light{to{transform:translate(-5%,3%) scale(1.07)}}
 @keyframes era-in{from{opacity:.5;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:940px){.era-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1000px){:root{--page-gutter:22px}}
 @media(max-width:760px){
+ :root{--page-gutter:12px}
  .era-market-grid{grid-template-columns:1fr}
  .era-market-side{grid-template-columns:repeat(2,minmax(0,1fr))}
  .wb-main .history-bar{gap:6px}
  .history-bar #candle-source{margin-left:0;max-width:100%;font-size:10px}
  #app .topbar,#app #context-root .context-nav,.wb-toolbar,.wb-tabs{backdrop-filter:blur(9px) saturate(135%)!important;-webkit-backdrop-filter:blur(9px) saturate(135%)!important}
+}
+@media(max-width:650px){
+ #app .topbar{padding-inline:7px;height:52px;gap:3px}
+ #app .dock-brand .cryptoz-mark{height:30px;width:30px;border-radius:8px}
+ .section-heading{align-items:flex-start}
+ .section-heading p,.section-heading .terminal-description{font-size:12px}
+ .wb-toolbar .chart-menu{position:static}
+ .wb-toolbar .chart-menu .chart-menu-body{top:calc(100% + 4px);right:7px;left:auto;min-width:0;width:min(230px,calc(100% - 14px))}
+ .overlay-controls{padding:7px 8px}
+ .overlay-controls select{width:100%;order:3}
+ .overlay-controls button{margin-inline-start:0;min-height:28px;padding:2px;font-size:10px}
+ .analyst-picker{padding:10px}
+ .analyst-picker label{max-width:none}
+ .mover-quote [data-mover-price]{font-size:11px}
 }
 @media(max-width:525px){
  .era-market-side,.era-market-movers{grid-template-columns:1fr}
@@ -97,3 +154,5 @@
  .era-benchmark .benchmark-chart{height:225px}
 }
 :root[data-material=solid] #app .topbar,:root[data-material=solid] #app #context-root .context-nav,:root[data-material=solid] .wb-toolbar,:root[data-material=solid] .wb-tabs,:root[data-material=solid] #modal-root .modal,:root[data-material=solid] .chart-menu .chart-menu-body{background:var(--panel)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+:root[data-material=solid] .section-heading,:root[data-material=solid] .overlay-controls{background:var(--panel)}
+:root[data-material=solid] .era-hero:before{display:none}

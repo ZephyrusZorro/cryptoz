@@ -5,6 +5,7 @@ import {normalizeBook} from '../src/market-integrity.js';
 import {asNumber} from '../src/numbers.js';
 import { XMLParser } from 'fast-xml-parser';
 import { normalizeCandles } from '../src/analytics.js';
+import {RATES,readProviderRate} from '../src/currency-data.js';
 
 const B='https://data-api.binance.vision/api/v3', C='https://api.exchange.coinbase.com';
 const fiat=new Set(['USD','EUR','GBP','AUD','CAD','CHF','JPY','CNY','CNH','KRW','INR','BRL','TRY','RUB','UAH','PLN','ARS','IDR','MXN','ZAR']);
@@ -38,7 +39,16 @@ export function createGateway({fetcher=fetch,now=Date.now}={}) {
   if(request.method!=='GET')return Response.json({error:'Read-only API'},{status:405});
   try {
    let result;
-   if(route==='trade-quote'){
+   if(route==='fx'){
+    const pair=p.get('pair');
+    if(p.size!==1||!Object.hasOwn(RATES,pair))return Response.json({error:'Invalid currency pair'},{status:400});
+    const source=RATES[pair];
+    result=await cached('fx:'+pair,source.provider,source.refresh,async signal=>{
+     const value=readProviderRate(pair,await upstream(source.url,false,signal),now());
+     if(!value)throw Error('Currency reference unavailable or expired');
+     return {pair,rate:value.rate,observedAt:value.observedAt};
+    });
+   }else if(route==='trade-quote'){
     const venue=p.get('venue'),symbol=p.get('symbol'),binance=venue==='binance';
     const validSymbol=binance?/^[\p{L}\p{N}]{1,25}USDT$/u:/^[A-Z0-9]{1,20}-USD$/;
     if(!['binance','coinbase'].includes(venue)||!symbol||!validSymbol.test(symbol)

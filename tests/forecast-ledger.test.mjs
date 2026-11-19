@@ -169,3 +169,15 @@ test('navigation while waiting for an issuance lock leaves the journal unchanged
   assert.equal(await pending, null);
   assert.deepEqual(ledger.list(btc, '1h'), []);
 });
+
+test('custom studies retain separate immutable entries for different valid training windows', async () => {
+  const ledger = createForecastLedger(storage());
+  const study = { ...entry, version: 'adaptive-v3', horizon: 17, targetCloseAt: asOf + 17 * defaultStep };
+  const first = { ...study, sampleStart: asOf - 1_100 * defaultStep };
+  const second = { ...study, sampleStart: asOf - 1_400 * defaultStep, probabilityUp: 0.8 };
+  assert.equal(await ledger.record(study, asOf + 1), null);
+  assert.equal((await ledger.record(first, asOf + 1)).probabilityUp, 0.71);
+  assert.equal((await ledger.record(second, asOf + 2)).probabilityUp, 0.8);
+  assert.equal((await ledger.record({ ...first, probabilityUp: 0.95 }, asOf + 3)).probabilityUp, 0.71);
+  assert.equal(ledger.list(btc, '1h').length, 2);
+});

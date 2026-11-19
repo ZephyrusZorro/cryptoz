@@ -1,5 +1,6 @@
 import { usableQuote } from './market-integrity.js';
 import { esc, num, price, stamp, tone } from './ui.js';
+import {moneyMarkup,nativeAndDisplay,setMoneyText} from './currency.js';
 import {
   PAPER_FEE_BPS, PAPER_SLIPPAGE_BPS, PAPER_STARTING_CASH, PAPER_STORAGE_KEY, createPaperStore, paperSummary,
 } from './paper-trading.js';
@@ -57,28 +58,28 @@ export function paperPanel(instrument) {
   </div>`;
 }
 
-function renderFills(fills) {
+function renderFills(fills,native) {
   return fills.map(fill => {
     const fillTime = new Date(fill.placedAt).toISOString();
     const source = `${fill.source} quote ${price(fill.referencePrice, '')} at ${stamp(fill.quoteAt)}`;
     return `<tr><th scope="row">${fill.side === 'buy' ? 'Buy' : 'Sell'}</th>
-      <td>${fill.quantity}</td><td title="${esc(source)}">${price(fill.executionPrice, '')}</td>
-      <td class="${tone(fill.realized)}">${num(fill.realized, 6)}</td>
-      <td>${num(fill.fee, 6)}</td><td>${num(fill.cashDelta, 6)}</td>
+      <td>${fill.quantity}</td><td title="${esc(source)}">${moneyMarkup(fill.executionPrice,native,'parallel')}</td>
+      <td class="${tone(fill.realized)}">${moneyMarkup(fill.realized,native,'parallel')}</td>
+      <td>${moneyMarkup(fill.fee,native,'parallel')}</td><td>${moneyMarkup(fill.cashDelta,native,'parallel')}</td>
       <td><time datetime="${fillTime}">${esc(stamp(fillTime))}</time></td></tr>`;
   }).join('');
 }
 
-function renderOrders(orders) {
+function renderOrders(orders,native) {
   if (!orders.length) return '<p class="muted">No conditional orders for this market.</p>';
   return `<div class="practice-table" role="region" aria-label="Conditional orders" tabindex="0">
     <table><thead><tr><th scope="col">Type</th><th scope="col">Side</th><th scope="col">Quantity</th>
       <th scope="col">Trigger price</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead>
     <tbody>${orders.map(order => {
-      const fill = order.status === 'filled' ? ` · ${price(order.executionPrice, '')}` : '';
+      const fill = order.status === 'filled' ? ` · ${moneyMarkup(order.executionPrice,native,'parallel')}` : '';
       const error = order.status === 'rejected' ? ` · ${esc(order.error)}` : '';
       return `<tr><th scope="row">${workingLabels[order.type]}</th><td>${order.side === 'buy' ? 'Buy' : 'Sell'}</td>
-        <td>${order.quantity}</td><td>${price(order.triggerPrice, '')}</td>
+        <td>${order.quantity}</td><td>${moneyMarkup(order.triggerPrice,native,'parallel')}</td>
         <td class="${order.status === 'rejected' ? 'negative' : ''}">${order.status}${fill}${error}</td><td>
         ${order.status === 'working' ? `<button class="button" type="button" data-cancel-working="${esc(order.id)}" aria-label="Cancel ${workingLabels[order.type].toLowerCase()} ${order.side} order">Cancel</button>` : '—'}</td></tr>`;
     }).join('')}</tbody></table></div>`;
@@ -126,7 +127,7 @@ export function bindPaperPanel({ host, instrument, getQuote, storage, signal }) 
       && order.instrument.symbol === instrument.symbol).reverse();
     const key = orders.map(({ id, status }) => `${id}:${status}`).join(',');
     if (key !== lastWorkingList || !workingHost.hasChildNodes()) {
-      workingHost.innerHTML = renderOrders(orders);
+      workingHost.innerHTML = renderOrders(orders,instrument.quote);
       lastWorkingList = key;
     }
     const active = orders.filter(order => order.status === 'working').length;
@@ -171,19 +172,20 @@ export function bindPaperPanel({ host, instrument, getQuote, storage, signal }) 
   function refresh({ updateFills = false } = {}) {
     const now = Date.now();
     const quote = usableQuote(getQuote(), instrument, now);
-    marketQuote.textContent = quote ? `${price(quote.price, '')} ${instrument.quote} · ${quote.source}` : 'Waiting for a fresh quote';
+    marketQuote.textContent = quote ? `${nativeAndDisplay(quote.price,instrument.quote)} · ${quote.source}` : 'Waiting for a fresh quote';
     marketQuote.title = quote ? stamp(quote.updatedAt) : '';
     submit.disabled = busy || !ledger || !quote;
 
     const summary = ledger ? paperSummary(ledger, instrument, quote, { now }) : null;
     for (const [key, field] of Object.entries(fields)) {
       const amount = summary?.[key];
-      field.textContent = amount == null ? '—' : key === 'quantity' ? `${amount} ${instrument.base}` : `${num(amount, 6)} ${instrument.quote}`;
+      if(key==='quantity')field.textContent=amount==null?'—':`${amount} ${instrument.base}`;
+      else setMoneyText(field,amount,instrument.quote,'parallel');
       if (key === 'openPnl' || key === 'realized' || key === 'totalPnl') field.className = `mono ${tone(amount)}`;
     }
     if (updateFills) {
       const fills = summary?.fills ?? [];
-      rows.innerHTML = renderFills(fills);
+      rows.innerHTML = renderFills(fills,instrument.quote);
       history.hidden = fills.length === 0;
       empty.hidden = !ledger || fills.length > 0;
       renderWorking();

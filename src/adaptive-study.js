@@ -1,7 +1,8 @@
 import { normalizeCandles } from './analytics.js';
 import { INTERVALS, validInstrument } from './preferences.js';
+import { FORECAST_MAX_CANDLES, validForecastHorizon } from './forecast-settings.js';
 
-export const FORECAST_VERSION = 'adaptive-v2';
+export const FORECAST_VERSION = 'adaptive-v3';
 export const FORECAST_HORIZON = 5;
 export const FORECAST_HORIZONS = Object.freeze([FORECAST_HORIZON, 12, 24]);
 export const MIN_HOLDOUT_ORIGINS = 50;
@@ -13,7 +14,6 @@ const MIN_TRAINING = 160;
 const MAX_TRAINING = 780;
 const MAX_HOLDOUT = 120;
 const MAX_CALIBRATION_ORIGINS = 60;
-const MAX_CANDLES = 4_000;
 const MIN_BRIER_IMPROVEMENT = 0.01;
 const MIN_DIRECTION_PROBABILITY = 0.60;
 const MIN_RELIABILITY_CASES = 12;
@@ -31,7 +31,7 @@ const BENCHMARKS = [
 ];
 
 export function forecastHistoryMinimum(horizon = FORECAST_HORIZON) {
-  if (!FORECAST_HORIZONS.includes(horizon)) return null;
+  if (!validForecastHorizon(horizon)) return null;
   // Include room for the worst-case UTC slot alignment.
   return LOOKBACK + MIN_TRAINING + EMBARGO - 1 + (MIN_HOLDOUT_ORIGINS + 2) * horizon;
 }
@@ -136,29 +136,34 @@ function probabilityScore(cases, field) {
 
 function scoreOrigins(origins, trainingCount) {
   const count = origins.length;
-  const blockGains = Array(BLOCKS).fill(0);
+  const blocks = Array.from({length: BLOCKS}, () => ({count: 0, modelLoss: 0, baselineLoss: 0}));
   const model = probabilityScore(origins, 'modelProbability');
   const baselines = BENCHMARKS.map(({ id, label, field }) => ({ id, label, ...probabilityScore(origins, field) }));
   const strongestBaseline = baselines.reduce((best, baseline) => baseline.brier < best.brier ? baseline : best);
   const strongestField = BENCHMARKS.find(item => item.id === strongestBaseline.id).field;
   for (const [index, row] of origins.entries()) {
-    blockGains[Math.floor(index * BLOCKS / count)] += brier(row[strongestField], row.actualUp) - brier(row.modelProbability, row.actualUp);
+    const block = blocks[Math.floor(index * BLOCKS / count)];
+    block.count++;
+    block.baselineLoss += brier(row[strongestField], row.actualUp);
+    block.modelLoss += brier(row.modelProbability, row.actualUp);
   }
   const upCount = origins.reduce((sum, row) => sum + row.actualUp, 0);
   const notUpCount = count - upCount;
-  const winningBlocks = blockGains.filter(gain => gain > 0).length;
+  const winningBlocks = blocks.filter(block => block.baselineLoss > block.modelLoss).length;
   const checks = {
     sample: count >= MIN_HOLDOUT_ORIGINS,
     bothOutcomes: upCount >= 8 && notUpCount >= 8,
     brierGain: strongestBaseline.brier - model.brier >= MIN_BRIER_IMPROVEMENT,
     accuracy: model.accuracy >= strongestBaseline.accuracy,
-    stability: winningBlocks >= 3 && blockGains.at(-1) > 0,
+    stability: winningBlocks >= 3 && blocks.at(-1).baselineLoss > blocks.at(-1).modelLoss,
   };
   return {
     count, start: origins[0].asOf, end: origins.at(-1).targetCloseAt, trainingCount,
     modelBrier: model.brier, modelLogLoss: model.logLoss, modelAccuracy: model.accuracy,
     baselineBrier: baselines[0].brier, baselineAccuracy: baselines[0].accuracy, baselines, strongestBaseline,
     upCount, notUpCount, winningBlocks, blockCount: BLOCKS,
+    blocks: blocks.map(block => ({count:block.count, modelBrier:block.count ? block.modelLoss/block.count : null,
+      baselineBrier:block.count ? block.baselineLoss/block.count : null})),
     checks, passed: Object.values(checks).every(Boolean), origins,
   };
 }
@@ -209,13 +214,13 @@ function historicalScenarios(origins) {
   return { count, lower: at(0.1), median: at(0.5), upper: at(0.9), up, down, flat: count - up - down };
 }
 
-function evaluateHorizon({ rows, features, instrument, interval, step, nowSeconds, stale, validationReason, gap }, horizon) {
+function evaluateHorizon({ rows, features, instrument, interval, step, nowSeconds, stale, validationReason, gap, incompleteHistory }, horizon) {
   const result = {
     version: FORECAST_VERSION, method: METHOD, horizon,
     venue: instrument?.venue ?? null, symbol: instrument?.symbol ?? null, interval,
     closedCount: rows.length, sampleStart: null, asOf: null, targetCloseAt: null,
     reason: null, evidence: null, forecast: null, reliability: null, scenarios: null,
-    requiredCandles: forecastHistoryMinimum(horizon),
+    requiredCandles: forecastHistoryMinimum(horizon), gap, incompleteHistory,
   };
   const abstain = reason => ({ ...result, reason });
   if (validationReason) return abstain(validationReason);
@@ -290,6 +295,7 @@ function evaluateHorizon({ rows, features, instrument, interval, step, nowSecond
     calibratedOrigins: origins.filter(row => row.calibrated).length,
   };
   if (stale || nowSeconds - asOf >= step) return abstain('The latest expected close is unconfirmed or the candle feed is stale.');
+  if (incompleteHistory) return abstain('The requested history could not be loaded in full. The available sample is shown for review.');
   if (origins.length < MIN_HOLDOUT_ORIGINS) return abstain('Load more closed history for at least 50 non-overlapping test forecasts.');
   if (!result.evidence.checks.bothOutcomes) return abstain('The test needs more examples of both higher and non-higher closes.');
   if (!result.evidence.passed) return abstain('Historical results did not consistently improve on the strongest baseline.');
@@ -303,7 +309,7 @@ function evaluateHorizon({ rows, features, instrument, interval, step, nowSecond
     ...result,
     forecast: {
       venue: instrument.venue, symbol: instrument.symbol, interval, version: FORECAST_VERSION, horizon,
-      asOf, targetCloseAt, originClose: rows[query].close, probabilityUp, direction,
+      asOf, targetCloseAt, originClose: rows[query].close, probabilityUp, direction, sampleStart: result.sampleStart,
       baselineProbabilityUp: fitted.baselineProbability, benchmarkId, benchmarkProbabilityUp: fitted[benchmarkField],
     },
   };
@@ -311,23 +317,28 @@ function evaluateHorizon({ rows, features, instrument, interval, step, nowSecond
 
 export function evaluateAdaptiveStudy({
   bars, instrument, interval, closedThrough, nowSeconds = Date.now() / 1000, stale = false,
-  horizon = FORECAST_HORIZON,
+  horizon = FORECAST_HORIZON, maxCandles = FORECAST_MAX_CANDLES, from, singleHorizon = false,
+  incompleteHistory = false, requiredWindowCount,
 } = {}) {
   const step = Object.hasOwn(INTERVALS, interval) ? INTERVALS[interval] : 0;
   const valid = validInstrument(instrument) && step && Number.isFinite(closedThrough) && Number.isFinite(nowSeconds);
-  const closed = valid ? closedStudyCandles(bars, interval, closedThrough, nowSeconds) : [];
+  const max = Number.isSafeInteger(maxCandles) && maxCandles > 0 ? Math.min(maxCandles, FORECAST_MAX_CANDLES) : FORECAST_MAX_CANDLES;
+  const closed = valid ? closedStudyCandles(bars, interval, closedThrough, nowSeconds)
+    .filter(bar => from === undefined || bar.time >= from) : [];
   const validationReason = !valid ? 'Wait for a confirmed candle snapshot from this market.'
     : closed.length ? null : 'Waiting for a completed candle from this market.';
   let first = Math.max(0, closed.length - 1);
-  while (first > 0 && closed.length - first < MAX_CANDLES && closed[first].time - closed[first - 1].time === step) first--;
+  while (first > 0 && closed.length - first < max && closed[first].time - closed[first - 1].time === step) first--;
   const rows = closed.slice(first);
   const gap = first > 0 && closed[first].time - closed[first - 1].time !== step;
   const logRows = rows.map(({ close, high, low, volume }) => ({
     close: Math.log(close), high: Math.log(high), low: Math.log(low), volume,
   }));
   const features = rows.map((_, index) => index >= LOOKBACK ? studyFeatures(logRows, index) : null);
-  const context = { rows, features, instrument, interval, step, nowSeconds, stale, validationReason, gap };
-  const horizons = Object.fromEntries(FORECAST_HORIZONS.map(length => [length, evaluateHorizon(context, length)]));
-  const selected = FORECAST_HORIZONS.includes(horizon) ? horizon : FORECAST_HORIZON;
+  const context = { rows, features, instrument, interval, step, nowSeconds, stale, validationReason, gap,
+    incompleteHistory: incompleteHistory || Number.isSafeInteger(requiredWindowCount) && rows.length<requiredWindowCount };
+  const selected = validForecastHorizon(horizon) ? horizon : FORECAST_HORIZON;
+  const requested = singleHorizon ? [selected] : [...new Set([...FORECAST_HORIZONS, selected])];
+  const horizons = Object.fromEntries(requested.map(length => [length, evaluateHorizon(context, length)]));
   return { ...horizons[selected], horizons };
 }

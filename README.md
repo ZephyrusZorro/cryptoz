@@ -2,13 +2,15 @@
 
 Crypto charts, news and market research. Five compact left destinations: Home, Markets, Charts, Practice and Learn. The rail can hide/reveal but never expands. A transparent breadcrumb/search header, contextual tabs and direct Home sections keep the workspace organized.
 
-The unified Home dashboard includes live Binance spot prices, a Bitcoin chart with four history ranges, market breadth, tool shortcuts and publisher news. Markets has search, 24-hour gainers and losers, the asset directory and Binance spot. Advanced screening and market insights remain accessible from Home.
+The unified Home dashboard includes live prices, a Bitcoin chart with four history ranges, market breadth, tool shortcuts and publisher news. Markets ranks the five leading gainers and losers from Binance's rolling 24-hour USDT tickers, which publish changed quotes about once per second. Its independent price directory remains available by name and ticker. Advanced screening and market insights are linked from Home.
 
 Search normalizes names and punctuation, handles verified Fetch.ai/FET/Artificial Superintelligence Alliance identities, and queries the wider active provider catalog on demand. Price and exchange-chart coverage vary; an identity result does not imply live price/history availability. The bulk quote endpoint is provider-limited (2,000 assets observed); supported exchange charts use Binance USDT and Coinbase USD listings.
 
 Appearance provides dark and light themes, Glass by default, optional Solid or device-controlled surfaces, and reduced motion. Existing chart layouts, watchlists, practice data and learning progress are preserved.
 
-Charts combines all indicators, automatic and manual drawings, confirmed signals, forecasts, and depth in one workspace. Pan or zoom to request earlier data. Reset view returns to recent candles. Learn includes a guided start, lessons, real chart examples, knowledge checks and a glossary. Practice has dedicated Paper trading, Market replay, Strategy lab and Position calculator pages. Read the [forecast method](docs/FORECAST-STUDY.md) and [operations](docs/OPERATIONS.md).
+Charts combines indicators, automatic and manual drawings, confirmed signals, forecasts, and depth. The Auto overlay selector sits directly above the plot. Pan or zoom to request earlier data. Reset view returns to recent candles. Forecast accepts 1–48 forward candles and selectable history, including a start date or up to 4,000 available candles. Learn and Practice retain their separate workflows. Read the [forecast method](docs/FORECAST-STUDY.md) and [operations](docs/OPERATIONS.md).
+
+Appearance offers USD and INR display. Conversion uses a dated ECB cross rate and a recent Coinbase USDT/USD quote for Binance amounts. Calculations, order entry and raw exports retain native exchange units. If a rate is unavailable, the display retains the native currency.
 
 A crypto research terminal with real public market data, editable financial charts, market visualizations and publisher-linked news. This rebuild replaces the supplied single-file app's unsupported quantitative claims and hardcoded market narratives.
 

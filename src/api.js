@@ -1,12 +1,12 @@
 import {abortable,throwIfAborted,deadline} from './async-task.js';
-const directRoutes=new Set(['asset-search','asset','markets','global','sentiment','chains','instruments','exchange-markets','candles','book','ticker','trade-quote']);
+const directRoutes=new Set(['asset-search','asset','markets','global','sentiment','chains','instruments','exchange-markets','candles','book','ticker','trade-quote','fx']);
 const allowedRoutes=new Set([...directRoutes,'news','insights']);
 export function createApiClient({fetcher=(...args)=>fetch(...args),loadDirect=async()=>(await import('./direct.js')).directApi,now=Date.now}={}){
  const telemetry=new Map(),cooldown=new Map(),latest=new Map();let sequence=0;
  const publish=(key,id,value)=>{if(latest.get(key)!==id)return;telemetry.delete(key);telemetry.set(key,value);if(telemetry.size>32)telemetry.delete(telemetry.keys().next().value);};
  async function api(path,{signal}={}){
   throwIfAborted(signal);const key=path.split('?')[0];if(!allowedRoutes.has(key))throw Error('Unknown market API route');
-  const query=new URLSearchParams(path.split('?')[1]??''),venue=query.get('venue')??'aggregate',section=query.get('section'),isBrowserInsight=key==='insights'&&['derivatives','onchain'].includes(section),scope=key+':'+(isBrowserInsight?section:venue),id=++sequence;latest.set(key,id);let serverError;
+  const query=new URLSearchParams(path.split('?')[1]??''),venue=query.get('venue')??'aggregate',section=query.get('section'),isBrowserInsight=key==='insights'&&['derivatives','onchain'].includes(section),scope=key+':'+(key==='fx'?query.get('pair'):isBrowserInsight?section:venue),id=++sequence;latest.set(key,id);let serverError;
   if((cooldown.get(scope)??0)<=now()){
    const timing=deadline(signal,8000);
    try{const response=await abortable(fetcher('/api/'+path,{signal:timing.signal}),timing.signal),body=await abortable(response.json(),timing.signal);throwIfAborted(signal);

@@ -1,5 +1,6 @@
 import {serializeCSV,capturePNG,downloadBlob} from './exports.js';
 import {pricePrecision} from './numbers.js';
+import {axisPriceFormat,displayPrice} from './currency.js';
 import {rangeForPreset,zoomRange,windowInfo,classifyRange,historyCursor} from './chart-window.js';
 import {palette} from './theme.js';
 import {mergeCandleHistory,parseLiveQuote,usableQuote} from './market-integrity.js';
@@ -41,11 +42,11 @@ export class TerminalChart {
   if(this.rangeFrame){cancelAnimationFrame(this.rangeFrame);this.rangeFrame=0;}this.lastRangeGesture=null;
   const p=palette();const range=this.chart?.timeScale().getVisibleLogicalRange();this.observer?.disconnect();this.chart?.remove();this.host.innerHTML='<div class="chart-canvas"></div><svg class="drawing-layer" aria-hidden="true"></svg><div class="crosshair-hud"></div>';const el=this.host.querySelector('.chart-canvas');this.svg=this.host.querySelector('svg');
   this.chart=createChart(el,{autoSize:true,layout:{background:{type:ColorType.Solid,color:p.panel},textColor:p.text,fontSize:11,fontFamily:'ui-monospace, monospace',attributionLogo:true,panes:{separatorColor:p.border,separatorHoverColor:p.accent,enableResize:true}},grid:{vertLines:{color:p.grid},horzLines:{color:p.grid}},crosshair:{mode:CrosshairMode.Normal,vertLine:{color:p.text,labelBackgroundColor:p.border},horzLine:{color:p.text,labelBackgroundColor:p.border}},rightPriceScale:{borderColor:p.border},timeScale:{borderColor:p.border,timeVisible:true,secondsVisible:false,rightOffset:3,minBarSpacing:.2,fixLeftEdge:true},handleScroll:this.drawMode==='cursor',handleScale:true});
-  const options={upColor:p.up,downColor:p.down,borderVisible:false,wickUpColor:p.up,wickDownColor:p.down,color:p.accent,lineWidth:2,priceFormat:{type:'price',precision:pricePrecision(this.bars.at(-1).close),minMove:10**-pricePrecision(this.bars.at(-1).close)}};
+  const options={upColor:p.up,downColor:p.down,borderVisible:false,wickUpColor:p.up,wickDownColor:p.down,color:p.accent,lineWidth:2,priceFormat:axisPriceFormat(pricePrecision(this.bars.at(-1)?.close),this.instrument.quote)};
   this.series=this.chart.addSeries(types[this.style],options);const display=this.style==='heikin'?heikinAshi(this.bars):this.bars;this.series.setData(this.style==='line'?display.map(b=>({time:b.time,value:b.close})):display);this.seriesFirstTime=this.bars[0]?.time;this.seriesLastTime=this.bars.at(-1)?.time;
   this.studyView=null;this.markerApi=createSeriesMarkers(this.series,[]);this.renderIndicators();
   if(range)this.chart.timeScale().setVisibleLogicalRange(range);else this.setViewPreset(this.viewPreset==='recent'?'recent':'all');this.notifyWindow();
-  this.chart.subscribeCrosshairMove(p=>{const el=this.host.querySelector('.crosshair-hud');if(!el)return;const b=p.seriesData.get(this.series);el.textContent=b?('open'in b?`O ${num(b.open,8)}   H ${num(b.high,8)}   L ${num(b.low,8)}   C ${num(b.close,8)}`:`Price ${num(b.value,8)}`)+(this.markerDescriptions?.has(p.time)?' · '+this.markerDescriptions.get(p.time):''):'';});
+  this.chart.subscribeCrosshairMove(p=>{const el=this.host.querySelector('.crosshair-hud');if(!el)return;const b=p.seriesData.get(this.series),show=value=>displayPrice(value,this.instrument.quote);el.textContent=b?('open'in b?`O ${show(b.open)}   H ${show(b.high)}   L ${show(b.low)}   C ${show(b.close)}`:`Price ${show(b.value)}`)+(this.markerDescriptions?.has(p.time)?' · '+this.markerDescriptions.get(p.time):''):'';});
   this.chart.subscribeClick(p=>{if(this.drawMode==='cursor'||!p.point||!p.time||(p.paneIndex!==undefined&&p.paneIndex!==0))return;const value=this.series.coordinateToPrice(p.point.y);if(!Number.isFinite(value)||value<=0)return;const point={time:+p.time,price:value};if(this.drawMode==='horizontal'||this.drawMode==='label'){this.addDrawing([point]);}else if(this.pendingPoint){this.addDrawing([this.pendingPoint,point]);this.pendingPoint=null;}else{this.pendingPoint=point;toast('Click the second anchor on the price chart.');}});
   this.gestureController?.abort();
   this.gestureController=new AbortController();
@@ -60,7 +61,7 @@ export class TerminalChart {
  }
  renderIndicators(incremental=false,{refreshAnalysis=true}={}){
   if(!this.chart)return;const p=palette(),cutoff=this.completedCutoff();
-  this.studyView=renderStudies(this.chart,this.series,this.studyView,this.bars,this.activeStudies(),{period:this.period,rsiPeriod:this.rsiPeriod,interval:this.interval,completedBefore:cutoff,palette:p,incremental,confirmed:this.studyBars});
+  this.studyView=renderStudies(this.chart,this.series,this.studyView,this.bars,this.activeStudies(),{period:this.period,rsiPeriod:this.rsiPeriod,interval:this.interval,completedBefore:cutoff,palette:p,incremental,confirmed:this.studyBars,quote:this.instrument.quote});
   if(refreshAnalysis)this.renderAnalysis(cutoff,p);
   else if(periodGuides.has(this.autoGuide)&&Math.floor(this.bars.at(-1)?.time/DAY)!==this.periodBeforeAt){
    this.syncPeriodGuide(cutoff);
@@ -68,6 +69,17 @@ export class TerminalChart {
    this.updateSummary();
   }
   if(this.studyView.paneChanged&&this.studyView.hasPane&&this.chart.panes().length>1){this.chart.panes()[0].setHeight(Math.max(120,this.host.clientHeight-118));this.chart.panes()[1].setHeight(100);}
+  this.draw();
+ }
+ applyCurrency(){
+  if(!this.series)return;
+  const priceFormat=axisPriceFormat(pricePrecision(this.bars.at(-1)?.close),this.instrument.quote);
+  this.series.applyOptions({priceFormat});
+  for(const item of this.studyView?.series.values()??[]){
+   if(item.usesQuote)item.series.applyOptions({priceFormat});
+  }
+  const hud=this.host.querySelector('.crosshair-hud');
+  if(hud)hud.textContent='';
   this.draw();
  }
  renderAnalysis(cutoff,colors){

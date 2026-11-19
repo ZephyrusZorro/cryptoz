@@ -1,10 +1,11 @@
 import { createChart, CandlestickSeries, LineSeries } from 'lightweight-charts';
 import { chartOptions, palette } from './theme.js';
 import { pricePrecision } from './numbers.js';
+import {axisPriceFormat} from './currency.js';
 
-export function createPracticeChart(host, type, referencePrice, signal) {
+export function createPracticeChart(host, type, referencePrice, signal, native='USD') {
   const precision = type === 'candles' ? pricePrecision(referencePrice) : 2;
-  const priceFormat = { type: 'price', precision, minMove: 10 ** -precision };
+  const priceFormat=axisPriceFormat(precision,native);
   const options = chartOptions();
   const chart = createChart(host, {
     ...options, autoSize: true,
@@ -25,10 +26,11 @@ export function createPracticeChart(host, type, referencePrice, signal) {
     : null;
   const observer = new MutationObserver(() => {
     chart.applyOptions(chartOptions());
-    series.applyOptions(benchmark ? { color: palette().accent } : colors());
-    benchmark?.applyOptions({ color: palette().gold });
+    const nextFormat=axisPriceFormat(precision,native);
+    series.applyOptions({...(benchmark?{color:palette().accent}:colors()),priceFormat:nextFormat});
+    benchmark?.applyOptions({color:palette().gold,priceFormat:nextFormat});
   });
-  observer.observe(host.ownerDocument.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  observer.observe(host.ownerDocument.documentElement, { attributes: true, attributeFilter: ['data-theme','data-currency-revision'] });
   signal.addEventListener('abort', () => { observer.disconnect(); chart.remove(); }, { once: true });
   return {
     setData(points, baseline) {

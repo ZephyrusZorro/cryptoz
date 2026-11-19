@@ -1,4 +1,5 @@
-import {ago, compact, pct, price, stamp, tone} from './ui.js';
+import {ago,pct,stamp,tone} from './ui.js';
+import {setMoneyText} from './currency.js';
 
 const statusLabels = {
   idle: 'Waiting for Binance markets',
@@ -40,8 +41,8 @@ export function createLiveMarketView(root, stream) {
     for (const view of targets) {
       const {time, change, volume, value} = view;
       if (view.timestamp !== quote.updatedAt) {
-        text(value, price(quote.price, '') + (view.kind === 'benchmark' ? ' USDT' : ''));
-        text(volume, compact(quote.volume));
+        setMoneyText(value,quote.price,'USDT');
+        setMoneyText(volume,quote.volume,'USDT','compact');
         if (time) time.title = stamp(quote.updatedAt);
         if (change) change.title = stamp(quote.updatedAt);
         tint(change, quote.change);

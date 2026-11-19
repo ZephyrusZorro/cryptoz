@@ -1,7 +1,8 @@
 import { bollinger, ema, rsi } from './analytics.js';
 import { createPracticeChart } from './practice-chart.js';
 import { practiceCosts, practiceSpan, practiceTime } from './practice-replay.js';
-import { esc, num, pct, price, tone } from './ui.js';
+import { esc, num, pct, tone } from './ui.js';
+import {moneyMarkup} from './currency.js';
 
 const rules = {
   'ema-cross': {
@@ -146,13 +147,13 @@ export function mountStrategyLab({ root, history, instrument, signal }) {
     const pending = result.pendingSide ? `Final ${result.pendingSide} signal had no next open.` : '';
     status.textContent = `${result.sampleBars} evaluated candles · ${practiceSpan(result.startTime, result.endTime)}`;
     const metrics = [
-      ['Final equity', `${num(result.finalEquity)} ${currency}`],
+      ['Final equity', moneyMarkup(result.finalEquity,instrument.quote,'parallel')],
       ['Strategy return', pct(result.totalReturnPct), tone(result.totalReturnPct)],
       ['Buy &amp; hold return', pct(result.buyHoldReturnPct), tone(result.buyHoldReturnPct)],
       ['Max close drawdown', pct(result.maxDrawdownPct), tone(result.maxDrawdownPct)],
       ['Closed trades', num(closed, 0)],
       ['Closed-trade win rate', pct(result.winRatePct)],
-      ['Fees paid', `${num(result.totalFees, 6)} ${currency}`],
+      ['Fees paid', moneyMarkup(result.totalFees,instrument.quote,'parallel')],
     ].map(([label, value, css = '']) => `<div><dt>${label}</dt><dd class="mono ${css}">${value}</dd></div>`).join('');
     results.innerHTML = `<dl class="practice-metrics">${metrics}</dl>
       ${open || pending ? `<p class="data-note">${esc(open + pending)}</p>` : ''}
@@ -162,11 +163,11 @@ export function mountStrategyLab({ root, history, instrument, signal }) {
       ${closed ? `<div class="practice-table" role="region" aria-label="Closed strategy trades" tabindex="0">
         <table><thead><tr><th scope="col">Entry</th><th scope="col">Exit</th><th scope="col">Buy price</th><th scope="col">Sell price</th><th scope="col">Fees</th><th scope="col">Net P&amp;L</th></tr></thead>
         <tbody>${result.trades.slice().reverse().map(trade => `<tr><th scope="row">${esc(practiceTime(trade.entryTime))}</th><td>${esc(practiceTime(trade.exitTime))}</td>
-          <td>${price(trade.entryPrice, '')}</td><td>${price(trade.exitPrice, '')}</td><td>${num(trade.fees, 6)}</td><td class="${tone(trade.pnl)}">${num(trade.pnl, 6)}</td></tr>`).join('')}</tbody></table>
+          <td>${moneyMarkup(trade.entryPrice,instrument.quote,'parallel')}</td><td>${moneyMarkup(trade.exitPrice,instrument.quote,'parallel')}</td><td>${moneyMarkup(trade.fees,instrument.quote,'parallel')}</td><td class="${tone(trade.pnl)}">${moneyMarkup(trade.pnl,instrument.quote,'parallel')}</td></tr>`).join('')}</tbody></table>
       </div>` : '<p class="muted">This rule closed no trades in the sample.</p>'}
       <p class="data-note"><a href="https://www.tradingview.com/pine-script-docs/concepts/strategies/#broker-emulator" target="_blank" rel="noopener noreferrer">TradingView reference for next-bar execution</a></p>`;
     chartController = new AbortController();
-    createPracticeChart(root.querySelector('[data-strategy-chart]'), 'equity', result.finalEquity, chartController.signal)
+    createPracticeChart(root.querySelector('[data-strategy-chart]'), 'equity', result.finalEquity, chartController.signal, instrument.quote)
       .setData(result.equityCurve, result.benchmarkCurve);
   }, { signal });
 }

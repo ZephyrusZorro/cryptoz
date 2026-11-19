@@ -1,6 +1,7 @@
 import {HistogramSeries, LineSeries, LineStyle} from 'lightweight-charts';
 import {atr, bollinger, ema, macd, rsi, sma, vwap} from './analytics.js';
 import {pricePrecision} from './numbers.js';
+import {axisPriceFormat} from './currency.js';
 import {palette as chartPalette} from './theme.js';
 
 const catalog = [
@@ -340,7 +341,7 @@ export function renderStudies(chart, priceSeries, previousView, bars, ids, optio
   const replacing = Boolean(tail && bars.length === previousView?.length && tail.time === previousView.lastBar.time);
   const incremental = options.incremental && firstTime === previousView?.firstTime && (appended || replacing);
   const precision = pricePrecision(tail?.close);
-  const priceFormat = {type: 'price', precision, minMove: 10 ** -precision};
+  const priceFormat = axisPriceFormat(precision,options.quote);
 
   for (const result of results) {
     if (result.placement === 'pane' && !hasPane) continue;
@@ -361,7 +362,7 @@ export function renderStudies(chart, priceSeries, previousView, bars, ids, optio
       if (!old && index === 0) {
         for (const price of result.guides) s.createPriceLine({price, color: colors.border, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true});
       }
-      series.set(key, {series: s, signature, lastColor: point?.color, priorColor: priorPoint?.color});
+      series.set(key, {series: s, signature, lastColor: point?.color, priorColor: priorPoint?.color, usesQuote:result.placement==='overlay'||plot.format==='price'});
     }
   }
 

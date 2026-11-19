@@ -1,5 +1,5 @@
 import {normalizeCandles} from './analytics.js';
-import {esc,icon,pct,price,tone} from './ui.js';
+import {icon} from './ui.js';
 
 export const BENCHMARK_RANGES = Object.freeze({
  '24h': {interval:'1h', count:24},
@@ -17,13 +17,6 @@ export function benchmarkWindow(bars, range) {
   interval, bars:valid.slice(-count),
   change:last && prior ? (last.close / prior.close - 1) * 100 : null
  };
-}
-
-export function moversPanel(rows, direction) {
- const visible = rows.filter(asset => Number.isFinite(asset.price) && asset.price>0 && Number.isFinite(asset.change) && (direction==='gainers'?asset.change>0:asset.change<0))
-  .sort((a,b)=>(direction==='gainers'?b.change-a.change:a.change-b.change)||a.id.localeCompare(b.id))
-  .slice(0,4);
- return `<section class="panel era-movers"><div class="panel-top"><h2>${direction==='gainers'?'Gainers':'Losers'} <small>24h</small></h2></div>${visible.length?visible.map(asset=>`<button class="watch-row" data-action="asset-chart" data-id="${esc(asset.id)}"><span><b>${esc(asset.symbol)}</b> <small>${esc(asset.name)}</small></span><span>${price(asset.price)} <b class="${tone(asset.change)}">${pct(asset.change)}</b></span></button>`).join(''):'<p class="data-note">No matching 24-hour moves.</p>'}</section>`;
 }
 
 export function dashboardShortcuts() {

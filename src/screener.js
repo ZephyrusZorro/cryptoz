@@ -1,6 +1,7 @@
 import {filterMarketGroup} from './market-groups.js';
 import {asNumber} from './numbers.js';
 import {esc,pct,price,tone} from './ui.js';
+import {moneyMarkup} from './currency.js';
 
 const groups=[['layer-1','Layer 1'],['layer-2','Layer 2'],['defi','DeFi'],['stablecoins','Stablecoins'],['ai-compute','AI & compute'],['meme','Meme coins'],['tokenized-oracles','Tokenized assets & oracles'],['gaming','Gaming & virtual worlds']];
 const choices={volume:[0,1e6,1e7,1e8],size:['all','large','mid','small'],move:['all','up5','down5']};
@@ -33,5 +34,5 @@ export function marketBrief(rows,watchlist){
  const watch=new Set(watchlist);const saved=priced.filter(x=>watch.has(x.id)).slice(0,4);
  const ranked=priced.filter(x=>Number.isSafeInteger(x.rank)&&x.rank>0&&x.rank<=100&&Number.isFinite(x.change));
  const list=saved.length?saved:[...ranked].sort((a,b)=>Math.abs(b.change)-Math.abs(a.change)).slice(0,4);
- return `<div class="panel-top"><h2>${saved.length?'Your watchlist':'Top 100 movers'}</h2>${saved.length?'<a class="text-link" href="#workspace">Manage</a>':''}</div>${list.length?list.map(a=>`<button class="watch-row" data-action="asset-chart" data-id="${esc(a.id)}"><span><strong>${esc(a.symbol)}</strong> <small>${esc(a.name)}</small></span><span>${price(a.price)} <small class="${tone(a.change)}">${pct(a.change)}</small></span></button>`).join(''):'<p class="data-note">Waiting for market snapshot.</p>'}`;
+ return `<div class="panel-top"><h2>${saved.length?'Your watchlist':'Top 100 movers'}</h2>${saved.length?'<a class="text-link" href="#workspace">Manage</a>':''}</div>${list.length?list.map(a=>`<button class="watch-row" data-action="asset-chart" data-id="${esc(a.id)}"><span><strong>${esc(a.symbol)}</strong> <small>${esc(a.name)}</small></span><span>${moneyMarkup(a.price)} <small class="${tone(a.change)}">${pct(a.change)}</small></span></button>`).join(''):'<p class="data-note">Waiting for market snapshot.</p>'}`;
 }

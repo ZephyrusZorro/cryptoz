@@ -143,6 +143,36 @@ test('short history can support a shorter horizon while a longer horizon abstain
   assert.equal(horizons[24].scenarios, null);
 });
 
+test('a custom horizon and selected candle count bound both training and evaluation', () => {
+  const bars = series(1_500);
+  const result = evaluate(bars, {horizon: 17, maxCandles: 1_200, singleHorizon: true});
+  assert.equal(result.horizon, 17);
+  assert.equal(result.closedCount, 1_200);
+  assert.equal(result.sampleStart, bars[300].time + step);
+  assert.deepEqual(Object.keys(result.horizons), ['17']);
+  assert.ok(result.evidence.count >= 50);
+  assert.ok(result.evidence.origins.every(row => row.targetCloseAt - row.asOf === 17 * step
+    && row.trainedThrough === row.asOf - step));
+  assert.equal(result.evidence.blocks.reduce((total, block) => total + block.count, 0), result.evidence.count);
+  const future = series(1_501).at(-1);
+  assert.deepEqual(evaluate([...bars, future], {
+    horizon: 17, maxCandles: 1_200, singleHorizon: true,
+    closedThrough: result.asOf, nowSeconds: result.asOf + 1
+  }), result);
+});
+
+test('a UTC history start excludes earlier candles and incomplete requested history withholds a new direction', () => {
+  const bars = series(1_062), from = bars[20].time;
+  const result = evaluate(bars, {from, singleHorizon: true});
+  assert.equal(result.sampleStart, from + step);
+  assert.equal(result.closedCount, 1_042);
+  assert.equal(result.evidence.start >= from, true);
+  const partial = evaluate(bars, {incompleteHistory: true, singleHorizon: true});
+  assert.equal(partial.evidence.passed, true);
+  assert.equal(partial.forecast, null);
+  assert.match(partial.reason, /requested history/);
+});
+
 test('held-out model calibration excludes the current outcome and earlier outcomes inside the embargo', () => {
   const { evidence, reliability } = evaluate(series(1_061));
   const band = probability => probability < 0.4 ? 0 : probability < 0.6 ? 1 : 2;

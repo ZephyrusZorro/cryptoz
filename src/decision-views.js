@@ -1,4 +1,5 @@
 import {esc,icon,price} from './ui.js';
+import {moneyMarkup} from './currency.js';
 import {getAnalystResearch} from './analyst-research.js';
 
 export function analystPanel(asset){
@@ -30,17 +31,34 @@ export function forecastPanel(result,{archive=false,recorded=null,superseded=fal
  const number=x=>Number.isFinite(x)?x.toFixed(3):'—';
  const percent=x=>Number.isFinite(x)?(100*x).toFixed(1)+'%':'—';
  const timestamp=t=>Number.isFinite(t)?new Date(t*1000).toISOString().slice(0,16).replace('T',' ')+' UTC':'—';
- const evidence=result.evidence,f=archive||superseded?null:(recorded??result.forecast),baseline=evidence?.strongestBaseline,calibration=result.reliability,bands=calibration?.bands?.filter(x=>x.count>0)??[],sample=result.scenarios;
- return `<div class="forecast-outcome"><strong>${f?'Study leans '+(f.direction==='up'?'higher':'not higher'):archive?'Historical test only':superseded?'New candle available':'No directional call'}</strong><small>${f?`Model score for a higher close: ${percent(f.probabilityUp)} · due ${timestamp(f.targetCloseAt)}.${recorded?' Recorded in this browser.':''}`:`${archive?'Archive candles are for review. Return to Latest for a current-market study.':superseded?'Run the study again to evaluate the latest confirmed candle.':esc(result.reason??'Insufficient evidence.')}`}</small></div>
- ${result.closedCount?`<p>${result.closedCount} consecutive closed candles · up to ${timestamp(result.asOf)}. Horizon: ${result.horizon} candles (${esc(result.interval)} each).</p>`:''}
- ${evidence?`<dl class="forecast-metrics"><div><dt>Test forecasts</dt><dd>${evidence.count}</dd></div><div><dt>Time blocks improved</dt><dd>${evidence.winningBlocks} / ${evidence.blockCount}</dd></div><div><dt>Model error / baseline</dt><dd>${number(evidence.modelBrier)} / ${number(baseline?.brier??evidence.baselineBrier)}</dd></div><div class="pro-only"><dt>Accuracy / baseline</dt><dd>${percent(evidence.modelAccuracy)} / ${percent(baseline?.accuracy??evidence.baselineAccuracy)}</dd></div></dl><p class="data-note">Lower error is better. Comparison baseline: ${esc(baseline?.label??'Historical up rate')}. Each test uses only earlier information.</p><details class="guide-disclosure"><summary>Inspect the test</summary><p>${timestamp(evidence.start)} to ${timestamp(evidence.end)}. ${esc(result.method)}. Scores are past results and model estimates; they are not guaranteed odds.</p><button class="button" data-action="forecast-csv">Download test cases</button></details>`:''}
- ${bands.length?`<details class="guide-disclosure pro-only"><summary>Reliability on scored history</summary><p>Past scores are grouped into bands. A small group gives weak evidence.</p><div class="calibration-bars">${bands.map(b=>`<div><span>${percent(b.lower)}–${percent(b.upper)}</span><meter min="0" max="1" value="${b.observedRate}" aria-label="Observed higher-close rate">${percent(b.observedRate)}</meter><span>${percent(b.observedRate)} · ${b.count}</span></div>`).join('')}</div></details>`:''}
- ${sample?`<details class="guide-disclosure pro-only"><summary>Observed outcomes, ${result.horizon} candles later</summary><p>${sample.count} past outcomes · 10th / 50th / 90th percentile: ${percent(sample.lower)} / ${percent(sample.median)} / ${percent(sample.upper)}. These are historical returns, not projected price targets.</p></details>`:''}`;
+ const evidence=result.evidence,f=archive||superseded?null:result.forecast,baseline=evidence?.strongestBaseline,calibration=result.reliability,bands=calibration?.bands?.filter(x=>x.count>0)??[],sample=result.scenarios;
+ const matchingRecord=recorded&&f&&recorded.originClose===f.originClose&&recorded.probabilityUp===f.probabilityUp;
+ const comparators=evidence?.baselines??[];
+ const checks=evidence?[
+  ['sample','At least 50 test windows',`${evidence.count} separate forecasts`],
+  ['bothOutcomes','At least 8 of each outcome',`${evidence.upCount} higher · ${evidence.notUpCount} flat or lower`],
+  ['brierGain','Beat the strongest baseline by 0.010',`${number((baseline?.brier??evidence.baselineBrier)-evidence.modelBrier)} improvement`],
+  ['accuracy','Match or exceed baseline accuracy',`${percent(evidence.modelAccuracy)} model · ${percent(baseline?.accuracy??evidence.baselineAccuracy)} baseline`],
+  ['stability','Improve in at least 3 blocks, including the latest',`${evidence.winningBlocks} / ${evidence.blockCount} time blocks improved`]
+ ]:[];
+ const blocks=evidence?.blocks??[];
+ return `<div class="forecast-outcome"><strong>${f?'Study leans '+(f.direction==='up'?'higher':'flat or lower'):archive?'Historical test only':superseded?'New candle available':'No directional call'}</strong><small>${f?`Estimated higher-close score ${percent(f.probabilityUp)} · target ${timestamp(f.targetCloseAt)}.${matchingRecord?' Recorded in this browser.':recorded?' The journal retains the original result for this window.':''}`:`${archive?'Use Reset view to return to live candles for a current study.':superseded?'Run a new study for the latest confirmed candle.':esc(result.reason??'Insufficient evidence.')}`}</small></div>
+ ${result.closedCount?`<p>${result.closedCount.toLocaleString()} consecutive closed candles · ${timestamp(result.sampleStart)} to ${timestamp(result.asOf)} · ${result.horizon} candles ahead at ${esc(result.interval)} each.</p>`:''}
+ ${result.incompleteHistory?'<p class="forecast-evidence-label">The requested window could not be filled. The results below use the available contiguous sample.</p>':result.gap?'<p class="forecast-evidence-label">A gap limits the sample to the latest consecutive candles.</p>':''}
+ ${evidence?`<dl class="forecast-metrics"><div><dt>Training examples in latest fit</dt><dd>${evidence.trainingCount}</dd></div><div><dt>Historical tests</dt><dd>${evidence.count}</dd></div><div><dt>Model probability error</dt><dd>${number(evidence.modelBrier)}</dd></div><div><dt>Best baseline error</dt><dd>${number(baseline?.brier??evidence.baselineBrier)}</dd></div></dl>
+ <p class="forecast-interpretation">The strongest comparison is ${esc(baseline?.label??'Historical up rate')}. A lower probability error means scores were closer to what happened in the historical tests.</p>
+ <ul class="forecast-checks" aria-label="Evidence checks">${checks.map(([key,label,detail])=>`<li><strong>${evidence.checks?.[key]?'Met':'Missed'} · ${label}</strong><small>${detail}</small></li>`).join('')}</ul>
+ <details class="guide-disclosure" data-disclosure="test"><summary>How the study was tested</summary><p>${timestamp(evidence.start)} to ${timestamp(evidence.end)}. ${esc(result.method)}. Each test fits only to earlier outcomes and looks for a higher close after the selected number of candles.</p>
+ ${comparators.length?`<table class="forecast-comparison"><thead><tr><th>Method</th><th>Error</th><th>Accuracy</th></tr></thead><tbody><tr><th scope="row">Forecast model</th><td>${number(evidence.modelBrier)}</td><td>${percent(evidence.modelAccuracy)}</td></tr>${comparators.map(row=>`<tr><th scope="row">${esc(row.label)}</th><td>${number(row.brier)}</td><td>${percent(row.accuracy)}</td></tr>`).join('')}</tbody></table>`:''}
+ ${blocks.length?`<table class="forecast-comparison"><thead><tr><th>Time block</th><th>Cases</th><th>Model error</th><th>Baseline error</th></tr></thead><tbody>${blocks.map((block,index)=>`<tr><th scope="row">${index+1}${index===blocks.length-1?' · latest':''}</th><td>${block.count}</td><td>${number(block.modelBrier)}</td><td>${number(block.baselineBrier)}</td></tr>`).join('')}</tbody></table>`:''}
+ <button class="button" data-action="forecast-csv">Download test cases</button></details>`:''}
+ ${bands.length?`<details class="guide-disclosure" data-disclosure="reliability"><summary>How often test scores matched outcomes</summary><p>Each band shows the observed higher-close rate and the number of comparable tests.${calibration.current?` The current score band has ${calibration.current.count} comparable cases. At least ${calibration.current.minimumCount} are required before checking directional support.`:''}</p><div class="calibration-bars">${bands.map(b=>`<div><span>${percent(b.lower)}–${percent(b.upper)}</span><meter min="0" max="1" value="${b.observedRate}" aria-label="Observed higher-close rate">${percent(b.observedRate)}</meter><span>${percent(b.observedRate)} · ${b.count}</span></div>`).join('')}</div></details>`:''}
+ ${sample?`<details class="guide-disclosure" data-disclosure="scenarios"><summary>Historical price changes after ${result.horizon} candles</summary><p>${sample.up} higher, ${sample.flat} flat, ${sample.down} lower. The middle outcome was ${percent(sample.median)}. The 10th to 90th percentile range was ${percent(sample.lower)} to ${percent(sample.upper)} across ${sample.count} historical tests.</p></details>`:''}`;
 }
 export function forecastJournal(rows){
  if(!rows.length)return '<p class="data-note">A directional study is recorded here when it passes the evidence checks.</p>';
  const time=t=>new Date(t*1000).toISOString().slice(5,16).replace('T',' ')+' UTC';
- return `<details class="guide-disclosure"><summary>Recorded studies · ${rows.filter(r=>r.outcome).length} settled</summary><ol class="forecast-ledger">${rows.slice(0,8).map(r=>`<li><strong>${r.direction==='up'?'Higher':'Not higher'}</strong> · ${time(r.asOf)}<br>${r.outcome?`Actual: ${r.outcome.direction==='up'?'higher':'not higher'} · ${price(r.outcome.close,'')}`:`Awaiting exact close · ${time(r.targetCloseAt)}`}</li>`).join('')}</ol></details>`;
+ return `<details class="guide-disclosure" data-disclosure="journal"><summary>Recorded studies · ${rows.filter(r=>r.outcome).length} settled</summary><ol class="forecast-ledger">${rows.slice(0,8).map(r=>`<li><strong>${r.direction==='up'?'Higher':'Flat or lower'}</strong> · ${time(r.asOf)}${r.sampleStart?`<small> · Window starts ${time(r.sampleStart)}</small>`:''}<br>${r.outcome?`Actual close · ${r.outcome.direction==='up'?'higher':r.outcome.direction==='flat'?'flat':'lower'} · ${moneyMarkup(r.outcome.close,r.venue==='binance'?'USDT':'USD','parallel')}`:`Awaiting exact close · ${time(r.targetCloseAt)}`}</li>`).join('')}</ol></details>`;
 }
 
 export function learningPrimer(){
@@ -56,10 +74,10 @@ export function learningPrimer(){
 
 export function renderGuideAudit(setup,key,quote){
  const detail=setup?.[key];
- if(key==='none')return '<p class="data-note">Open Drawings to choose an automatic overlay or mark your own levels.</p>';
+ if(key==='none')return '<p class="data-note">Choose an Auto overlay above the chart, or open Drawings to mark your own levels.</p>';
  if(!detail)return '<p class="data-note">This drawing needs more confirmed structure. A sparse market or gaps can leave no valid levels.</p>';
  const rows=detail.levels??detail.anchors??[];
  const label=(row)=>row.name??(Number.isFinite(row.ratio)?Math.round(row.ratio*1000)/10+'%':row.kind??'Anchor');
- const records=rows.map(row=>`<div><dt>${esc(label(row))}</dt><dd>${price(row.price,'')} ${esc(quote)}${Number.isFinite(row.time)?'<small>'+new Date(row.time*1000).toISOString().slice(0,16).replace('T',' ')+' UTC</small>':''}${row.anchors?.length?'<small>'+row.anchors.length+' distinct confirmed pivots</small>':''}</dd></div>`).join('');
+ const records=rows.map(row=>`<div><dt>${esc(label(row))}</dt><dd>${moneyMarkup(row.price,quote,'parallel')}${Number.isFinite(row.time)?'<small>'+new Date(row.time*1000).toISOString().slice(0,16).replace('T',' ')+' UTC</small>':''}${row.anchors?.length?'<small>'+row.anchors.length+' distinct confirmed pivots</small>':''}</dd></div>`).join('');
  return `<h3>${esc(detail.label)}</h3><p>${esc(detail.detail)}</p>${records?`<dl class="chart-observations">${records}</dl>`:''}${setup.stale?'<p class="source warn">The most recent confirmed data is delayed.</p>':''}`;
 }

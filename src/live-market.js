@@ -247,6 +247,13 @@ export class MarketStream {
     return {quote, quality: this.fresh(symbol) ? 'live' : 'last'};
   }
 
+  *observations() {
+    for (const symbol of this.registry) {
+      const entry = this.observation(symbol);
+      if (entry) yield entry;
+    }
+  }
+
   dispose() {
     this.closed = true;
     this.stopConnection();

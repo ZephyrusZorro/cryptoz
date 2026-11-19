@@ -74,6 +74,7 @@ export function mountLearningHub(root, {instruments, hydrate, onChart, storage, 
   refresh() { return child?.refresh?.(); },
   updateInstruments() { child?.updateInstruments?.(); },
   applyTheme() { child?.applyTheme?.(); },
+  applyCurrency() { child?.applyCurrency?.(); },
   dispose() {
    disposed = true;
    child?.dispose();
