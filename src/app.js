@@ -26,14 +26,16 @@ import {forecastHistoryMinimum} from './adaptive-study.js';
 import {FORECAST_DEFAULT_HORIZON,FORECAST_MAX_CANDLES,forecastHistoryChoice,normalizeForecastHorizon,validForecastHorizon} from './forecast-settings.js';
 import './forecast.css';
 import {createForecastLedger} from './forecast-ledger.js';
-import {filterMarketGroup,renderMarketGroups,renderMarketBreadth} from './market-groups.js';
+import {filterMarketGroup,renderMarketCards,renderMarketGroups,renderMarketBreadth} from './market-groups.js';
 import './market-groups.css';
 import './navigation-layout.css';
 import './learning-layout.css';
 import './analyst-layout.css';
 import './era.css';
 import './desktop-polish.css';
+import './phone-layout.css';
 import {dismissSurface,motionEnabled as navigationMotion,moveSelection,reveal} from './motion.js';
+import {PHONE_LAYOUT,chartScrollOptions} from './phone-layout.js';
 import {BENCHMARK_RANGES,benchmarkWindow,dashboardShortcuts} from './dashboard.js';
 import {createMarketMovers,marketMoversPanel} from './market-movers.js';
 import {displayPrice as moverDisplayPrice} from './currency.js';
@@ -104,6 +106,10 @@ function errorOrLoading(key){return errors[key]?empty('Data unavailable',errors[
 function coinMark(symbol){return `<span class="coin-mark" aria-hidden="true">${esc(symbol.slice(0,2))}</span>`;}
 
 const headingIcons={overview:'layout-dashboard',markets:'globe',screener:'sliders-horizontal',compare:'layers',studio:'grid-2x2',learn:'book-open',news:'newspaper',analysts:'file-text',practice:'layers',replay:'clock',backtest:'activity',risk:'target','market-insights':'activity',workspace:'bookmark'};
+const phoneView=matchMedia(PHONE_LAYOUT);
+const phoneMarketRows=16,desktopMarketRows=32;
+const brandMark='<span class="cryptoz-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>';
+let phoneMoversOpen=false;
 function header(title,description,extra=''){return sectionHeading(title,description,{glyph:headingIcons[page],action:extra,className:'page-heading'});}
 
 function syncDockAccess(){const dock=$('.sidebar');if(dock)dock.inert=dockMode==='hidden';}
@@ -116,19 +122,20 @@ function secondaryNav({primary,items,current}){
 }
 
 function shell(){
- const dockLinks=PRIMARY.map(item=>`<a href="#${item.route}" data-group="${item.id}" aria-label="${item.label}">${icon(item.icon)}<span class="dock-label" aria-hidden="true">${item.label}</span></a>`).join('');
+ const dockLinks=phone=>PRIMARY.map(item=>`<a href="#${item.route}" data-group="${item.id}" aria-label="${item.label}">${phone?'<span class="phone-selection" aria-hidden="true"></span>':''}${icon(item.icon)}<span class="dock-label" aria-hidden="true">${item.label}</span></a>`).join('');
  $('#app').innerHTML=`
   <aside class="sidebar" id="navigation-dock" aria-label="Navigation dock">
    <a href="#overview" class="dock-brand" aria-label="CRYPTOZ Home">
-    <span class="cryptoz-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+    ${brandMark}
    </a>
-   <nav aria-label="Primary">${dockLinks}</nav>
+   <nav aria-label="Primary">${dockLinks(false)}</nav>
    <div class="dock-controls"><button type="button" class="icon-button" data-action="dock-hide" aria-controls="navigation-dock" aria-label="Hide navigation" title="Hide navigation">${icon('chevron-left')}</button></div>
   </aside>
+  <nav class="phone-dock" aria-label="Primary">${dockLinks(true)}</nav>
   <div class="main-shell">
    <header class="topbar">
     <button type="button" class="icon-button dock-header-toggle" data-action="dock-toggle" aria-controls="navigation-dock" aria-label="Show navigation" title="Show navigation">${icon('menu')}</button>
-    <div class="workspace-brand"><a href="#overview" class="topbar-brand" aria-label="CRYPTOZ Home">CRYPTOZ</a><span class="workspace-divider" aria-hidden="true">/</span><span id="workspace-location">Overview</span></div>
+    <div class="workspace-brand"><a href="#overview" class="topbar-brand" aria-label="CRYPTOZ Home"><span class="phone-brand" aria-hidden="true">${brandMark}</span>CRYPTOZ</a><span class="workspace-divider" aria-hidden="true">/</span><span id="workspace-location">Overview</span></div>
     <button type="button" class="search-trigger" data-action="search" aria-label="Search coins and instruments">${icon('search')}<span>Search coins</span><kbd aria-hidden="true">/</kbd></button>
     <div class="top-actions">
      <button type="button" class="icon-button appearance-button" data-action="appearance" aria-label="Appearance settings" title="Theme and motion">${icon('settings-2')}</button>
@@ -196,6 +203,7 @@ function cleanPage(){benchmarkObserver?.disconnect();benchmarkObserver=null;benc
 function route(){
  const animate=pageGeneration>0;
  const oldNav=navigationFor(page);
+ const previousPhoneSelection=phoneView.matches?$('.phone-dock .active .phone-selection')?.getBoundingClientRect():null;
  closeModal({restoreFocus:false});
  operationError='';
  const next=resolveNavigation(location.hash);
@@ -220,6 +228,7 @@ function route(){
   const direction=sameGroup?Math.sign(navigation.items.indexOf(navigation.current)-navigation.items.indexOf(oldNav.current)):0;
   reveal($('#main > .era-dashboard')??$('#main'),{direction,offset:direction?2:7});
   reveal($('#context-root .context-nav'),{direction,offset:2,duration:230});
+  if(!sameGroup&&phoneView.matches)moveSelection(previousPhoneSelection,$('.phone-dock .active .phone-selection'));
  }
 }
 function renderPage(){
@@ -228,7 +237,7 @@ function renderPage(){
  const navigation=navigationFor(page);
  $('#workspace-location').textContent=navigation.current.label;
  document.body.dataset.page=page;
- for(const link of document.querySelectorAll('.sidebar [data-group]')){
+ for(const link of document.querySelectorAll('.sidebar [data-group],.phone-dock [data-group]')){
   const active=link.dataset.group===navigation.group;
   link.classList.toggle('active',active);
   if(active)link.setAttribute('aria-current',navigation.primaryCurrent);
@@ -238,7 +247,7 @@ function renderPage(){
  ({overview:renderOverview,markets:renderMarkets,screener:renderMarkets,terminal:renderTerminal,compare:renderComparison,studio:renderStudio,learn:renderLearning,news:renderNews,analysts:renderAnalystDesk,practice:renderPractice,replay:renderPractice,backtest:renderPractice,risk:renderRisk,'market-insights':renderInsights,workspace:renderWorkspace}[page])();hydrate();updateAlertCount();patchLiveQuotes();syncNetworkState();if(document.activeElement===document.body)$('#main').focus({preventScroll:true});
 }
 
-function liveStrip(){return `<section class="live-strip" aria-label="Live Binance prices"><div class="live-strip-label"><strong>Live prices</strong><small class="live-status" data-live-status>Connecting to Binance</small></div>${BENCHMARK_ASSETS.map(b=>`<button class="live-quote" data-action="live-chart" data-symbol="${b}USDT" data-live-chip="${b}USDT" aria-label="Open ${b} spot chart"><span>${b}</span><strong>—</strong><small>Awaiting quote</small></button>`).join('')}</section>`;}
+function liveStrip(){return `<section class="live-strip" aria-label="Live Binance prices"><div class="live-strip-label"><strong>Live prices</strong><small class="live-status" data-live-status>Connecting to Binance</small></div><div class="live-quote-track">${BENCHMARK_ASSETS.map(b=>`<button class="live-quote" data-action="live-chart" data-symbol="${b}USDT" data-live-chip="${b}USDT" aria-label="Open ${b} spot chart"><span>${b}</span><strong>—</strong><small>Awaiting quote</small></button>`).join('')}</div></section>`;}
 let liveMarketView,marketMoversView,spotFallbackTimer=null,lastSpotAttempt=0;
 function patchLiveStatus(status){liveMarketView?.status(status);marketMoversView?.refresh();}
 function patchLiveQuotes(batch){
@@ -362,7 +371,13 @@ function renderOverview(){
  const tools=`<div class="era-market-links" aria-label="More research"><a href="#market-insights">${icon('globe')} Market insights</a><a href="#screener">${icon('sliders-horizontal')} Asset screener</a><a href="#learn">${icon('book-open')} Learn crypto</a></div>`;
  benchmarkDisplayed=null;
  $('#main').innerHTML=`<div class="era-dashboard">${sectionHeading('Market overview','Follow live prices, market movers and the headlines behind them.',{glyph:headingIcons.overview,className:'era-hero',action:'<a href="#markets" class="button primary">Explore markets</a>'})}${liveStrip()}<div id="home-totals">${marketStats()}</div><div class="era-market-grid">${benchmark}<div class="era-market-side"><section class="panel home-breadth" id="home-breadth">${breadthContent()}</section><section id="home-brief" class="panel market-feature">${marketBrief(data.markets?.data??[],workspace.watchlist)}</section></div></div>${dashboardShortcuts()}${news}${tools}</div>`;
- renderNewsResults();observeBenchmark(pageGeneration);
+ placeHomeChart();renderNewsResults();observeBenchmark(pageGeneration);
+}
+
+function placeHomeChart(){
+ const chart=$('.era-benchmark');
+ if(phoneView.matches)$('#home-totals').before(chart);
+ else $('.era-market-grid').prepend(chart);
 }
 
 function observeBenchmark(gen){
@@ -417,10 +432,15 @@ function marketTable(assets,venue=false){return `<div class="table-scroll"><tabl
 
 function isMarketPage(){return page==='markets'||page==='screener';}
 
+function marketMoversSection(){
+ return '<button type="button" class="phone-movers-toggle button" data-action="phone-movers" aria-controls="market-movers" aria-expanded="'+phoneMoversOpen+'">24h movers '+icon('chevron-down')+'</button>'+
+  marketMoversPanel({phoneOpen:phoneMoversOpen});
+}
+
 function renderMarkets(){
  const screening=page==='screener';
 
- $('#main').innerHTML=header(screening?'Asset screener':'Markets',screening?'Filter by size, trading volume and price movement.':'Search for a coin or check the biggest 24-hour moves.',`<div class="hero-actions"><button class="button pro-only" data-action="export-markets">${icon('download')} Export results</button></div>`)+`${screening?(marketUniverse==='aggregate'?'<div id="market-sector"></div>':'')+screenerControls(marketScreen,marketUniverse)+'<div id="market-groups"></div>':marketMoversPanel()}<div class="panel"><div class="market-controls"><div class="tabs" role="group" aria-label="Market universe"><button type="button" class="tab ${marketUniverse==='aggregate'?'active':''}" data-action="universe" data-universe="aggregate" aria-pressed="${marketUniverse==='aggregate'}">Asset directory <span>USD</span></button><button type="button" class="tab ${marketUniverse==='exchange'?'active':''}" data-action="universe" data-universe="exchange" aria-pressed="${marketUniverse==='exchange'}">Binance spot <span>USDT</span></button></div><label class="search-field">${icon('search')}<input id="market-search" placeholder="Search name, symbol or asset ID" value="${esc(marketQuery)}" aria-label="Search markets"></label></div><div class="filter-row"><button class="chip ${onlyWatch?'selected':''}" data-action="toggle-watch">${icon('star')} Watchlist only</button><label class="sort-label">Sort by <select id="market-sort"><option value="rank">${marketUniverse==='exchange'?'Default liquidity':'Rank'}</option>${marketUniverse==='aggregate'?'<option value="marketCap">Market cap</option>':''}<option value="volume">24h volume</option><option value="gainers">Top gainers</option><option value="losers">Top losers</option></select></label><span id="market-source"></span>${marketUniverse==='exchange'?'<span class="live-status" data-live-status></span>':''}</div><div id="market-results"></div><div id="market-catalog"></div><div id="market-pagination" class="pagination"></div></div><p class="data-note">Directory prices are aggregate USD snapshots. Binance prices use USDT; live rows show their update time. Sorting updates on refresh or filter change.</p>`;
+ $('#main').innerHTML=header(screening?'Asset screener':'Markets',screening?'Filter by size, trading volume and price movement.':'Search for a coin or check the biggest 24-hour moves.',`<div class="hero-actions"><button class="button pro-only" data-action="export-markets">${icon('download')} Export results</button></div>`)+`${screening?(marketUniverse==='aggregate'?'<div id="market-sector"></div>':'')+screenerControls(marketScreen,marketUniverse)+'<div id="market-groups"></div>':marketMoversSection()}<div class="panel"><div class="market-controls"><div class="tabs" role="group" aria-label="Market universe"><button type="button" class="tab ${marketUniverse==='aggregate'?'active':''}" data-action="universe" data-universe="aggregate" aria-pressed="${marketUniverse==='aggregate'}">Asset directory <span>USD</span></button><button type="button" class="tab ${marketUniverse==='exchange'?'active':''}" data-action="universe" data-universe="exchange" aria-pressed="${marketUniverse==='exchange'}">Binance spot <span>USDT</span></button></div><label class="search-field">${icon('search')}<input id="market-search" placeholder="Search name, symbol or asset ID" value="${esc(marketQuery)}" aria-label="Search markets"></label></div><div class="filter-row"><button class="chip ${onlyWatch?'selected':''}" data-action="toggle-watch">${icon('star')} Watchlist only</button><label class="sort-label">Sort by <select id="market-sort"><option value="rank">${marketUniverse==='exchange'?'Default liquidity':'Rank'}</option>${marketUniverse==='aggregate'?'<option value="marketCap">Market cap</option>':''}<option value="volume">24h volume</option><option value="gainers">Top gainers</option><option value="losers">Top losers</option></select></label><span id="market-source"></span>${marketUniverse==='exchange'?'<span class="live-status" data-live-status></span>':''}</div><div id="market-results" tabindex="-1"></div><div id="market-catalog"></div><div id="market-pagination" class="pagination"></div></div><p class="data-note">Directory prices are aggregate USD snapshots. Binance prices use USDT; live rows show their update time. Sorting updates on refresh or filter change.</p>`;
 
  $('#market-sort').value=marketSort;for(const field of document.querySelectorAll('[data-screen]'))field.addEventListener('change',()=>{const key=field.dataset.screen;marketScreen={...marketScreen,[key]:key==='volume'?Number(field.value):field.value};marketPage=0;renderMarketResults();});$('#market-search').addEventListener('input',e=>{marketQuery=e.target.value;marketPage=0;queueMarketSearch();renderMarketResults();});$('#market-sort').addEventListener('change',e=>{marketSort=e.target.value;marketPage=0;renderMarketResults();});queueMarketSearch();renderMarketResults();if((!screening||marketUniverse==='exchange')&&!data.exchange)refreshSpotSnapshot();
 
@@ -429,7 +449,7 @@ function renderMarkets(){
 let marketSectorFocus=false;
 function filteredMarkets(){let list=[...(marketUniverse==='exchange'?(data.exchange?.data??[]).map(a=>{const q=marketStream?.observation(a.id)?.quote;return q?{...a,...q,id:a.id,symbol:a.symbol}:a;}):data.markets?.data??[])].filter(a=>(!onlyWatch||workspace.watchlist.includes(a.id))&&matchesAsset(a,marketQuery));if(page==='screener')list=screenMarket(list,marketScreen,marketUniverse);if(['gainers','losers','volume'].includes(marketGroup))return filterMarketGroup(list,marketGroup,marketUniverse);if(marketSort==='marketCap')list.sort((a,b)=>(b.marketCap??0)-(a.marketCap??0));if(marketSort==='volume'||marketUniverse==='exchange'&&marketSort==='rank')list.sort((a,b)=>b.volume-a.volume);if(marketSort==='gainers')list.sort((a,b)=>(b.change??-Infinity)-(a.change??-Infinity));if(marketSort==='losers')list .sort((a,b)=>(a.change??Infinity)-(b.change??Infinity));return filterMarketGroup(list,marketGroup,marketUniverse);}
 
-function renderMarketResults(){const key=marketUniverse==='exchange'?'exchange':'markets';const list=filteredMarkets(),size=32,pages=Math.max(1,Math.ceil(list.length/size));marketPage=Math.min(marketPage,pages-1);const rows=list.slice(marketPage*size,marketPage*size+size);if($('#market-sector'))$('#market-sector').innerHTML=sectorPulse(data.markets?.data??[],marketGroup);if($('#market-groups'))$('#market-groups').innerHTML=renderMarketGroups({assets:data[key]?.data,group:marketGroup,mode:'pro',universe:marketUniverse});$('#market-results').innerHTML=list.length?marketTable(rows,marketUniverse==='exchange'):data[key]?empty('No assets match your filters','Try a name, ticker or a different universe.'):errorOrLoading(key);$('#market-source').innerHTML=stateBadge(key);$('#market-pagination').innerHTML=`<span>${num(list.length,0)} results · Page ${marketPage+1} of ${pages}</span><div><button class="icon-button" data-action="prev-page" aria-label="Previous page" ${marketPage===0?'disabled':''}>${icon('chevron-left')}</button><button class="icon-button" data-action="next-page" aria-label="Next page" ${marketPage>=pages-1?'disabled':''}>${icon('chevron-right')}</button></div>`;renderMarketCatalog();hydrate();patchLiveQuotes();}
+function renderMarketResults(){const key=marketUniverse==='exchange'?'exchange':'markets';const list=filteredMarkets(),size=phoneView.matches?phoneMarketRows:desktopMarketRows,pages=Math.max(1,Math.ceil(list.length/size));marketPage=Math.min(marketPage,pages-1);const rows=list.slice(marketPage*size,marketPage*size+size);if($('#market-sector'))$('#market-sector').innerHTML=sectorPulse(data.markets?.data??[],marketGroup);if($('#market-groups'))$('#market-groups').innerHTML=renderMarketGroups({assets:data[key]?.data,group:marketGroup,mode:'pro',universe:marketUniverse});$('#market-results').innerHTML=list.length?(phoneView.matches?renderMarketCards(rows,{universe:marketUniverse,watchlist:workspace.watchlist}):marketTable(rows,marketUniverse==='exchange')):data[key]?empty('No assets match your filters','Try a name, ticker or a different universe.'):errorOrLoading(key);$('#market-source').innerHTML=stateBadge(key);$('#market-pagination').innerHTML=`<span>${num(list.length,0)} results · Page ${marketPage+1} of ${pages}</span><div><button class="icon-button" data-action="prev-page" aria-label="Previous page" ${marketPage===0?'disabled':''}>${icon('chevron-left')}</button><button class="icon-button" data-action="next-page" aria-label="Next page" ${marketPage>=pages-1?'disabled':''}>${icon('chevron-right')}</button></div>`;renderMarketCatalog();hydrate();patchLiveQuotes();}
 
 function queueMarketSearch(){clearTimeout(marketSearchTimer);marketCatalogSearch.cancel();marketRemoteAssets=[];marketRemoteError='';marketRemoteLoading=!onlyWatch&&marketGroup==='all'&&marketUniverse==='aggregate'&&normalizeSearch(marketQuery).length>=2;if(marketRemoteLoading)marketSearchTimer=setTimeout(()=>marketCatalogSearch.run(marketQuery),350);}
 function renderMarketCatalog(){const host=$('#market-catalog');if(!host)return;if(onlyWatch||marketGroup!=='all'||marketUniverse!=='aggregate'||normalizeSearch(marketQuery).length<2){host.innerHTML='';return;}const shown=new Set(filteredMarkets().map(assetIdentity)),items=rankAssets(marketRemoteAssets.filter(a=>!shown.has(assetIdentity(a))),marketQuery,12);host.innerHTML=`<div class="catalog-results"><h3>Broader asset catalog</h3><p class="source">${marketRemoteLoading?'Searching…':marketRemoteError?'Catalog unavailable. Loaded prices remain above.':'Catalog identities beyond the current price list. Open an asset to check available prices and charts.'}</p>${items.map(a=>`<button class="command-row" data-action="asset-chart" data-id="${esc(a.id)}">${coinMark(a.symbol)}<span><strong>${esc(a.name)} <small>${esc(a.symbol)}</small></strong><small>${esc(a.id)}</small></span>${icon('arrow-up-right')}</button>`).join('')}</div>`;}
@@ -464,7 +484,7 @@ function updateChartWindow(info){
  const label=info.total?`${info.visible} / ${info.total} candles${info.start&&info.end?` · ${short(info.start)}–${short(info.end)} UTC`:''}`:state==='unavailable'?'History unavailable':'Loading history…';
  if(el.textContent!==label)el.textContent=label;
 }
-function setChartFocus(value){document.body.classList.toggle('chart-focus',value);const b=$('#focus-chart');if(b){b.innerHTML=icon(value?'minimize-2':'maximize-2');b.setAttribute('aria-label',value?'Exit chart focus':'Focus chart');b.setAttribute('aria-pressed',value);}hydrate();requestAnimationFrame(()=>terminal?.draw());}
+function setChartFocus(value){document.body.classList.toggle('chart-focus',value);const b=$('#focus-chart');if(b){b.innerHTML=icon(value?'minimize-2':'maximize-2')+(value?'<span class="phone-focus-caption">Done</span>':'');b.setAttribute('aria-label',value?'Exit chart focus':'Focus chart');b.setAttribute('aria-pressed',value);}hydrate();requestAnimationFrame(()=>terminal?.draw());}
 
 function riskInstrument(){return ['practice','risk','replay','backtest'].includes(page)?(practiceSelected??selected):selected;}
 function riskKey(){const i=riskInstrument();return i.venue+':'+i.symbol;}
@@ -641,7 +661,8 @@ function renderTerminal(){
  const panel=chartPanelFor(params.get('panel'));
  forecastHorizon=normalizeForecastHorizon(params.get('horizon'));
  $('#main').innerHTML=chartWorkbench({interval:selectedInterval,forecastHorizon,panel,controls:autoControls()});
- activeBook=null;terminal=new TerminalChart({host:$('#price-chart'),workspace,save,onQuote:updateQuote,onSummary:updateSummary,onBook:updateBook,onStatus:updateStreamStatus,onWindow:updateChartWindow,onDrawings:()=>{if($('#drawings-count'))$('#drawings-count').textContent=(workspace.drawings[terminal?.key]??[]).length;}});
+ placeChartLegend();
+ activeBook=null;terminal=new TerminalChart({host:$('#price-chart'),phoneView,workspace,save,onQuote:updateQuote,onSummary:updateSummary,onBook:updateBook,onStatus:updateStreamStatus,onWindow:updateChartWindow,onDrawings:()=>{if($('#drawings-count'))$('#drawings-count').textContent=(workspace.drawings[terminal?.key]??[]).length;}});
  terminal.onSignalFocus=event=>{
   const selection=$('#selected-signal');
   if(!selection)return;
@@ -667,6 +688,11 @@ function renderTerminal(){
  $('#auto-overlay').addEventListener('change',e=>applyAutoGuide(e.target.value));
  $('#compact-interval').addEventListener('change',e=>{selectedInterval=e.target.value;capturePreferences();syncTimeframe();terminal.load(selected,selectedInterval);});
  $('#chart-style').addEventListener('change',e=>{terminal.style=e.target.value;capturePreferences();if(terminal.bars.length)terminal.build();});
+}
+function placeChartLegend(){
+ const legend=$('#indicator-strip');
+ if(phoneView.matches)$('.chart-workspace').after(legend);
+ else $('#selected-signal').before(legend);
 }
 function syncTimeframe(){for(const b of document.querySelectorAll('[data-time]')){b.classList.toggle('selected',b.dataset.time===selectedInterval);b.setAttribute('aria-pressed',String(b.dataset.time===selectedInterval));}}
 
@@ -796,10 +822,17 @@ function updateAlertCount(){const n=workspace.alerts.filter(a=>a.active).length;
 
 
 
-function modal(title,content,wide=false){modalGeneration++;clearTimeout(searchTimer);catalogSearch.cancel();dialogController.open(title,content,wide);}
+function syncSheetViewport(){
+ const view=window.visualViewport;
+ if(!phoneView.matches||!view||!dialogController?.isOpen)return;
+ const style=$('#modal-root').style;
+ style.setProperty('--phone-sheet-height',`${view.height}px`);
+ style.setProperty('--phone-sheet-top',`${view.offsetTop}px`);
+}
+function modal(title,content,wide=false){modalGeneration++;clearTimeout(searchTimer);catalogSearch.cancel();dialogController.open(title,content,wide);syncSheetViewport();}
 function closeModal(options){dialogController?.close(options);}
 
-function openSearch(){remoteAssets=[];remoteError='';remoteLoading=false;modal('Find an asset',`<label class="command-search">${icon('search')}<input id="command-input" maxlength="80" placeholder="Name, ticker or trading pair" autocomplete="off" aria-label="Search coins and instruments"></label><div id="command-results" class="command-results"></div><div class="modal-footer">Search catalog identities and supported exchange pairs. <kbd>ESC</kbd> to close.</div>`,true);$('#command-input').addEventListener('input',e=>{const q=e.target.value;clearTimeout(searchTimer);catalogSearch.cancel();remoteAssets=[];remoteError='';remoteLoading=normalizeSearch(q).length>=2;searchResults(q);if(remoteLoading)searchTimer=setTimeout(()=>catalogSearch.run(q),300);});searchResults('');}
+function openSearch(){remoteAssets=[];remoteError='';remoteLoading=false;modal('Find an asset',`<label class="command-search">${icon('search')}<input id="command-input" maxlength="80" placeholder="Name, ticker or trading pair" autocomplete="off" aria-label="Search coins and instruments"></label><div id="command-results" class="command-results"></div><div class="modal-footer">Search catalog identities and supported exchange pairs. <kbd>ESC</kbd> to close.</div>`,true);$('#command-input').addEventListener('input',e=>{const q=e.target.value;clearTimeout(searchTimer);catalogSearch.cancel();remoteAssets=[];remoteError='';remoteLoading=normalizeSearch(q).length>=2;searchResults(q);if(remoteLoading)searchTimer=setTimeout(()=>catalogSearch.run(q),300);});searchResults('');if(phoneView.matches)$('#command-input')?.focus({preventScroll:true});}
 
 function searchResults(q){if(!$('#command-results'))return;const combined=mergeAssets(data.markets?.data??[],remoteAssets);const assets=rankAssets(combined,q,8),pairs=rankAssets([...instruments.binance,...instruments.coinbase],q,8);$('#command-results').innerHTML=`<div class="eyebrow">Crypto assets</div>${assets.map(a=>`<button class="command-row" data-action="asset-chart" data-id="${esc(a.id)}">${coinMark(a.symbol)}<span><strong>${esc(a.name)} <small>${esc(a.symbol)}</small></strong><small>${isFetchAsset(a)?'Fetch.ai · ':''}${esc(a.id)}</small></span><b>${a.price?moneyMarkup(a.price):'View asset'}</b>${icon('chevron-right')}</button>`).join('')||'<p class="search-note">No matching priced asset in the loaded directory.</p>'}<div class="search-note" role="status">${remoteLoading?'Searching the broader asset catalog…':remoteError?'Catalog temporarily unavailable; loaded results remain available.':q.trim().length>=2?'Catalog results show available identities. Price and chart coverage varies.':''}</div><div class="eyebrow">Exchange charts</div>${pairs.map(a=>`<button class="command-row" data-action="select-instrument" data-venue="${a.venue}" data-symbol="${esc(a.symbol)}">${coinMark(a.base)}<span><strong>${esc(a.base)}/${esc(a.quote)}</strong><small>${a.venue.toUpperCase()} spot · ${esc(a.symbol)}</small></span>${icon('arrow-up-right')}</button>`).join('')||'<p class="search-note">No matching chart pair in the connected venues.</p>'}`;hydrate();}
 
@@ -894,7 +927,7 @@ function signalSettingsModal(){
  });
 }
 function historyDateModal(){
- modal('Jump to chart history',`<div class="desk-modal-body"><p>Enter a UTC date to open the available candles ending that day. Use Latest to return to the live chart.</p><form id="history-date-form"><label>UTC date<input type="date" name="date" min="2009-01-01" max="${new Date().toISOString().slice(0,10)}" required></label><button class="button primary" type="submit">Open history</button><p id="history-date-error" role="status"></p></form></div>`);
+ modal('Jump to chart history',`<div class="desk-modal-body"><p>Enter a UTC date to open the available candles ending that day. Use Reset view to return to the live chart.</p><form id="history-date-form"><label>UTC date<input type="date" name="date" min="2009-01-01" max="${new Date().toISOString().slice(0,10)}" required></label><button class="button primary" type="submit">Open history</button><p id="history-date-error" role="status"></p></form></div>`);
  $('#history-date-form').addEventListener('submit',e=>{e.preventDefault();const date=new FormData(e.currentTarget).get('date');if(terminal?.jumpToDate(date))closeModal();else $('#history-date-error').textContent='Choose a valid date in the past.';});
 }
 function drawingModal(){if(!terminal)return;const drawings=workspace.drawings[terminal.key]??[];modal('Saved drawings',`<p class="muted">${esc(selected.symbol)} · ${selectedInterval.toUpperCase()} · Click a tool, then place anchors on the price pane. Dragging the chart preserves time/price anchors.</p><div class="drawing-list">${drawings.map(d=>`<form class="drawing-edit" data-id="${esc(d.id)}"><div><span class="small-tag">${d.type}</span><button type="button" class="icon-button" data-action="delete-drawing" data-id="${esc(d.id)}" aria-label="Delete drawing">${icon('trash-2')}</button></div><label>Annotation<input name="label" value="${esc(d.label)}" maxlength="100"></label>${d.points.map((p,i)=>`<div class="form-grid"><label>Anchor ${i+1} price<input type="number" name="price${i}" min="0" step="any" value="${p.price}" required></label><label>Anchor ${i+1} UTC<input type="datetime-local" name="time${i}" value="${new Date(p.time*1000).toISOString().slice(0,16)}" required></label></div>`).join('')}<button class="button" type="submit">Update drawing</button></form>`).join('')||empty('No drawings yet','Use horizontal, trend, Fibonacci or annotation tools on the price chart.')}<div class="data-note">Date fields are UTC. Set anchor times to existing candle openings to keep them visible.</div></div>`);document.querySelectorAll('.drawing-edit').forEach(f=>f.addEventListener('submit',e=>{e.preventDefault();const d=drawings.find(x=>x.id===f.dataset.id),values=new FormData(f);const next={...d,label:String(values.get('label')),points:d.points.map((p,i)=>({price:+values.get('price'+i),time:Date.parse(values.get('time'+i)+':00Z')/1000}))};if(!drawingValid(next)){toast('Use positive prices and valid UTC anchor times.');return;}Object.assign(d,next);if(save()){terminal.draw();toast('Drawing updated.');}}));}
@@ -913,6 +946,7 @@ document.addEventListener('click',e=>{
 
  if(b.closest('.chart-menu'))closeToolMenus(document,null,{returnFocus:true});
  if(a==='reset-chart'){terminal?.resetView();capturePreferences();return;}
+ if(a==='phone-chart-zoom'){terminal?.zoom(b.dataset.zoom==='out'?1.5:2/3);return;}
  if(a==='focus-chart'){setChartFocus(!document.body.classList.contains('chart-focus'));return;}
  if(a==='benchmark-range'&&Object.hasOwn(BENCHMARK_RANGES,b.dataset.range)){
   benchmarkRange=b.dataset.range;
@@ -952,7 +986,21 @@ document.addEventListener('click',e=>{
 
  if(a==='toggle-watch'){onlyWatch=!onlyWatch;b.classList.toggle('selected',onlyWatch);marketPage=0;renderMarketResults();return;}
 
- if(a==='prev-page'||a==='next-page'){marketPage+=a==='next-page'?1:-1;renderMarketResults();return;}
+ if(a==='phone-movers'){
+  phoneMoversOpen=!phoneMoversOpen;
+  b.setAttribute('aria-expanded',String(phoneMoversOpen));
+  if($('#market-movers'))$('#market-movers').dataset.phoneOpen=String(phoneMoversOpen);
+  return;
+ }
+ if(a==='prev-page'||a==='next-page'){
+  marketPage+=a==='next-page'?1:-1;renderMarketResults();
+  if(phoneView.matches){
+   const results=$('#market-results');
+   results?.focus({preventScroll:true});
+   results?.scrollIntoView({block:'start',behavior:navigationMotion()?'smooth':'instant'});
+  }
+  return;
+ }
 
  if(a==='export-markets'){const list=filteredMarkets();download('cryptoz-markets.csv',serializeCSV(['id','symbol','name','price','quote','change24h','marketCap','volume','updatedAt'],list.map(x=>[x.id,x.symbol,x.name,x.price,marketUniverse==='exchange'?'USDT':'USD',x.change,x.marketCap,x.volume,x.updatedAt])),'text/csv');return;}
 
@@ -1031,7 +1079,20 @@ document.addEventListener('keydown',e=>{if(dialogController?.isOpen)return;if(e.
 $('#modal-root').addEventListener('click',e=>{if(e.target.classList.contains('modal-backdrop'))closeModal();});
 
 window.addEventListener('resize',syncDockAccess);
-window.addEventListener('storage',e=>{if(e.key==='cryptoz.workspace.v2')toast('Workspace changed in another tab. Export this tab before reloading if it contains unsaved research.');});window.addEventListener('hashchange',route);window.addEventListener('error',()=>{operationError='This view could not update. Retry the view.';syncNetworkState();});window.addEventListener('unhandledrejection',event=>{if(event.reason?.name==='AbortError')return;operationError='An operation could not finish. Retry the view.';syncNetworkState();});window.addEventListener('online',()=>{operationError='';syncNetworkState();refreshCurrent();});window.addEventListener('offline',syncNetworkState);
+window.addEventListener('storage',e=>{if(e.key==='cryptoz.workspace.v2')toast('Workspace changed in another tab. Export this tab before reloading if it contains unsaved research.');});phoneView.addEventListener('change',event=>{
+ if(isMarketPage()){
+  marketPage=event.matches?marketPage*desktopMarketRows/phoneMarketRows:Math.floor(marketPage*phoneMarketRows/desktopMarketRows);
+  renderMarketResults();
+ }
+ terminal?.syncScrollOptions();
+ if(page==='overview')placeHomeChart();
+ if(page==='terminal')placeChartLegend();
+ mini?.applyOptions({handleScroll:chartScrollOptions('cursor',event.matches)});
+ syncSheetViewport();
+});
+window.visualViewport?.addEventListener('resize',syncSheetViewport);
+window.visualViewport?.addEventListener('scroll',syncSheetViewport);
+window.addEventListener('hashchange',route);window.addEventListener('error',()=>{operationError='This view could not update. Retry the view.';syncNetworkState();});window.addEventListener('unhandledrejection',event=>{if(event.reason?.name==='AbortError')return;operationError='An operation could not finish. Retry the view.';syncNetworkState();});window.addEventListener('online',()=>{operationError='';syncNetworkState();refreshCurrent();});window.addEventListener('offline',syncNetworkState);
 
 marketStream=new MarketStream({onBatch:patchLiveQuotes,onStatus:patchLiveStatus});liveMarketView=createLiveMarketView(document,marketStream);marketMoversView=createMarketMovers(document,marketStream,value=>moverDisplayPrice(value,'USDT'));shell();dialogController=createDialogController({root:$('#modal-root'),background:$('#app'),hydrate,animateExit:dismissSurface,fallbackFocus:()=>$('#main'),onClose:()=>{modalGeneration++;clearTimeout(searchTimer);catalogSearch.cancel();}});route();
 marketStream.setRegistry(BENCHMARK_ASSETS.map(base=>({symbol:base+'USDT',venue:'binance',quote:'USDT'})));

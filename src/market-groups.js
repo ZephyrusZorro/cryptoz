@@ -1,5 +1,6 @@
 import {asNumber} from './numbers.js';
-import {ago, compact, esc, icon, num, pct, price, stamp, tone} from './ui.js';
+import {ago, compact, esc, icon, num, pct, stamp, tone} from './ui.js';
+import {moneyMarkup} from './currency.js';
 
 // Curated Coinpaprika IDs. Sources and refresh instructions are in docs/market-groups.md.
 const categories = [
@@ -86,6 +87,7 @@ export function renderMarketGroups({assets, group = 'all', mode = 'basic', unive
 
 export function renderMarketCards(rows, {universe = 'aggregate', watchlist = []} = {}) {
   const exchange = universe === 'exchange';
+  const quote = exchange ? 'USDT' : 'USD';
   const saved = new Set(watchlist);
   return `<ul class="market-discovery-cards" aria-label="Market results">${rows.map(row => {
     const id = esc(row.id);
@@ -94,7 +96,7 @@ export function renderMarketCards(rows, {universe = 'aggregate', watchlist = []}
     const marked = saved.has(row.id);
     const volume = asNumber(row.volume);
     const subtitle = exchange ? esc(row.name) : `${symbol}${row.rank ? ` · #${esc(row.rank)}` : ''}`;
-    const shownVolume = volume === null || volume < 0 ? '—' : `${exchange ? '' : '$'}${compact(volume)}`;
+    const shownVolume = volume === null || volume < 0 ? '—' : moneyMarkup(volume,quote,'compact');
     return `<li class="market-discovery-card"${exchange ? ` data-live-row="${id}"` : ''}>
       <div class="market-card-heading">
         <button type="button" class="market-card-asset" data-action="${exchange ? 'exchange-chart' : 'asset-chart'}" data-id="${id}">
@@ -105,9 +107,9 @@ export function renderMarketCards(rows, {universe = 'aggregate', watchlist = []}
         <button type="button" class="star-button${marked ? ' selected' : ''}" data-action="watch" data-id="${id}" aria-label="Watch ${name}${exchange ? ' on Binance' : ''}" aria-pressed="${marked}"><span aria-hidden="true">${icon('star')}</span></button>
       </div>
       <dl class="market-card-metrics">
-        <div class="market-card-price"><dt>Price · ${exchange ? 'USDT' : 'USD'}</dt><dd class="mono"${exchange ? ' data-live-price' : ''}>${price(row.price, exchange ? '' : '$')}</dd></div>
+        <div class="market-card-price"><dt>Price</dt><dd class="mono"${exchange ? ' data-live-price' : ''}>${moneyMarkup(row.price,quote)}</dd></div>
         <div><dt>24h change</dt><dd class="mono ${tone(row.change)}"${exchange ? ' data-live-change' : ''}>${pct(row.change)}</dd></div>
-        <div><dt>24h volume${exchange ? ' · USDT' : ''}</dt><dd class="mono"${exchange ? ' data-live-volume' : ''}>${shownVolume}</dd></div>
+        <div><dt>24h volume</dt><dd class="mono"${exchange ? ' data-live-volume' : ''}>${shownVolume}</dd></div>
         <div><dt>Updated</dt><dd title="${esc(stamp(row.updatedAt))}"${exchange ? ' data-live-time' : ''}>${ago(row.updatedAt)}</dd></div>
       </dl>
     </li>`;

@@ -1,0 +1,258 @@
+.phone-dock,.phone-brand,.phone-chart-zoom,.phone-focus-caption,.phone-movers-toggle{display:none}
+.live-quote-track,.wb-interval-style,.wb-tools{display:contents}
+
+/* Keep this query in sync with PHONE_LAYOUT in phone-layout.js. */
+@media (max-width:700px), (max-width:1000px) and (max-height:500px){
+ :root{
+  --phone-edge:14px;
+  --phone-left:max(var(--phone-edge),env(safe-area-inset-left,0px));
+  --phone-right:max(var(--phone-edge),env(safe-area-inset-right,0px));
+  --phone-dock-bottom:max(8px,env(safe-area-inset-bottom,0px));
+  --phone-dock-space:calc(68px + var(--phone-dock-bottom));
+  scroll-padding-block-end:var(--phone-dock-space);
+  scrollbar-gutter:auto;
+ }
+ #app .sidebar,#app .dock-header-toggle,#app .wb-picker .focus-nav-reveal{display:none!important}
+ body[data-dock] #app .main-shell{margin-inline:0;padding-block-end:var(--phone-dock-space)}
+ #app .phone-dock{
+  box-sizing:border-box;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;
+  position:fixed;z-index:45;inset:auto var(--phone-right) var(--phone-dock-bottom) var(--phone-left);
+  width:min(100% - var(--phone-left) - var(--phone-right),510px);margin-inline:auto;
+  padding:4px;border:1px solid var(--chrome-rim);border-radius:22px;
+  background:var(--era-floating);box-shadow:inset 0 1px 0 var(--glass-shine),0 8px 25px #07163853;
+  -webkit-backdrop-filter:blur(16px) saturate(145%);backdrop-filter:blur(16px) saturate(145%);
+ }
+ .phone-dock a{
+  position:relative;isolation:isolate;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:4px;min-width:0;min-height:52px;border-radius:16px;line-height:1.1;
+  color:var(--muted);font-size:11px;font-weight:600;
+ }
+ .phone-dock a.active{color:var(--text)}
+ .phone-dock a svg{width:19px;height:19px;color:inherit}
+ .phone-dock a.active svg{color:var(--lime)}
+ .phone-dock .dock-label{display:block;font-size:inherit}
+ .phone-selection{
+  display:none;position:absolute;inset:1px;z-index:-1;border-radius:inherit;pointer-events:none;
+  border:1px solid var(--chrome-rim);background:var(--selected-glass);box-shadow:inset 0 1px 0 var(--glass-shine);
+ }
+ .phone-dock a.active .phone-selection{display:block}
+ :root[data-material=solid] #app .phone-dock{background:var(--panel);backdrop-filter:none;-webkit-backdrop-filter:none}
+ :root[data-material=solid] .phone-selection{background:var(--panel2)}
+ body.chart-focus #app .phone-dock{display:none}
+ body.chart-focus #app .main-shell{padding-block-end:0}
+
+ #app :is(.topbar,#context-root .context-nav,#connection-notice){width:auto;margin-inline:var(--phone-left) var(--phone-right)}
+ #app .topbar{
+  position:relative;top:auto;padding-inline:7px;height:56px;
+  margin-top:max(8px,env(safe-area-inset-top,0px));gap:2px;border-radius:18px;
+ }
+ #app .topbar .workspace-brand{min-width:0;margin-right:auto}
+ #app .topbar-brand{display:flex;align-items:center;gap:7px;min-height:44px;padding-inline:3px;font-size:17px;white-space:nowrap}
+ .phone-brand{display:block;line-height:0}
+ .phone-brand .cryptoz-mark{width:28px;height:28px;padding:5px}
+ #app .topbar :is(.workspace-divider,#workspace-location){display:none}
+ #app .topbar :is(.search-trigger,.top-actions .icon-button){
+  display:inline-flex;align-items:center;justify-content:center;
+  width:44px;min-width:44px;height:44px;min-height:44px;margin:0;padding:0;
+ }
+ #app .topbar .top-actions{gap:0}
+ #app .topbar .search-trigger{background:transparent;border:0}
+ #app .topbar .search-trigger :is(span,kbd){display:none}
+ #app .topbar :is(.icon-button,.search-trigger) svg{width:17px;height:17px}
+ #app #context-root{position:relative;top:auto}
+ #app #context-root .context-nav{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px;
+  margin-block-start:6px;padding:3px;border-radius:15px;
+ }
+ #app #context-root .context-nav[data-count="3"]{grid-template-columns:repeat(3,minmax(0,1fr))}
+ #app #context-root .context-nav[data-count="4"]{grid-template-columns:repeat(4,minmax(0,1fr))}
+ #app #context-root .context-nav a{min-height:44px;padding:5px 3px;font-size:12px;line-height:1.2}
+ #app #context-root .context-nav a[aria-current=page]::after{inset:auto 10px 2px;height:2px;border-radius:2px}
+ #app main,#app .footer{padding-inline:var(--phone-left) var(--phone-right)}
+ #app main{padding-block-start:15px;padding-block-end:20px;min-height:calc(100svh - var(--phone-dock-space) - 100px)}
+ #app .footer{gap:5px;padding-block:10px}
+ #toast,#download-notice{bottom:calc(var(--phone-dock-space) + 9px)}
+ #toast{left:50%}
+
+ #app .section-heading{padding:13px 14px;gap:10px;margin-block-end:13px;border-radius:16px}
+ #app :is(.section-heading h1,.terminal-heading h1){font-size:clamp(27px,7vw,39px);line-height:1.06}
+ #app .section-heading p{font-size:14px;line-height:1.45;max-width:55ch}
+ #app .heading-icon{width:34px}
+ #app .heading-identity{gap:10px}
+ #app .heading-actions .button{min-height:44px}
+ #app .era-hero{min-height:0;margin:0}
+ #app .era-dashboard{gap:12px}
+ #app .live-strip{display:block;overflow:hidden;border-radius:15px}
+ #app .live-strip-label{display:flex;justify-content:space-between;gap:5px;font-size:12px;padding:10px 12px;border:0}
+ .live-quote-track{
+  display:flex;gap:7px;overflow-x:auto;overscroll-behavior-inline:contain;scroll-snap-type:inline proximity;
+  padding:0 9px 9px;scroll-padding-inline:9px;scrollbar-width:none;
+ }
+ #app .live-strip .live-quote:nth-child(n){
+  display:flex;flex-direction:column;align-items:flex-start;justify-content:center;
+  flex:0 0 clamp(128px,39vw,164px);min-height:73px;padding:8px 10px;
+  scroll-snap-align:start;border:1px solid var(--era-outline);border-radius:11px;background:var(--era-control);
+ }
+ #app .live-quote>strong{font-size:15px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;text-align:start}
+ #app .live-quote>small,#app .live-quote>span{font-size:11px}
+ #app .era-dashboard .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ #app .era-dashboard .stat-card{padding:10px 11px;min-height:101px;border-radius:13px}
+ #app .era-dashboard .stat-card .source{font-size:10px}
+ #app .era-market-grid{grid-template-columns:minmax(0,1fr);gap:10px}
+ #app .era-market-side{grid-template-columns:minmax(0,1fr);gap:10px}
+ #app .era-benchmark .benchmark-chart{height:clamp(232px,36svh,330px)}
+ #app .era-segment button{min-height:44px;min-width:42px}
+ #app .era-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ #app .era-shortcuts a{min-height:60px;flex-direction:row;align-items:center}
+ #app .era-shortcuts a>svg{display:none}
+ #app .era-shortcuts a small{font-size:11px}
+
+ #app :is(.home-news-tabs,.news-toolbar .tabs,.studio-tabs,.learning-controls){max-width:100%}
+ #app :is(.home-news-tabs button,.news-toolbar .tabs button,.studio-tabs button){min-height:44px}
+ #app .news-toolbar{padding:10px;gap:9px}
+ #app .news-toolbar .tabs{display:flex;flex-wrap:wrap;overflow:visible}
+ #app .news-reading-panel .news-card{padding:13px 12px;gap:6px}
+ #app .news-reading-panel .news-headline{font-size:15px;line-height:1.45}
+ #app .news-reading-panel .news-card-top{font-size:11px}
+ #app .news-reading-panel .news-card-top time{font-size:10px}
+
+ #app .phone-movers-toggle{
+  display:flex;justify-content:space-between;width:100%;min-height:44px;margin-block-end:10px;
+  background:var(--era-control);border-color:var(--era-outline);
+ }
+ #app .phone-movers-toggle[aria-expanded=true] svg{transform:rotate(180deg)}
+ #app #market-movers[data-phone-open=false]{display:none}
+ #app #market-movers{grid-template-columns:minmax(0,1fr)}
+ #app .era-movers .watch-row{min-height:44px}
+ #app .market-controls{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding:10px}
+ #app .market-controls .tabs{display:flex;flex-wrap:wrap;gap:4px 10px}
+ #app .market-controls .tab{min-height:44px;font-size:12px}
+ #app .market-controls .tab.active::after{bottom:0}
+ #app .market-controls .search-field{width:100%;max-width:none;min-width:0;margin:0}
+ #app .filter-row{padding:6px 10px;gap:6px 10px}
+ #app .filter-row .chip{min-height:44px}
+ #app .filter-row .sort-label{gap:4px}
+ #app .filter-row .sort-label select{max-width:100%;min-height:44px}
+ #app .market-discovery-cards{grid-template-columns:minmax(0,1fr);gap:6px;padding:8px 10px}
+ #app .market-discovery-card{gap:3px;padding:7px 10px;border-radius:13px;background:var(--era-control)}
+ #app .market-card-asset{min-height:44px;padding:0}
+ #app .market-card-asset strong{font-size:14px}
+ #app .market-card-asset small,#app .market-card-metrics dt{font-size:11px}
+ #app .market-card-heading .star-button{flex-basis:44px;min-height:44px}
+ #app .market-card-metrics{gap:5px 10px;padding:5px 0 2px}
+ #app .market-card-metrics dd{font-size:13px;margin-top:2px}
+ #app .pagination .icon-button{width:44px;height:44px}
+
+ #app .chart-workbench{gap:12px}
+ #app .wb-instrument{display:grid;grid-template-columns:minmax(0,1fr);padding:9px 10px 11px;gap:8px}
+ #app .wb-picker{display:grid;grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr) 44px;align-items:end;gap:6px}
+ #app .wb-picker select,#app .wb-toolbar select{width:100%;max-width:100%;margin:0}
+ #app .wb-picker label,#app .wb-toolbar label{font-size:12px}
+ #app .wb-picker .icon-button,#app #focus-chart{width:44px;height:44px}
+ #app .wb-quote>strong{font-size:clamp(24px,7vw,33px);line-height:1.15;overflow-wrap:anywhere}
+ #app .terminal-heading p{display:none}
+ #app .terminal-heading #stream-status{display:inline-flex;font-size:11px;max-width:100%;margin:0}
+ #app .wb-toolbar{
+  display:grid;grid-template-columns:minmax(0,1fr);
+  gap:6px;padding:8px 10px;position:relative;
+ }
+ #app .wb-toolbar>.timeframes{display:none}
+ #app .wb-interval-style,#app .wb-tools{display:grid;gap:6px;min-width:0}
+ #app .wb-interval-style{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #app .wb-tools{grid-template-columns:minmax(0,1.15fr) minmax(0,1.1fr) minmax(0,.75fr) 44px}
+ #app .wb-toolbar .wb-mobile-interval{display:grid!important}
+ #app .wb-toolbar :is(.button,.chart-menu summary){min-height:44px;padding-inline:4px;font-size:12px;justify-content:center;gap:4px}
+ #app .wb-toolbar :is(.button,.chart-menu summary) svg{width:14px}
+ #app .wb-toolbar .chart-menu{position:static;min-width:0;grid-area:auto}
+ #app .wb-toolbar .chart-menu .chart-menu-body{inset:calc(100% + 5px) 9px auto auto;min-width:0;width:min(250px,calc(100% - 18px))}
+ #app .chart-menu .chart-menu-body :is(a,button){min-height:44px;font-size:13px}
+ #app .overlay-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 7px;padding:7px 10px}
+ #app .overlay-controls label{grid-column:1/-1}
+ #app .overlay-controls select{grid-area:2/1;width:100%;order:0}
+ #app .overlay-controls button{grid-area:2/2;min-height:44px;margin:0;padding:0;font-size:12px}
+ #app .wb-main .indicator-strip{gap:4px 7px;padding:6px 10px}
+ #app .indicator-strip .wb-signal-link{min-height:44px}
+ #app .wb-study-legend summary{display:list-item;min-height:44px;padding:12px 4px}
+ #app .wb-main .price-chart{height:clamp(270px,43svh,395px)}
+ #app .wb-main .price-chart.stacked-study-panes{min-height:395px}
+ #app .wb-main .drawing-tools .icon-button{min-height:44px}
+ #app .history-bar{display:flex;flex-wrap:wrap;gap:4px 7px;padding:8px 10px}
+ #app .history-bar .button,#app .history-bar .text-link{min-height:44px}
+ #app .history-bar #history-status,#app .history-bar #candle-source{flex:1 1 100%;order:5;margin:0;font-size:11px}
+ .phone-chart-zoom{display:inline-flex;gap:2px;margin-inline-start:auto}
+ .phone-chart-zoom .icon-button{width:44px;height:44px;border:1px solid var(--border)}
+ #app .wb-tabs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:3px;padding:5px}
+ #app .wb-tabs button{grid-column:span 2;min-height:44px;padding-inline:2px;font-size:12px;line-height:1.2}
+ #app .wb-tabs button:nth-last-child(-n+2){grid-column:span 3}
+ #app .wb-pane{padding:10px;overflow-wrap:anywhere}
+ #app :is(.forecast-fields,.forecast-metrics,.risk-inputs){grid-template-columns:repeat(2,minmax(0,1fr))}
+ #app .forecast-comparison{width:100%;table-layout:fixed;font-size:11px}
+ #app .forecast-comparison :is(td,th){padding-inline:4px;overflow-wrap:anywhere}
+ body.chart-focus #app main{padding-block-start:max(5px,env(safe-area-inset-top,0px))}
+ body.chart-focus #app .wb-main{height:calc(100dvh - max(5px,env(safe-area-inset-top,0px)) - env(safe-area-inset-bottom,0px));border-radius:13px}
+ body.chart-focus #app .wb-main .price-chart{height:100%;min-height:0}
+ body.chart-focus #app .wb-main :is(.wb-instrument,.overlay-controls,.indicator-strip){display:none}
+ body.chart-focus #app .wb-tools{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 58px 60px}
+ body.chart-focus #app #focus-chart{width:100%;gap:2px;border:1px solid var(--era-outline);font-size:11px}
+ body.chart-focus .phone-focus-caption{display:inline}
+
+ #app :is(.practice-ledger,.practice-history,.workspace-grid,.method-grid,.comparison-grid,.studio-grid){grid-template-columns:minmax(0,1fr)}
+ #app :is(.practice-controls,.learning-room .learning-controls){display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+ #app :is(.practice-controls,.learning-controls) select{width:100%;max-width:100%;min-width:0}
+ #app :is(.practice-controls,.learning-controls) .data-note{grid-column:1/-1}
+ #app .learning-shelf{grid-template-columns:repeat(2,minmax(0,1fr));padding:5px;gap:4px}
+ #app .learning-shelf-tab{min-height:51px;padding:5px 7px;gap:5px}
+ #app .learning-shelf-tab:last-child{grid-column:1/-1}
+ #app .learning-shelf-tab small{display:none}
+ #app .learning-shelf-icon{flex-basis:27px;block-size:27px}
+ #app .learning-shelf-label strong{font-size:12px;overflow-wrap:normal}
+ #app :is(.practice-card,.learning-room,.workspace-grid) .button{min-height:44px}
+ #app :is(.table-scroll,.forecast-comparison,.signal-grid){max-width:100%}
+
+ #app :is(input:not([type=checkbox],[type=radio]),textarea,select),#modal-root :is(input:not([type=checkbox],[type=radio]),textarea,select){
+  min-height:44px;font-size:16px;
+ }
+ #modal-root>.modal-backdrop{
+  align-items:flex-end;justify-content:center;
+  top:var(--phone-sheet-top,0px);bottom:auto;height:var(--phone-sheet-height,100dvh);
+  padding:max(8px,env(safe-area-inset-top,0px)) 0 0;
+  padding-inline:env(safe-area-inset-left,0px) env(safe-area-inset-right,0px);
+ }
+ #modal-root .modal{
+  width:min(100%,600px);max-height:min(91dvh,calc(var(--phone-sheet-height,100dvh) - max(8px,env(safe-area-inset-top,0px))));
+  padding-block-end:env(safe-area-inset-bottom,0px);border-radius:23px 23px 0 0;overscroll-behavior-y:contain;
+ }
+ #modal-root .modal-header{position:sticky;top:0;z-index:3;padding:6px 14px;background:var(--panel)}
+ #modal-root .modal-header .icon-button{width:44px;height:44px}
+ #modal-root .command-results{max-height:53dvh}
+ #modal-root :is(.button,.command-row){min-height:44px}
+ #modal-root .study-grid{grid-template-columns:minmax(0,1fr)}
+ #modal-root .study-actions{bottom:0}
+}
+
+@media (max-width:355px){
+ :root{--phone-edge:9px}
+ #app .topbar{padding-inline:4px}
+ #app .topbar-brand{font-size:16px;gap:4px}
+ .phone-brand{display:none}
+ #app .phone-dock a{font-size:10px}
+ #app .heading-icon{width:30px}
+ #app .wb-toolbar :is(.button,.chart-menu summary){font-size:11px}
+ #app .wb-toolbar :is(.button,.chart-menu summary) svg{display:none}
+}
+@media (max-width:1000px) and (max-height:500px){
+ :root{--phone-dock-space:calc(56px + var(--phone-dock-bottom))}
+ #app .phone-dock{padding:2px 4px}
+ #app .phone-dock a{flex-direction:row;min-height:44px}
+ #app .wb-main .price-chart{height:220px}
+ body.chart-focus #app .wb-main .price-chart{height:100%}
+}
+@media (prefers-reduced-motion:no-preference){
+ .phone-dock a,.phone-movers-toggle svg{transition:color .2s,transform .2s var(--era-ease)}
+ .phone-dock a:active{transform:scale(.95)}
+}
+@media (max-width:700px) and (prefers-reduced-motion:no-preference), (max-width:1000px) and (max-height:500px) and (prefers-reduced-motion:no-preference){
+ #modal-root .modal{animation:phone-sheet-in .26s var(--era-ease)}
+}
+@keyframes phone-sheet-in{from{opacity:.68;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
+@media (forced-colors:active){.phone-dock a.active .phone-selection{border:2px solid Highlight}}

@@ -12,6 +12,7 @@ import {peakVolumeVwap,previousPeriodLevels,structureTools} from './structure-to
 import {heikinAshi,technicalSummary,normalizeCandles} from './analytics.js';
 import {AUTO_GUIDES,normalizePreferences} from './preferences.js';
 import {api} from './api.js';import {esc,download,toast} from './ui.js';
+import {chartScrollOptions,isChartTouch} from './phone-layout.js';
 const seconds={'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400};
 const HISTORY_LIMIT=4000;
 const HISTORY_EDGE=34;
@@ -21,7 +22,7 @@ const sameBar=(a,b)=>a.time===b.time&&a.open===b.open&&a.high===b.high&&a.low===
 const types={candles:CandlestickSeries,bars:BarSeries,line:LineSeries,heikin:CandlestickSeries};
 export function parseStreamBar(d){const k=d?.k;if(!k)return null;return normalizeCandles([{time:Math.floor(+k.t/1000),open:+k.o,high:+k.h,low:+k.l,close:+k.c,volume:+k.v}])[0]??null;}
 export class TerminalChart {
- constructor({host,workspace,save,onQuote,onSummary,onBook,onStatus,onDrawings,onWindow,deskMode='pro'}){Object.assign(this,{host,workspace,save,onQuote,onSummary,onBook,onStatus,onDrawings,onWindow,deskMode});this.studyBars=[];this.bars=[];this.visibleSignals=[];this.confirmedThrough=0;this.latestSnapshotAt=0;this.confirmedStreamBars=new Set();this.analysisRevision=0;this.generation=0;this.drawMode='cursor';this.pendingPoint=null;this.disposed=false;this.historyStatus='idle';this.indicators={ema:true,sma:false,bb:false,vwap:false};this.period=20;this.rsiPeriod=14;this.oscillator='rsi';this.style='candles';this.interval='1h';this.instrument={venue:'binance',symbol:'BTCUSDT',base:'BTC',quote:'USDT'};this.streamState='connecting';this.lastStream=0;this.liveRevision=0;this.barRevisions=new Map();this.barEvents=new Map();const p=normalizePreferences(workspace.preferences);this.indicators=p.indicators;this.period=p.period;this.smaPeriods=p.smaPeriods;this.rsiPeriod=p.rsiPeriod;this.oscillator=p.oscillator;this.autoGuide=deskMode==='basic'&&['zones','profile'].includes(p.autoGuide)?'range':p.autoGuide;this.signalKinds=p.signalKinds;this.studyIds=normalizeStudyIds((deskMode==='basic'?p.basicStudyIds??p.studyIds:p.studyIds)??[...Object.keys(p.indicators).filter(x=>p.indicators[x]),p.oscillator]);this.style=p.style;this.markers=p.markers;this.viewPreset=p.view;}
+ constructor({host,workspace,save,onQuote,onSummary,onBook,onStatus,onDrawings,onWindow,phoneView,deskMode='pro'}){Object.assign(this,{host,workspace,save,onQuote,onSummary,onBook,onStatus,onDrawings,onWindow,phoneView,deskMode});this.studyBars=[];this.bars=[];this.visibleSignals=[];this.confirmedThrough=0;this.latestSnapshotAt=0;this.confirmedStreamBars=new Set();this.analysisRevision=0;this.generation=0;this.drawMode='cursor';this.pendingPoint=null;this.disposed=false;this.historyStatus='idle';this.indicators={ema:true,sma:false,bb:false,vwap:false};this.period=20;this.rsiPeriod=14;this.oscillator='rsi';this.style='candles';this.interval='1h';this.instrument={venue:'binance',symbol:'BTCUSDT',base:'BTC',quote:'USDT'};this.streamState='connecting';this.lastStream=0;this.liveRevision=0;this.barRevisions=new Map();this.barEvents=new Map();const p=normalizePreferences(workspace.preferences);this.indicators=p.indicators;this.period=p.period;this.smaPeriods=p.smaPeriods;this.rsiPeriod=p.rsiPeriod;this.oscillator=p.oscillator;this.autoGuide=deskMode==='basic'&&['zones','profile'].includes(p.autoGuide)?'range':p.autoGuide;this.signalKinds=p.signalKinds;this.studyIds=normalizeStudyIds((deskMode==='basic'?p.basicStudyIds??p.studyIds:p.studyIds)??[...Object.keys(p.indicators).filter(x=>p.indicators[x]),p.oscillator]);this.style=p.style;this.markers=p.markers;this.viewPreset=p.view;}
  activeStudies(){return this.studyIds.filter(id=>this.deskMode==='pro'||!STUDIES[id]?.proOnly);}
  get key(){return `${this.instrument.venue}:${this.instrument.symbol}:${this.interval}`;}
  status(s){if(this.streamState!==s){this.streamState=s;this.onStatus(s);}}
@@ -41,7 +42,7 @@ export class TerminalChart {
  build(){
   if(this.rangeFrame){cancelAnimationFrame(this.rangeFrame);this.rangeFrame=0;}this.lastRangeGesture=null;
   const p=palette();const range=this.chart?.timeScale().getVisibleLogicalRange();this.observer?.disconnect();this.chart?.remove();this.host.innerHTML='<div class="chart-canvas"></div><svg class="drawing-layer" aria-hidden="true"></svg><div class="crosshair-hud"></div>';const el=this.host.querySelector('.chart-canvas');this.svg=this.host.querySelector('svg');
-  this.chart=createChart(el,{autoSize:true,layout:{background:{type:ColorType.Solid,color:p.panel},textColor:p.text,fontSize:11,fontFamily:'ui-monospace, monospace',attributionLogo:true,panes:{separatorColor:p.border,separatorHoverColor:p.accent,enableResize:true}},grid:{vertLines:{color:p.grid},horzLines:{color:p.grid}},crosshair:{mode:CrosshairMode.Normal,vertLine:{color:p.text,labelBackgroundColor:p.border},horzLine:{color:p.text,labelBackgroundColor:p.border}},rightPriceScale:{borderColor:p.border},timeScale:{borderColor:p.border,timeVisible:true,secondsVisible:false,rightOffset:3,minBarSpacing:.2,fixLeftEdge:true},handleScroll:this.drawMode==='cursor',handleScale:true});
+  this.chart=createChart(el,{autoSize:true,layout:{background:{type:ColorType.Solid,color:p.panel},textColor:p.text,fontSize:11,fontFamily:'ui-monospace, monospace',attributionLogo:true,panes:{separatorColor:p.border,separatorHoverColor:p.accent,enableResize:true}},grid:{vertLines:{color:p.grid},horzLines:{color:p.grid}},crosshair:{mode:CrosshairMode.Normal,vertLine:{color:p.text,labelBackgroundColor:p.border},horzLine:{color:p.text,labelBackgroundColor:p.border}},rightPriceScale:{borderColor:p.border},timeScale:{borderColor:p.border,timeVisible:true,secondsVisible:false,rightOffset:3,minBarSpacing:.2,fixLeftEdge:true},handleScroll:chartScrollOptions(this.drawMode,this.phoneView?.matches),handleScale:true});
   const options={upColor:p.up,downColor:p.down,borderVisible:false,wickUpColor:p.up,wickDownColor:p.down,color:p.accent,lineWidth:2,priceFormat:axisPriceFormat(pricePrecision(this.bars.at(-1)?.close),this.instrument.quote)};
   this.series=this.chart.addSeries(types[this.style],options);const display=this.style==='heikin'?heikinAshi(this.bars):this.bars;this.series.setData(this.style==='line'?display.map(b=>({time:b.time,value:b.close})):display);this.seriesFirstTime=this.bars[0]?.time;this.seriesLastTime=this.bars.at(-1)?.time;
   this.studyView=null;this.anchoredVwapSeries=null;this.host.classList.remove('stacked-study-panes');this.markerApi=createSeriesMarkers(this.series,[]);this.renderIndicators();
@@ -52,8 +53,13 @@ export class TerminalChart {
   this.gestureController=new AbortController();
   const listenerOptions={capture:true,passive:true,signal:this.gestureController.signal};
   const gesture=()=>{this.markViewportGesture();this.scheduleRangeRender();};
-  for(const name of ['wheel','touchmove'])this.host.addEventListener(name,gesture,listenerOptions);
-  this.host.addEventListener('pointermove',event=>{if(event.buttons)gesture();},listenerOptions);
+  let touchStart;
+  this.host.addEventListener('wheel',gesture,listenerOptions);
+  this.host.addEventListener('touchstart',event=>{touchStart=event.touches[0];},listenerOptions);
+  this.host.addEventListener('touchmove',event=>{
+   if(!this.phoneView?.matches||isChartTouch(touchStart,event.touches))gesture();
+  },listenerOptions);
+  this.host.addEventListener('pointermove',event=>{if(event.buttons&&event.pointerType!=='touch')gesture();},listenerOptions);
   this.chart.timeScale().subscribeVisibleLogicalRangeChange(()=>this.scheduleRangeRender());
   this.chart.timeScale().subscribeSizeChange(()=>this.scheduleRangeRender());
   this.observer=new ResizeObserver(()=>requestAnimationFrame(()=>this.resizeView()));
@@ -431,7 +437,8 @@ export class TerminalChart {
  showLatest(){return this.resetView();}
  setViewPreset(preset){if(!this.chart||!['all','recent'].includes(preset))return;this.viewPreset=preset;this.lastRangeGesture=null;if(preset==='all')this.chart.timeScale().fitContent();else this.chart.timeScale().setVisibleLogicalRange(rangeForPreset(this.bars.length,preset));this.notifyWindow();}
  zoom(factor){if(!this.chart)return;const range=zoomRange(this.chart.timeScale().getVisibleLogicalRange(),factor,this.bars.length);if(range){this.viewPreset='custom';this.chart.timeScale().setVisibleLogicalRange(range);this.notifyWindow();if(factor>1&&range.from<HISTORY_EDGE)this.loadOlder({automatic:true});}}
- setTool(mode,label=''){this.drawMode=mode;this.drawLabel=label;this.pendingPoint=null;this.chart?.applyOptions({handleScroll:mode==='cursor'});this.host.classList.toggle('drawing',mode!=='cursor');}
+ syncScrollOptions(){this.chart?.applyOptions({handleScroll:chartScrollOptions(this.drawMode,this.phoneView?.matches)});}
+ setTool(mode,label=''){this.drawMode=mode;this.drawLabel=label;this.pendingPoint=null;this.syncScrollOptions();this.host.classList.toggle('drawing',mode!=='cursor');}
  addDrawing(points){const a=this.workspace.drawings[this.key]??=[];if(a.length>=40){toast('Maximum 40 drawings per chart.');return;}a.push({id:crypto.randomUUID(),type:this.drawMode,points,label:this.drawLabel||''});this.save();this.draw();this.onDrawings();toast('Drawing saved. Edit its levels in Drawings.');}
  draw(){
   if(!this.chart||!this.svg)return;

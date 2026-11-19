@@ -17,7 +17,12 @@ export function createDialogController({root,background,document:doc=globalThis.
    if(!open){previousFocus=doc.activeElement;previousInert=background.inert;previousOverflow=doc.body.style.overflow;}else{controller?.abort();doc.removeEventListener('keydown',keydown,true);}
    controller=new AbortController();open=true;const current=++revision;background.inert=true;doc.body.style.overflow='hidden';
    root.innerHTML=`<div class="modal-backdrop"><section class="modal ${wide?'wide':''}" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-header"><h2 id="modal-title">${title}</h2><button class="icon-button" data-action="close-modal" aria-label="Close dialog"><i data-lucide="x"></i></button></div>${content}</section></div>`;
-   hydrate();doc.addEventListener('keydown',keydown,true);queueMicrotask(()=>{if(open&&revision===current)focusable()[0]?.focus();});
+   hydrate();doc.addEventListener('keydown',keydown,true);
+   queueMicrotask(()=>{
+    if(!open||revision!==current)return;
+    const fields=focusable();
+    if(!fields.includes(doc.activeElement))fields[0]?.focus();
+   });
   }
  };
 }

@@ -29,8 +29,8 @@ export function marketMoverRanks(observations) {
   };
 }
 
-export function marketMoversPanel() {
-  return `<section id="market-movers" class="era-market-movers" aria-label="Binance market movers">
+export function marketMoversPanel({ phoneOpen=false }={}) {
+  return `<section id="market-movers" class="era-market-movers" aria-label="Binance market movers" data-phone-open="${phoneOpen}">
     <div class="era-movers-heading"><span>Binance USDT pairs · rolling 24h</span><span data-movers-status role="status">Connecting to Binance</span></div>
     ${groups.map(([id,label])=>`<section class="panel era-movers"><div class="panel-top"><h2 id="mover-title-${id}" tabindex="-1">${label}</h2></div><div data-movers-list="${id}" aria-labelledby="mover-title-${id}"></div><p data-movers-empty="${id}" class="data-note">Loading Binance prices…</p></section>`).join('')}
   </section>`;
