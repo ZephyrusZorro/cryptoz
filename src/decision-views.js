@@ -1,6 +1,7 @@
 import {esc,icon,price} from './ui.js';
 import {moneyMarkup} from './currency.js';
 import {getAnalystResearch} from './analyst-research.js';
+import {summarizeForecasts} from './forecast-ledger.js';
 
 export function analystPanel(asset){
  const analysis=getAnalystResearch(asset);
@@ -56,9 +57,11 @@ export function forecastPanel(result,{archive=false,recorded=null,superseded=fal
  ${sample?`<details class="guide-disclosure" data-disclosure="scenarios"><summary>Historical price changes after ${result.horizon} candles</summary><p>${sample.up} higher, ${sample.flat} flat, ${sample.down} lower. The middle outcome was ${percent(sample.median)}. The 10th to 90th percentile range was ${percent(sample.lower)} to ${percent(sample.upper)} across ${sample.count} historical tests.</p></details>`:''}`;
 }
 export function forecastJournal(rows){
- if(!rows.length)return '<p class="data-note">A directional study is recorded here when it passes the evidence checks.</p>';
+ if(!rows.length)return '<p class="data-note">A directional study is recorded in this browser when it passes the evidence checks. Its result appears here after the exact target candle closes.</p>';
  const time=t=>new Date(t*1000).toISOString().slice(5,16).replace('T',' ')+' UTC';
- return `<details class="guide-disclosure" data-disclosure="journal"><summary>Recorded studies · ${rows.filter(r=>r.outcome).length} settled</summary><ol class="forecast-ledger">${rows.slice(0,8).map(r=>`<li><strong>${r.direction==='up'?'Higher':'Flat or lower'}</strong> · ${time(r.asOf)}${r.sampleStart?`<small> · Window starts ${time(r.sampleStart)}</small>`:''}<br>${r.outcome?`Actual close · ${r.outcome.direction==='up'?'higher':r.outcome.direction==='flat'?'flat':'lower'} · ${moneyMarkup(r.outcome.close,r.venue==='binance'?'USDT':'USD','parallel')}`:`Awaiting exact close · ${time(r.targetCloseAt)}`}</li>`).join('')}</ol></details>`;
+ const {settled,correct,pending,modelBrier,baselineBrier}=summarizeForecasts(rows);
+ const metrics=settled?`<dl class="forecast-metrics"><div><dt>Direction matched</dt><dd>${correct} / ${settled}</dd></div><div><dt>Model probability error</dt><dd>${modelBrier.toFixed(3)}</dd></div><div><dt>Historical baseline error</dt><dd>${baselineBrier.toFixed(3)}</dd></div></dl>`:'<p class="data-note">No settled forecast windows from the current model yet.</p>';
+ return `<details class="guide-disclosure" data-disclosure="journal"><summary>Recorded forecasts · ${settled} scored · ${pending} pending</summary><p class="data-note">This browser’s track record uses the first forecast per candle from the current model and skips overlapping outcome windows. Lower probability error is better. Only forecasts that passed the evidence checks were recorded.</p>${metrics}<ol class="forecast-ledger">${rows.slice(0,8).map(r=>`<li><strong>${r.direction==='up'?'Higher':'Flat or lower'}</strong> · ${time(r.asOf)}${r.sampleStart?`<small> · Window starts ${time(r.sampleStart)}</small>`:''}<br>${r.outcome?`Actual close · ${r.outcome.direction==='up'?'higher':r.outcome.direction==='flat'?'flat':'lower'} · ${moneyMarkup(r.outcome.close,r.venue==='binance'?'USDT':'USD','parallel')}`:`Awaiting exact close · ${time(r.targetCloseAt)}`}</li>`).join('')}</ol><button type="button" class="button" data-action="forecast-journal-csv">Download recorded forecasts</button></details>`;
 }
 
 export function learningPrimer(){

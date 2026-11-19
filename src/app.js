@@ -32,6 +32,8 @@ import './navigation-layout.css';
 import './learning-layout.css';
 import './analyst-layout.css';
 import './era.css';
+import './release-five.css';
+import {dismissSurface,motionEnabled as navigationMotion,moveSelection,reveal} from './motion.js';
 import {BENCHMARK_RANGES,benchmarkWindow,dashboardShortcuts} from './dashboard.js';
 import {createMarketMovers,marketMoversPanel} from './market-movers.js';
 import {displayPrice as moverDisplayPrice} from './currency.js';
@@ -45,7 +47,7 @@ import {refreshPage} from './page-refresh.js';
 import {matchesAsset,rankAssets,catalogQuery,normalizeSearch,createLatestSearch,mergeAssets,assetIdentity,isFetchAsset} from './asset-search.js';
 import {newsWindow} from './news-window.js';
 import {renderNewsCards} from './news-view.js';
-import {PRIMARY,resolveNavigation,navigationFor,normalizeDock,readDock,saveDock} from './navigation.js';
+import {GROUPS,PRIMARY,resolveNavigation,navigationFor,normalizeDock,readDock,saveDock} from './navigation.js';
 import {createDataLoader} from './data-loader.js';
 import {palette,chartOptions,readAppearance,applyAppearance} from './theme.js';
 import {DISPLAY_CURRENCY_KEY,currency,axisPriceFormat,displayCurrencyStatus,nativeAndDisplay,moneyMarkup,refreshMoney,setMoneyText} from './currency.js';
@@ -77,7 +79,9 @@ let dockMode=readDock(storage),newsLimit=20;let searchTimer,marketSearchTimer,re
 let benchmarkTask=null,benchmarkObserver=null,practice=null,practiceSelected=null,homeNewsTopic='all',marketGroup='all',insightsView=null,marketScreen=initialScreen();
 let benchmarkRange='7d', benchmarkDisplayed=null;
 const transparencyPreference=matchMedia('(prefers-reduced-transparency: reduce)');
-let materialMode='glass';
+let materialMode='glass',ambientMode='on';
+try{if(storage.getItem('cryptoz.ambient.v1')==='off')ambientMode='off';}catch{}
+document.documentElement.dataset.ambient=ambientMode;
 try{
  const saved=storage.getItem('cryptoz.material.v1');
  if(saved==='solid'||saved==='system')materialMode=saved;
@@ -104,26 +108,19 @@ function coinMark(symbol){return `<span class="coin-mark" aria-hidden="true">${e
 const headingIcons={overview:'layout-dashboard',markets:'globe',screener:'sliders-horizontal',compare:'layers',studio:'grid-2x2',learn:'book-open',news:'newspaper',analysts:'file-text',practice:'layers',replay:'clock',backtest:'activity',risk:'target','market-insights':'activity',workspace:'bookmark'};
 function header(title,description,extra=''){return sectionHeading(title,description,{glyph:headingIcons[page],action:extra,className:'page-heading'});}
 
-function navigationMotion(){return document.documentElement.dataset.motion!=='reduced'&&!matchMedia('(prefers-reduced-motion: reduce)').matches;}
-function reveal(element,{offset=5,duration=240}={}){
- if(!element?.animate||!navigationMotion())return;
- element.getAnimations().filter(animation=>animation.id==='section-entry').forEach(animation=>animation.cancel());
- const motion=element.animate([{opacity:.62,transform:`translateY(${offset}px)`},{opacity:1,transform:'translateY(0)'}],{duration,easing:'cubic-bezier(.22,1,.36,1)'});
- motion.id='section-entry';
-}
-
 function syncDockAccess(){const dock=$('.sidebar');if(dock)dock.inert=dockMode==='hidden';}
 function setDock(mode){dockMode=normalizeDock(mode);document.body.dataset.dock=dockMode;syncDockAccess();saveDock(storage,dockMode);for(const toggle of document.querySelectorAll('[data-action="dock-toggle"]')){toggle.setAttribute('aria-label',dockMode==='hidden'?'Show navigation':'Hide navigation');toggle.setAttribute('aria-expanded',dockMode!=='hidden');}}
 
 function secondaryNav({primary,items,current}){
  if(items.length<2)return '';
- const links=items.map(item=>`<a href="#${item.route}" ${item===current?'aria-current="page"':''}>${esc(item.label)}</a>`).join('');
+ const links=items.map(item=>`<a href="#${item.route}" ${item===current?'aria-current="page"':''}><span class="selection-surface" aria-hidden="true"></span>${esc(item.label)}</a>`).join('');
  return `<nav class="context-nav" aria-label="${primary.sectionLabel}" data-count="${items.length}">${links}</nav>`;
 }
 
 function shell(){
- const dockLinks=PRIMARY.map(item=>`<a href="#${item.route}" data-group="${item.id}" aria-label="${item.label}">${icon(item.icon)}<span class="dock-label" aria-hidden="true">${item.label}</span></a>`).join('');
+ const dockLinks=PRIMARY.map(item=>`<a href="#${item.route}" data-group="${item.id}" aria-label="${item.label}"><span class="selection-surface" aria-hidden="true"></span>${icon(item.icon)}<span class="dock-label" aria-hidden="true">${item.label}</span></a>`).join('');
  $('#app').innerHTML=`
+  <div class="ambient-light" aria-hidden="true"></div>
   <aside class="sidebar" id="navigation-dock" aria-label="Navigation dock">
    <a href="#overview" class="dock-brand" aria-label="CRYPTOZ Home">
     <span class="cryptoz-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
@@ -132,17 +129,17 @@ function shell(){
    <div class="dock-controls"><button type="button" class="icon-button" data-action="dock-hide" aria-controls="navigation-dock" aria-label="Hide navigation" title="Hide navigation">${icon('chevron-left')}</button></div>
   </aside>
   <div class="main-shell">
-   <header class="topbar">
+   <div class="navigation-shell"><header class="topbar">
     <button type="button" class="icon-button dock-header-toggle" data-action="dock-toggle" aria-controls="navigation-dock" aria-label="Show navigation" title="Show navigation">${icon('menu')}</button>
-    <div class="workspace-brand"><a href="#overview" class="topbar-brand" aria-label="CRYPTOZ Home">CRYPTOZ</a><span class="workspace-divider" aria-hidden="true">/</span><span id="workspace-location">Overview</span></div>
-    <button type="button" class="search-trigger" data-action="search" aria-label="Search coins and instruments">${icon('search')}<span>Search coins</span><kbd aria-hidden="true">/</kbd></button>
+    <div class="workspace-brand"><a href="#overview" class="topbar-brand" aria-label="CRYPTOZ Home">CRYPTOZ</a><span id="workspace-location" class="sr-only">Overview</span></div>
+    <button type="button" class="search-trigger" data-action="search" aria-label="Search workspace and coins">${icon('search')}<span>Search workspace or coins</span><kbd aria-hidden="true">/</kbd></button>
     <div class="top-actions">
      <button type="button" class="icon-button appearance-button" data-action="appearance" aria-label="Appearance settings" title="Theme and motion">${icon('settings-2')}</button>
      <button type="button" class="icon-button" title="Refresh data" aria-label="Refresh data" data-action="refresh">${icon('refresh-cw')}</button>
      <a href="#workspace?section=alerts" class="icon-button" aria-label="Price alerts" title="Price alerts">${icon('bell')}<span id="alert-count" aria-hidden="true"></span></a>
     </div>
    </header>
-   <div id="context-root"></div>
+   <div id="context-root"></div></div>
    <div id="connection-notice" role="status" aria-live="polite" hidden></div>
    <main id="main" tabindex="-1"></main>
    <footer class="footer"><span>CRYPTOZ</span><span><a href="https://coinpaprika.com/" target="_blank" rel="noopener noreferrer">Powered by Coinpaprika</a> · <a href="/legal/notices.txt" target="_blank" rel="noopener noreferrer">Licenses</a></span></footer>
@@ -152,7 +149,7 @@ function shell(){
 
 function syncNetworkState(){
  const relevant=page==='overview'?['global','sentiment','news']:isMarketPage()?[marketUniverse==='exchange'?'exchange':'markets']:page==='news'?['news']:page==='workspace'||page==='terminal'?['markets']:page==='studio'?[studioViewName==='defi'?'chains':'markets']:[];const offline=navigator.onLine===false,failed=relevant.some(key=>errors[key]),busy=manualRefreshing||relevant.some(key=>dataLoader.pendingKeys.includes(key));
- document.body.classList.toggle('refreshing',busy);const notice=$('#connection-notice');if(notice){const message=offline?'Internet unavailable. Displayed data may be stale.':operationError?operationError:failed?'Some market data is delayed. Last available values are retained.':busy?'Updating market data…':'';notice.hidden=!message;if(notice.dataset.message!==message){notice.dataset.message=message;notice.innerHTML=message?`<span>${esc(message)}</span>${operationError?'<button class="text-link" data-action="retry-view">Retry view</button>':failed?'<button class="text-link" data-action="refresh">Retry</button>':''}`:'';}notice.classList.toggle('warn',offline||failed||!!operationError);}
+ document.body.classList.toggle('refreshing',busy);const notice=$('#connection-notice');if(notice){const message=offline?'Internet unavailable. Displayed data may be stale.':operationError?operationError:failed?'Some market data is delayed. Last available values are retained.':busy?'Updating market data…':'';notice.hidden=!message;notice.dataset.state=busy&&!offline&&!failed&&!operationError?'loading':'notice';if(notice.dataset.message!==message){notice.dataset.message=message;notice.innerHTML=message?`<span>${esc(message)}</span>${operationError?'<button class="text-link" data-action="retry-view">Retry view</button>':failed?'<button class="text-link" data-action="refresh">Retry</button>':''}`:'';}notice.classList.toggle('warn',offline||failed||!!operationError);}
  for(const button of document.querySelectorAll('[data-action="refresh"]')){button.disabled=manualRefreshing;button.setAttribute('aria-busy',String(manualRefreshing));}
 }
 function updateCurrentData(key){
@@ -201,6 +198,9 @@ function cleanPage(){benchmarkObserver?.disconnect();benchmarkObserver=null;benc
 
 function route(){
  const animate=pageGeneration>0;
+ const oldNav=navigationFor(page);
+ const oldDock=$('.sidebar .active .selection-surface')?.getBoundingClientRect();
+ const oldTab=$('#context-root [aria-current="page"] .selection-surface')?.getBoundingClientRect();
  closeModal({restoreFocus:false});
  operationError='';
  const next=resolveNavigation(location.hash);
@@ -220,10 +220,12 @@ function route(){
   target.scrollIntoView({block:'start',behavior:'instant'});
  }else $('#main').focus({preventScroll:true});
  if(animate){
-  const heading=$('#main .section-heading');
-  reveal(heading);
-  reveal(heading?.nextElementSibling,{offset:4,duration:260});
-  reveal($('#context-root .context-nav'),{offset:3,duration:200});
+  const navigation=navigationFor(page);
+  const sameGroup=oldNav.group===navigation.group;
+  const direction=sameGroup?Math.sign(navigation.items.indexOf(navigation.current)-navigation.items.indexOf(oldNav.current)):0;
+  reveal($('#main > .era-dashboard')??$('#main'),{direction,offset:direction?2:7});
+  moveSelection(oldDock,$('.sidebar .active .selection-surface'));
+  moveSelection(sameGroup?oldTab:null,$('#context-root [aria-current="page"] .selection-surface'));
  }
 }
 function renderPage(){
@@ -257,8 +259,14 @@ function patchLiveQuotes(batch){
  }
 }
 function appearanceModal(){
- modal('Appearance',`<div class="appearance-options"><label>Color theme<select id="appearance-theme"><option value="dark">Dark</option><option value="light">Light</option></select></label><label>Surfaces<select id="appearance-material"><option value="glass">Glass</option><option value="system">Follow device preference</option><option value="solid">Solid</option></select></label><label>Interface motion<select id="appearance-motion"><option value="auto">Follow device preference</option><option value="reduced">Reduce motion</option></select></label><label>Price display<select id="display-currency"><option value="USD">USD · US dollar</option><option value="INR">INR · Indian rupee</option></select></label><p class="data-note" id="display-currency-status">${esc(displayCurrencyStatus())}</p><p class="data-note">Chart display uses the latest reference rate for the whole view. Orders, inputs and raw exports use the exchange quote.</p></div>`);
+ modal('Appearance',`<div class="appearance-options"><label>Color theme<select id="appearance-theme"><option value="dark">Dark</option><option value="light">Light</option></select></label><label>Surfaces<select id="appearance-material"><option value="glass">Glass</option><option value="system">Follow device preference</option><option value="solid">Solid</option></select></label><label>Interface motion<select id="appearance-motion"><option value="auto">Follow device preference</option><option value="reduced">Reduce motion</option></select></label><label>Living background<select id="ambient-mode"><option value="on">On</option><option value="off">Off</option></select></label><label>Price display<select id="display-currency"><option value="USD">USD · US dollar</option><option value="INR">INR · Indian rupee</option></select></label><p class="data-note" id="display-currency-status">${esc(displayCurrencyStatus())}</p><p class="data-note">Chart display uses the latest reference rate for the whole view. Orders, inputs and raw exports use the exchange quote.</p></div>`);
  $('#appearance-theme').value=appearance.theme;$('#appearance-motion').value=appearance.motion;$('#appearance-material').value=materialMode;
+ $('#ambient-mode').value=ambientMode;
+ $('#ambient-mode').addEventListener('change',event=>{
+  ambientMode=event.target.value==='off'?'off':'on';
+  document.documentElement.dataset.ambient=ambientMode;
+  try{storage.setItem('cryptoz.ambient.v1',ambientMode);}catch{}
+ });
  $('#display-currency').value=currency.selected;
  $('#display-currency').addEventListener('change',event=>{
   currency.set(event.target.value);
@@ -360,12 +368,19 @@ function renderInsights(){
 }
 function renderOverview(){
  const tabs=`<div class="home-news-tabs" role="group" aria-label="Home news topics">${[['all','Latest'],['MARKETS','Markets'],['MACRO','Macro'],['POLICY','Policy']].map(([key,label])=>`<button type="button" data-action="home-news-tab" data-topic="${key}" aria-pressed="${homeNewsTopic===key}">${label}</button>`).join('')}</div>`;
- const news=`<section class="panel dashboard-news wb-news"><div class="panel-top"><div><h2>Market news</h2><span class="source">Crypto, policy and macro headlines</span></div><a href="#news" class="text-link">All headlines ${icon('arrow-right')}</a></div>${tabs}<div id="news-results" class="news-reading-panel"></div><div class="panel-bottom" id="home-news-meta">${stateBadge('news')}</div></section>`;
+ const news=`<section class="panel dashboard-news wb-news"><div class="panel-top"><div><h2>Market news</h2></div><a href="#news" class="text-link">All headlines ${icon('arrow-right')}</a></div>${tabs}<div id="news-results" class="news-reading-panel"></div><div class="panel-bottom" id="home-news-meta">${stateBadge('news')}</div></section>`;
  const ranges=`<div class="era-segment" role="group" aria-label="Bitcoin chart history">${[['24h','24H'],['7d','7D'],['30d','30D'],['1y','1Y']].map(([key,label])=>`<button data-action="benchmark-range" data-range="${key}" aria-pressed="${key===benchmarkRange}">${label}</button>`).join('')}</div>`;
  const benchmark=`<section class="panel feature-chart era-benchmark"><div class="panel-top"><h2>${coinMark('BTC')} Bitcoin <span>BTC / USDT</span></h2><a href="#terminal" data-action="default-chart" class="text-link">Full chart ${icon('arrow-up-right')}</a></div><div class="era-benchmark-tools"><div class="benchmark-quote"><strong id="benchmark-price">—</strong><span id="benchmark-change"></span></div>${ranges}</div><div id="benchmark-chart" class="benchmark-chart" aria-label="Bitcoin price history"></div><div class="panel-bottom" id="benchmark-source" role="status">Waiting for exchange candles…</div></section>`;
  const tools=`<div class="era-market-links" aria-label="More research"><a href="#market-insights">${icon('globe')} Market insights</a><a href="#screener">${icon('sliders-horizontal')} Asset screener</a><a href="#learn">${icon('book-open')} Learn crypto</a></div>`;
  benchmarkDisplayed=null;
- $('#main').innerHTML=`<div class="era-dashboard">${sectionHeading('Market overview','Follow live prices, market movers and the headlines behind them.',{glyph:headingIcons.overview,className:'era-hero',action:'<a href="#markets" class="button primary">Explore markets</a>'})}${liveStrip()}<div id="home-totals">${marketStats()}</div><div class="era-market-grid">${benchmark}<div class="era-market-side"><section class="panel home-breadth" id="home-breadth">${breadthContent()}</section><section id="home-brief" class="panel market-feature">${marketBrief(data.markets?.data??[],workspace.watchlist)}</section></div></div>${dashboardShortcuts()}${news}${tools}</div>`;
+ $('#main').innerHTML=`<div class="era-dashboard home-studio">
+  <div class="home-intro"><div><h1>Market overview</h1><p>Track crypto prices, market breadth and the news behind the move.</p></div><a href="#markets" class="button primary">Explore markets ${icon('arrow-right')}</a></div>
+  <div class="home-showcase">${benchmark}${news}</div>
+  ${liveStrip()}
+  <div id="home-totals">${marketStats()}</div>
+  <div class="home-market-panels"><section class="panel home-breadth" id="home-breadth">${breadthContent()}</section><section id="home-brief" class="panel market-feature">${marketBrief(data.markets?.data??[],workspace.watchlist)}</section></div>
+  ${dashboardShortcuts()}${tools}
+ </div>`;
  renderNewsResults();observeBenchmark(pageGeneration);
 }
 
@@ -405,7 +420,7 @@ async function loadBenchmark(gen){
    if(benchmarkDisplayed!==range)mini.timeScale().fitContent();
    benchmarkDisplayed=range;
    setMoneyText($('#benchmark-price'),bars.at(-1).close,'USDT');
-   $('#benchmark-change').innerHTML=Number.isFinite(change)?`<span class="${tone(change)}">${pct(change)}</span><small>24h candles</small>`:'';
+   $('#benchmark-change').innerHTML=Number.isFinite(change)?`<span class="${tone(change)}">${pct(change)}</span><small>24h change</small>`:'';
    $('#benchmark-source').textContent=`Binance · ${range.toUpperCase()} · ${bars.length} × ${interval} candles · ${r.cache==='stale'?'Cached · ':''}${stamp(r.fetchedAt)}`;patchLiveQuotes();
   }catch(error){
    if(active()){
@@ -481,7 +496,7 @@ function layoutModal(){if(!terminal)return;modal('Saved chart layouts',`<p class
 
 const guideOptions=[
  ['none','None'],['range','Recent high and low'],['trend','Swing trend'],['fibonacci','Fibonacci levels'],
- ['zones','Support and resistance'],['profile','Volume by price'],['prev-day','Previous day'],['prev-week','Previous week'],['daily-pivots','Daily pivot levels']
+ ['zones','Support and resistance'],['profile','Volume by price'],['prev-day','Previous day'],['prev-week','Previous week'],['daily-pivots','Daily pivot levels'],['anchored-vwap','Anchored VWAP']
 ];
 function autoControls(){
  const guide=normalizePreferences(workspace.preferences).autoGuide;
@@ -610,14 +625,28 @@ function exportForecastCases(){
  download(`cryptoz-test-${terminal.instrument.venue}-${terminal.instrument.symbol}-${terminal.interval}-${forecastHorizon}bars.csv`,serializeCSV(['origin_close_utc','target_close_utc','training_labels_through_utc','horizon_bars','model_score_up','historical_rate_up','recent_rate_up','last_close_momentum','actual_higher','actual_return'],rows.map(r=>[date(r.asOf),date(r.targetCloseAt),date(r.trainedThrough),r.horizon??forecastHorizon,r.modelProbability,r.baselineProbability,r.recentBaselineProbability??'',r.momentumBaselineProbability??'',r.actualUp,r.actualReturn??''])),'text/csv');
 }
 
+function exportForecastJournal(){
+ if(!terminal)return;
+ const rows=forecastLedger.list(terminal.instrument,terminal.interval).filter(row=>row.horizon===forecastHorizon);
+ if(!rows.length)return;
+ const utc=time=>Number.isFinite(time)?new Date(time*1000).toISOString():'';
+ download('cryptoz-recorded-forecasts.csv',serializeCSV(
+  ['venue','symbol','interval','model','horizon_bars','sample_start_utc','origin_close_utc','issued_at_utc','target_close_utc','origin_price','score_up','historical_baseline_up','direction','settled_at_utc','actual_price','actual_direction'],
+  rows.map(row=>[row.venue,row.symbol,row.interval,row.version,row.horizon,utc(row.sampleStart),utc(row.asOf),utc(row.issuedAt),utc(row.targetCloseAt),row.originClose,row.probabilityUp,row.baselineProbabilityUp,row.direction,utc(row.outcome?.settledAt),row.outcome?.close??'',row.outcome?.direction??''])
+ ),'text/csv');
+}
+
 function activateChartPanel(value,{reflect=true}={}){
  const selectedPane=chartPanelFor(value);
+ const previous=$('.wb-tabs [aria-selected=true]');
+ const oldRect=previous?.querySelector('.selection-surface')?.getBoundingClientRect();
  document.querySelectorAll('[data-chart-pane]').forEach(el=>el.hidden=el.dataset.chartPane!==selectedPane);
  document.querySelectorAll('[data-action="chart-panel"]').forEach(el=>{
   el.setAttribute('aria-selected',String(el.dataset.pane===selectedPane));
   el.tabIndex=el.dataset.pane===selectedPane?0:-1;
  });
  if(selectedPane==='depth'){lastBookPaint=0;updateBook(activeBook);}
+ if(previous?.dataset.pane!==selectedPane)moveSelection(oldRect,$('#wb-tab-'+selectedPane+' .selection-surface'));
  if(reflect)writeChartLocation(selectedPane);
 }
 function writeChartLocation(pane=$('[data-action="chart-panel"][aria-selected="true"]')?.dataset.pane){
@@ -789,9 +818,23 @@ function updateAlertCount(){const n=workspace.alerts.filter(a=>a.active).length;
 function modal(title,content,wide=false){modalGeneration++;clearTimeout(searchTimer);catalogSearch.cancel();dialogController.open(title,content,wide);}
 function closeModal(options){dialogController?.close(options);}
 
-function openSearch(){remoteAssets=[];remoteError='';remoteLoading=false;modal('Find an asset',`<label class="command-search">${icon('search')}<input id="command-input" maxlength="80" placeholder="Name, ticker or trading pair" autocomplete="off" aria-label="Search coins and instruments"></label><div id="command-results" class="command-results"></div><div class="modal-footer">Search catalog identities and supported exchange pairs. <kbd>ESC</kbd> to close.</div>`,true);$('#command-input').addEventListener('input',e=>{const q=e.target.value;clearTimeout(searchTimer);catalogSearch.cancel();remoteAssets=[];remoteError='';remoteLoading=normalizeSearch(q).length>=2;searchResults(q);if(remoteLoading)searchTimer=setTimeout(()=>catalogSearch.run(q),300);});searchResults('');}
+function openSearch(){remoteAssets=[];remoteError='';remoteLoading=false;modal('Search CRYPTOZ',`<label class="command-search">${icon('search')}<input id="command-input" maxlength="80" placeholder="Page, coin or trading pair" autocomplete="off" aria-label="Search workspace and coins"></label><div id="command-results" class="command-results"></div><div class="modal-footer">Search pages and supported assets. <kbd>ESC</kbd> to close.</div>`,true);$('#command-input').addEventListener('input',e=>{const q=e.target.value;clearTimeout(searchTimer);catalogSearch.cancel();remoteAssets=[];remoteError='';remoteLoading=normalizeSearch(q).length>=2;searchResults(q);if(remoteLoading)searchTimer=setTimeout(()=>catalogSearch.run(q),300);});searchResults('');queueMicrotask(()=>$('#command-input')?.focus({preventScroll:true}));}
 
-function searchResults(q){if(!$('#command-results'))return;const combined=mergeAssets(data.markets?.data??[],remoteAssets);const assets=rankAssets(combined,q,8),pairs=rankAssets([...instruments.binance,...instruments.coinbase],q,8);$('#command-results').innerHTML=`<div class="eyebrow">Crypto assets</div>${assets.map(a=>`<button class="command-row" data-action="asset-chart" data-id="${esc(a.id)}">${coinMark(a.symbol)}<span><strong>${esc(a.name)} <small>${esc(a.symbol)}</small></strong><small>${isFetchAsset(a)?'Fetch.ai · ':''}${esc(a.id)}</small></span><b>${a.price?moneyMarkup(a.price):'View asset'}</b>${icon('chevron-right')}</button>`).join('')||'<p class="search-note">No matching priced asset in the loaded directory.</p>'}<div class="search-note" role="status">${remoteLoading?'Searching the broader asset catalog…':remoteError?'Catalog temporarily unavailable; loaded results remain available.':q.trim().length>=2?'Catalog results show available identities. Price and chart coverage varies.':''}</div><div class="eyebrow">Exchange charts</div>${pairs.map(a=>`<button class="command-row" data-action="select-instrument" data-venue="${a.venue}" data-symbol="${esc(a.symbol)}">${coinMark(a.base)}<span><strong>${esc(a.base)}/${esc(a.quote)}</strong><small>${a.venue.toUpperCase()} spot · ${esc(a.symbol)}</small></span>${icon('arrow-up-right')}</button>`).join('')||'<p class="search-note">No matching chart pair in the connected venues.</p>'}`;hydrate();}
+const workspaceDestinations=[
+ ...PRIMARY.map(({route,label})=>({route,label})),
+ ...Object.values(GROUPS).flat().filter(({route})=>!PRIMARY.some(item=>item.route===route)),
+ {route:'terminal?panel=evidence&focus=analysis',label:'Forecast'},
+ {route:'terminal?panel=levels&focus=analysis',label:'Price levels'},
+ {route:'terminal?panel=signals&focus=analysis',label:'Chart signals'}
+];
+function workspaceSearch(query){
+ const value=normalizeSearch(query);
+ const matches=value?workspaceDestinations.filter(item=>normalizeSearch(item.label).includes(value)).slice(0,6):workspaceDestinations.slice(0,5);
+ if(!matches.length)return '';
+ return '<div class="eyebrow">Workspace</div>'+matches.map(({route,label})=>'<a class="command-row" data-action="command-page" href="#'+esc(route)+'">'+icon('arrow-up-right')+'<span><strong>'+esc(label)+'</strong></span></a>').join('');
+}
+
+function searchResults(q){if(!$('#command-results'))return;const combined=mergeAssets(data.markets?.data??[],remoteAssets);const assets=rankAssets(combined,q,8),pairs=rankAssets([...instruments.binance,...instruments.coinbase],q,8);$('#command-results').innerHTML=`${workspaceSearch(q)}<div class="eyebrow">Crypto assets</div>${assets.map(a=>`<button class="command-row" data-action="asset-chart" data-id="${esc(a.id)}">${coinMark(a.symbol)}<span><strong>${esc(a.name)} <small>${esc(a.symbol)}</small></strong><small>${isFetchAsset(a)?'Fetch.ai · ':''}${esc(a.id)}</small></span><b>${a.price?moneyMarkup(a.price):'View asset'}</b>${icon('chevron-right')}</button>`).join('')||'<p class="search-note">No matching priced asset in the loaded directory.</p>'}<div class="search-note" role="status">${remoteLoading?'Searching the broader asset catalog…':remoteError?'Catalog temporarily unavailable; loaded results remain available.':q.trim().length>=2?'Catalog results show available identities. Price and chart coverage varies.':''}</div><div class="eyebrow">Exchange charts</div>${pairs.map(a=>`<button class="command-row" data-action="select-instrument" data-venue="${a.venue}" data-symbol="${esc(a.symbol)}">${coinMark(a.base)}<span><strong>${esc(a.base)}/${esc(a.quote)}</strong><small>${a.venue.toUpperCase()} spot · ${esc(a.symbol)}</small></span>${icon('arrow-up-right')}</button>`).join('')||'<p class="search-note">No matching chart pair in the connected venues.</p>'}`;hydrate();}
 
 async function chooseAsset(id){let a=(data.markets?.data??[]).find(a=>a.id===id)??assetLookup.get(id);if(!a)return;const show=notice=>{const matches=[...instruments.binance,...instruments.coinbase].filter(x=>x.base===a.symbol);modal(`${esc(a.name)} <span class="muted">${esc(a.symbol)}</span>`,`<div class="asset-detail"><div><small>Aggregate price</small><strong>${moneyMarkup(a.price)}</strong><span class="${tone(a.change)}">${pct(a.change)} / 24h</span></div><p>${isFetchAsset(a)?'Also known as Fetch.ai.<br>':''}Asset ID: <code>${esc(a.id)}</code><br>${a.updatedAt?'Updated '+esc(stamp(a.updatedAt)):esc(notice)}</p></div><div class="callout">${matches.length?'Choose an exchange chart. Verify the listed token identity before acting.':'No Binance USDT or Coinbase USD chart is currently connected for this asset. Price and history depend on provider coverage.'}</div><div class="era-asset-research"><a class="text-link" href="#analysts?asset=${encodeURIComponent(analystAssetKey(a))}">Analyst research ${icon('arrow-up-right')}</a></div><div class="instrument-choices">${matches.map(x=>`<button class="command-row" data-action="select-instrument" data-venue="${x.venue}" data-symbol="${esc(x.symbol)}">${coinMark(x.base)}<span><strong>${esc(x.base)}/${esc(x.quote)}</strong><small>${x.venue.toUpperCase()} spot</small></span>${icon('arrow-up-right')}</button>`).join('')}</div>`);};show('Loading current price…');if(!a.price){const gen=modalGeneration;try{const r=await api('asset?id='+encodeURIComponent(id),{signal:dialogController.signal});if(gen!==modalGeneration)return;a=r.data;assetLookup.set(id,a);show('');}catch{if(gen===modalGeneration)show('Current price unavailable from the provider.');}}}
 
@@ -919,7 +962,7 @@ document.addEventListener('click',e=>{
   workspace.preferences.lastInstrument=selected;save();location.hash='terminal';return;
  }
 
- if(a==='search'){openSearch();return;}if(a==='close-modal'){closeModal();return;}
+ if(a==='search'){openSearch();return;}if(a==='command-page'){closeModal({restoreFocus:b.getAttribute('href')===location.hash});return;}if(a==='close-modal'){closeModal();return;}
 
  if(a==='refresh'){refreshCurrent();return;}
 
@@ -978,11 +1021,12 @@ document.addEventListener('click',e=>{
  }
  if(a==='clear-signal'&&terminal){terminal.clearSignalFocus();$('[data-action="show-signals"]')?.focus({preventScroll:true});return;}
  if(a==='forecast-csv'){exportForecastCases();return;}
+ if(a==='forecast-journal-csv'){exportForecastJournal();return;}
  if(a==='suggest-studies'&&terminal){const state=buildStudyPov({bars:terminal.studyBars,instrument:selected,interval:selectedInterval,nowSeconds:terminal.historyAnchor??Date.now()/1000,candleMeta:terminal.candleMeta,confirmedThrough:terminal.confirmedThrough});if(!state.ready){toast('Wait for enough closed candles.');return;}const preset=STUDY_PRESETS[state.trend==='Mixed'?'range':'trend'];terminal.studyIds=normalizeStudyIds(preset.studies);terminal.renderIndicators();refreshIndicatorStrip();updateSummary();capturePreferences();toast(preset.label+' studies applied');return;}
  if(a==='inspect-overlay'){
   activateChartPanel('levels');const tab=$('#wb-tab-levels');tab?.focus({preventScroll:true});tab?.scrollIntoView({block:'center',behavior:navigationMotion()?'smooth':'instant'});return;
  }
- if(a==='manual-guide'&&terminal){terminal.manualDrawing=!terminal.manualDrawing;b.setAttribute('aria-pressed',String(terminal.manualDrawing));$('.drawing-tools').hidden=!terminal.manualDrawing;$('#auto-overlay').value=terminal.manualDrawing?'none':terminal.autoGuide;terminal.setTool('cursor');terminal.draw();updateSummary();return;}
+ if(a==='manual-guide'&&terminal){terminal.manualDrawing=!terminal.manualDrawing;b.setAttribute('aria-pressed',String(terminal.manualDrawing));$('.drawing-tools').hidden=!terminal.manualDrawing;$('#auto-overlay').value=terminal.manualDrawing?'none':terminal.autoGuide;terminal.setTool('cursor');terminal.setAutoGuide(terminal.autoGuide);updateSummary();return;}
  if(a==='chart-history-date'){historyDateModal();return;}
 
  if(a==='fit-chart'){terminal?.setViewPreset('all');capturePreferences();return;}
@@ -1022,7 +1066,7 @@ $('#modal-root').addEventListener('click',e=>{if(e.target.classList.contains('mo
 window.addEventListener('resize',syncDockAccess);
 window.addEventListener('storage',e=>{if(e.key==='cryptoz.workspace.v2')toast('Workspace changed in another tab. Export this tab before reloading if it contains unsaved research.');});window.addEventListener('hashchange',route);window.addEventListener('error',()=>{operationError='This view could not update. Retry the view.';syncNetworkState();});window.addEventListener('unhandledrejection',event=>{if(event.reason?.name==='AbortError')return;operationError='An operation could not finish. Retry the view.';syncNetworkState();});window.addEventListener('online',()=>{operationError='';syncNetworkState();refreshCurrent();});window.addEventListener('offline',syncNetworkState);
 
-marketStream=new MarketStream({onBatch:patchLiveQuotes,onStatus:patchLiveStatus});liveMarketView=createLiveMarketView(document,marketStream);marketMoversView=createMarketMovers(document,marketStream,value=>moverDisplayPrice(value,'USDT'));shell();dialogController=createDialogController({root:$('#modal-root'),background:$('#app'),hydrate,fallbackFocus:()=>$('#main'),onClose:()=>{modalGeneration++;clearTimeout(searchTimer);catalogSearch.cancel();}});route();
+marketStream=new MarketStream({onBatch:patchLiveQuotes,onStatus:patchLiveStatus});liveMarketView=createLiveMarketView(document,marketStream);marketMoversView=createMarketMovers(document,marketStream,value=>moverDisplayPrice(value,'USDT'));shell();dialogController=createDialogController({root:$('#modal-root'),background:$('#app'),hydrate,animateExit:dismissSurface,fallbackFocus:()=>$('#main'),onClose:()=>{modalGeneration++;clearTimeout(searchTimer);catalogSearch.cancel();}});route();
 marketStream.setRegistry(BENCHMARK_ASSETS.map(base=>({symbol:base+'USDT',venue:'binance',quote:'USDT'})));
 fetchData();loadInstruments();
 try{currency.set(storage.getItem(DISPLAY_CURRENCY_KEY));}catch{}

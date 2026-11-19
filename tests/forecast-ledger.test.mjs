@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createForecastLedger, FORECAST_STORAGE_KEY } from '../src/forecast-ledger.js';
+import { createForecastLedger, FORECAST_STORAGE_KEY, summarizeForecasts } from '../src/forecast-ledger.js';
 
 const btc = { venue: 'binance', symbol: 'BTCUSDT', base: 'BTC', quote: 'USDT' };
 const coinbase = { venue: 'coinbase', symbol: 'BTC-USD', base: 'BTC', quote: 'USD' };
@@ -11,6 +11,15 @@ const entry = {
   venue: btc.venue, symbol: btc.symbol, interval: '1h', version: 'adaptive-v1', horizon: 5,
   asOf, targetCloseAt, originClose: 100, probabilityUp: 0.71, baselineProbabilityUp: 0.51, direction: 'up',
 };
+
+test('recorded performance uses first-issued, settled, non-overlapping windows of the same model',()=>{
+  const resolved={...entry,issuedAt:asOf+1,outcome:{close:110,direction:'up'}};
+  const later={...resolved,asOf:targetCloseAt,targetCloseAt:targetCloseAt+5*defaultStep,issuedAt:targetCloseAt+1,outcome:{close:90,direction:'down'}};
+  const summary=summarizeForecasts([later,{...resolved,issuedAt:asOf+2,probabilityUp:.9},{...resolved,asOf:asOf+defaultStep,issuedAt:asOf+defaultStep+1},{...resolved,version:'other'},resolved],entry.version);
+  assert.equal(summary.settled,2);
+  assert.equal(summary.correct,1);
+  assert.equal(summary.modelBrier,((.71-1)**2+.71**2)/2);
+});
 
 function storage(initial) {
   const values = new Map(initial);

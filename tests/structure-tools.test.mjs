@@ -1,8 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {structureTools, previousPeriodLevels} from '../src/structure-tools.js';
+import {structureTools, previousPeriodLevels, peakVolumeVwap} from '../src/structure-tools.js';
 const T=1700000040,step=60;
 const feed=Array.from({length:80},(_,i)=>{const x=100+Math.sin(i*Math.PI/4)*2;return {time:T+i*step,open:x,close:x,high:x+1,low:x-1,volume:10+i};});
+test('anchored VWAP ignores the forming bar and starts on the largest closed volume',()=>{
+ const bars=feed.slice(0,22).map((bar,i)=>({...bar,volume:i===19?40:i===21?400:1}));
+ const result=peakVolumeVwap(bars,step,bars[21].time);
+ assert.equal(result.series.length,2);
+ assert.equal(result.anchor,bars[19].time);
+ assert.equal(result.series[0].value,bars[19].close);
+ assert.ok(Math.abs(result.series[1].value-(40*bars[19].close+bars[20].close)/41)<1e-10);
+ assert.equal(peakVolumeVwap(bars.filter((_,i)=>i!==10),step,bars[21].time),null);
+});
 test('profile accounts for selected candle volume and excludes forming or future data',()=>{
  const edge=feed.at(-1).time+step,one=structureTools(feed,step,edge);
  const next={time:edge,open:1000,close:1000,high:1000,low:1000,volume:1e10};

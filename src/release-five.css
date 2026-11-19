@@ -1,0 +1,140 @@
+:root{
+ --interface-glass:linear-gradient(120deg,#98bdff28,transparent 43%,#bcb9ff16),#0e18346b;
+ --interface-rim:#b6d3ff54;
+ --glass-pick:linear-gradient(145deg,#b5d5ff37,#809eff17 67%,#c7dfff28);
+ --ambient-cool:#437cfa65;
+ --ambient-warm:#764de96e;
+}
+:root[data-theme=light]{
+ --interface-glass:linear-gradient(132deg,#fff9,#f4faff5e 60%,#d4e6ff78),#ecf6ff82;
+ --interface-rim:#fff;
+ --glass-pick:linear-gradient(145deg,#fffdfb,#c9dfff9e 70%,#e7f4ffa8);
+ --ambient-cool:#76c5ff9c;
+ --ambient-warm:#b2a1f67d;
+}
+
+/* Separate the floating controls from the reading and chart surfaces. */
+#app .navigation-shell{
+ position:sticky;top:10px;z-index:30;
+ width:min(calc(100% - 2 * var(--page-gutter)),calc(1660px - 2 * var(--page-gutter)));
+ margin:10px auto 0;padding:4px;
+ border:1px solid var(--interface-rim);border-radius:21px;
+ background:var(--interface-glass);box-shadow:inset 0 1px 0 var(--glass-shine),0 10px 24px #0c153a29;
+ -webkit-backdrop-filter:blur(18px) saturate(145%);backdrop-filter:blur(18px) saturate(145%);
+}
+#app .navigation-shell :is(.topbar,#context-root .context-nav){
+ width:100%;position:relative;inset:auto;border:0;margin:0;padding-inline:11px;
+ background:transparent!important;box-shadow:none;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+}
+#app .navigation-shell .topbar{height:49px}
+#app .navigation-shell #context-root{position:relative;inset:auto;border-block-start:1px solid var(--era-outline)}
+#app .navigation-shell #context-root .context-nav{min-height:0;gap:5px;padding-block:5px 0}
+#app .navigation-shell #context-root .context-nav a{position:relative;isolation:isolate;min-height:35px;border:0;border-radius:11px}
+#app .navigation-shell #context-root .context-nav a[aria-current=page],#app .sidebar nav a.active{background:transparent!important;border-color:transparent!important;box-shadow:none}
+#app .navigation-shell #context-root .context-nav a[aria-current=page]::after,#app .sidebar nav a.active::before{display:none}
+#app .sidebar nav a{isolation:isolate}
+.selection-surface{
+ display:none;position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;
+ background:var(--glass-pick);border:1px solid var(--interface-rim);
+ box-shadow:inset 0 1px 0 var(--glass-shine),0 3px 10px #183c8d1a;
+}
+:is(.sidebar nav a.active,.context-nav a[aria-current=page],.wb-tabs button[aria-selected=true])>.selection-surface{display:block}
+.wb-tabs button{position:relative;isolation:isolate}
+.wb-tabs button[aria-selected=true]{background:transparent;border-color:transparent}
+#app .navigation-shell .search-trigger{background:var(--era-control);border-color:var(--era-outline)}
+#app #connection-notice[data-state=loading]:not([hidden]){
+ position:absolute;width:1px;height:1px;margin:0;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0;
+}
+body.chart-focus #app .navigation-shell{display:none}
+#app main{padding-block-start:clamp(18px,2.1vw,30px)}
+.section-heading{
+ border:0;border-block-end:1px solid var(--era-outline);border-radius:0;padding:3px 1px 16px;
+ background:transparent;box-shadow:none;overflow:visible;
+}
+.section-heading::before{display:none}
+.section-heading h1{font-size:clamp(26px,3.2vw,42px);font-weight:740}
+.heading-icon{width:clamp(36px,3.6vw,48px)}
+
+.ambient-light{
+ position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;contain:strict;
+}
+.ambient-light::before{
+ content:'';position:absolute;inset:-8%;opacity:.63;
+ background:radial-gradient(52% 46% at 78% 12%,var(--ambient-warm),transparent 78%),radial-gradient(52% 48% at 6% 80%,var(--ambient-cool),transparent 82%);
+}
+:root[data-ambient=off] .ambient-light,:root[data-material=solid] .ambient-light{display:none}
+
+.home-studio{gap:clamp(14px,1.6vw,22px)}
+.home-intro{display:flex;justify-content:space-between;align-items:end;gap:13px;flex-wrap:wrap;padding:0 1px 1px}
+.home-intro h1{font-size:clamp(30px,4.2vw,55px);font-weight:760;letter-spacing:-.062em;line-height:1.04}
+.home-intro p{margin-block-start:7px;color:var(--subtle-text);font-size:clamp(13px,1.2vw,15px);max-width:52ch}
+.home-intro .button{min-height:38px;font-size:12px}
+.home-showcase,.home-market-panels{display:grid;grid-template-columns:minmax(0,1.52fr) minmax(0,1fr);gap:clamp(12px,1.5vw,20px);align-items:start}
+.home-showcase>.panel,.home-market-panels>.panel{margin:0;border-radius:18px}
+.home-showcase .era-benchmark{padding:0 14px 4px;background:linear-gradient(145deg,#7fa3fa18,transparent 60%),var(--era-content)}
+.home-showcase .benchmark-chart{height:clamp(223px,34vh,326px)}
+.home-showcase .benchmark-quote>strong{font-size:clamp(23px,3vw,38px);letter-spacing:-.05em;line-height:1.14}
+.home-showcase .dashboard-news>.panel-top{padding:15px 14px 9px}
+.home-showcase .news-reading-panel{border-radius:0;box-shadow:none}
+.home-showcase .news-reading-panel .news-card{
+ display:grid;grid-template-columns:1fr;gap:4px;min-height:0;padding:9px 14px;
+}
+.home-showcase .news-reading-panel .news-card-top{display:flex;gap:7px}
+.home-showcase .news-reading-panel .news-card-top time{margin-left:auto}
+.home-showcase .dashboard-news .news-reading-panel .news-card .news-headline{
+ display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;
+ font-family:inherit;font-size:clamp(12px,1.2vw,15px);font-weight:650;letter-spacing:0;line-height:1.43;
+}
+.home-showcase .news-reading-panel .news-card-bottom{display:none}
+.home-showcase .home-news-tabs{padding:0 10px 7px;gap:2px}
+.home-showcase .home-news-tabs button{min-height:31px;padding-inline:8px}
+.home-showcase #home-news-meta{padding:8px 14px}
+.home-market-panels .home-breadth{padding:13px}
+.command-results .command-row{min-height:39px}
+.command-results a.command-row:hover,.command-results a.command-row:focus-visible{background:var(--nav-highlight)}
+
+@keyframes ambient-drift{
+ from{transform:translate3d(-2%,0,0) scale(1)}
+ to{transform:translate3d(4%,3%,0) scale(1.08);opacity:.82}
+}
+@keyframes rim-light{
+ from{opacity:.25;transform:scale(.97)}
+ to{opacity:.85;transform:scale(1)}
+}
+@media(prefers-reduced-motion:no-preference){
+ .ambient-light::before{animation:ambient-drift 24s ease-in-out infinite alternate}
+ :is(.navigation-shell,.sidebar,.wb-toolbar,.wb-tabs,.modal)::after{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  border:1px solid transparent;border-block-start-color:var(--interface-rim);opacity:.3;
+ }
+ :is(.navigation-shell,.sidebar,.wb-toolbar,.wb-tabs,.modal):focus-within::after{animation:rim-light 400ms ease-out both}
+ #app :is(.button,.icon-button,.tab,.chip,.context-nav a,.sidebar nav a,.timeframes button,.wb-tabs button,.chart-menu summary,.dock-brand,.home-news-tabs button,select,input){
+  transition:transform 180ms var(--era-ease),background-color 230ms ease,color 200ms ease,border-color 210ms ease,box-shadow 210ms ease;
+ }
+ #app :is(.button,.icon-button,.tab,.chip,.context-nav a,.sidebar nav a,.timeframes button,.wb-tabs button,.chart-menu summary,.dock-brand,.home-news-tabs button):active{transform:scale(.96)}
+ @media(hover:hover){
+  :is(.navigation-shell,.sidebar,.wb-toolbar,.wb-tabs):hover::after{animation:rim-light 400ms ease-out both}
+  #app :is(.chart-menu summary,.home-news-tabs button,.context-nav a,.wb-tabs button,.dock-brand):hover{transform:translateY(-1px)}
+ }
+}
+:root[data-motion=reduced] .ambient-light::before{animation:none}
+:root[data-material=solid] #app .navigation-shell,:root[data-material=solid] .selection-surface{background:var(--panel2);-webkit-backdrop-filter:none;backdrop-filter:none}
+:root[data-material=solid] .section-heading{background:transparent}
+@media(max-width:930px){.home-showcase{grid-template-columns:minmax(0,1fr) minmax(0,.86fr)}}
+@media(max-width:760px){
+ #app .navigation-shell{top:0;position:relative;border-radius:16px}
+ .home-showcase,.home-market-panels{grid-template-columns:minmax(0,1fr)}
+ #app .navigation-shell .topbar{height:45px;padding-inline:5px}
+ #app .navigation-shell #context-root .context-nav{padding-inline:0}
+ .home-showcase .dashboard-news .news-reading-panel .news-card .news-headline{font-size:14px}
+}
+@media(max-width:400px){
+ #app .navigation-shell{padding:3px}
+ #app .navigation-shell .topbar .top-actions .icon-button,#app .navigation-shell .topbar .search-trigger{min-width:27px;width:27px}
+ .section-heading p{font-size:12px}
+ .home-intro .button{min-height:34px}
+}
+@media(forced-colors:active){
+ .ambient-light{display:none}
+ :is(.sidebar nav a.active,.context-nav a[aria-current=page],.wb-tabs button[aria-selected=true])>.selection-surface{border:2px solid Highlight}
+}

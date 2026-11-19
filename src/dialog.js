@@ -1,8 +1,10 @@
-export function createDialogController({root,background,document:doc=globalThis.document,onClose=()=>{},hydrate=()=>{},fallbackFocus=()=>null}){
+export function createDialogController({root,background,document:doc=globalThis.document,onClose=()=>{},hydrate=()=>{},fallbackFocus=()=>null,animateExit}){
  let open=false,previousFocus,previousInert=false,previousOverflow='',controller,revision=0;
  const focusable=()=>[...root.querySelectorAll('button,input,select,textarea,a[href],[tabindex="0"]')].filter(el=>!el.disabled&&el.getClientRects().length>0);
  function close({restoreFocus=true}={}){
-  if(!open)return;open=false;revision++;controller?.abort();doc.removeEventListener('keydown',keydown,true);root.innerHTML='';background.inert=previousInert;doc.body.style.overflow=previousOverflow;onClose();
+  if(!open)return;open=false;revision++;controller?.abort();doc.removeEventListener('keydown',keydown,true);
+  if(!restoreFocus||!animateExit?.(root.firstElementChild))root.innerHTML='';
+  background.inert=previousInert;doc.body.style.overflow=previousOverflow;onClose();
   if(restoreFocus){const target=previousFocus?.isConnected&&previousFocus.getClientRects().length?previousFocus:fallbackFocus();target?.focus({preventScroll:true});}
  }
  function keydown(event){

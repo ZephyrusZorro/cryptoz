@@ -18,6 +18,28 @@ const scopeKey = row => [marketKey(row), row.version, row.horizon].join(':');
 const recordKey = row => [scopeKey(row), row.asOf, row.sampleStart ?? 0].join(':');
 const outcomeDirection = (close, originClose) => close > originClose ? 'up' : close < originClose ? 'down' : 'flat';
 
+export function summarizeForecasts(rows, version=FORECAST_VERSION) {
+  const first = new Map();
+  for (const row of rows) {
+    if (row.version !== version) continue;
+    const previous = first.get(row.asOf);
+    if (!previous || row.issuedAt < previous.issuedAt) first.set(row.asOf, row);
+  }
+  const unique = [...first.values()].sort((a,b)=>a.asOf-b.asOf);
+  let end = 0, settled = 0, correct = 0, modelLoss = 0, baselineLoss = 0;
+  for (const row of unique) {
+    if (!row.outcome || row.asOf < end) continue;
+    const up = Number(row.outcome.close > row.originClose);
+    settled++;
+    end = row.targetCloseAt;
+    correct += Number((row.direction === 'up') === Boolean(up));
+    modelLoss += (row.probabilityUp-up)**2;
+    baselineLoss += (row.baselineProbabilityUp-up)**2;
+  }
+  return {settled, correct, pending:unique.filter(row=>!row.outcome).length,
+    modelBrier:settled?modelLoss/settled:null, baselineBrier:settled?baselineLoss/settled:null};
+}
+
 function forecastFields(row) {
   if (!row || typeof row.symbol !== 'string') return null;
   const { venue, symbol, interval, version, horizon, asOf, targetCloseAt, originClose, probabilityUp, baselineProbabilityUp, direction, sampleStart } = row;

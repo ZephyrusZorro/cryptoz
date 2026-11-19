@@ -8,7 +8,7 @@ import {parsePartialBook} from './live-market.js';
 import {createChart,CandlestickSeries,BarSeries,LineSeries,ColorType,CrosshairMode,createSeriesMarkers} from 'lightweight-charts';
 import {renderStudies,normalizeStudyIds,STUDIES} from './studies.js';
 import {buildAutoSetup,chartSignalEvents} from './auto-setup.js';
-import {previousPeriodLevels,structureTools} from './structure-tools.js';
+import {peakVolumeVwap,previousPeriodLevels,structureTools} from './structure-tools.js';
 import {heikinAshi,technicalSummary,normalizeCandles} from './analytics.js';
 import {AUTO_GUIDES,normalizePreferences} from './preferences.js';
 import {api} from './api.js';import {esc,download,toast} from './ui.js';
@@ -44,7 +44,7 @@ export class TerminalChart {
   this.chart=createChart(el,{autoSize:true,layout:{background:{type:ColorType.Solid,color:p.panel},textColor:p.text,fontSize:11,fontFamily:'ui-monospace, monospace',attributionLogo:true,panes:{separatorColor:p.border,separatorHoverColor:p.accent,enableResize:true}},grid:{vertLines:{color:p.grid},horzLines:{color:p.grid}},crosshair:{mode:CrosshairMode.Normal,vertLine:{color:p.text,labelBackgroundColor:p.border},horzLine:{color:p.text,labelBackgroundColor:p.border}},rightPriceScale:{borderColor:p.border},timeScale:{borderColor:p.border,timeVisible:true,secondsVisible:false,rightOffset:3,minBarSpacing:.2,fixLeftEdge:true},handleScroll:this.drawMode==='cursor',handleScale:true});
   const options={upColor:p.up,downColor:p.down,borderVisible:false,wickUpColor:p.up,wickDownColor:p.down,color:p.accent,lineWidth:2,priceFormat:axisPriceFormat(pricePrecision(this.bars.at(-1)?.close),this.instrument.quote)};
   this.series=this.chart.addSeries(types[this.style],options);const display=this.style==='heikin'?heikinAshi(this.bars):this.bars;this.series.setData(this.style==='line'?display.map(b=>({time:b.time,value:b.close})):display);this.seriesFirstTime=this.bars[0]?.time;this.seriesLastTime=this.bars.at(-1)?.time;
-  this.studyView=null;this.markerApi=createSeriesMarkers(this.series,[]);this.renderIndicators();
+  this.studyView=null;this.anchoredVwapSeries=null;this.host.classList.remove('stacked-study-panes');this.markerApi=createSeriesMarkers(this.series,[]);this.renderIndicators();
   if(range)this.chart.timeScale().setVisibleLogicalRange(range);else this.setViewPreset(this.viewPreset==='recent'?'recent':'all');this.notifyWindow();
   this.chart.subscribeCrosshairMove(p=>{const el=this.host.querySelector('.crosshair-hud');if(!el)return;const b=p.seriesData.get(this.series),show=value=>displayPrice(value,this.instrument.quote);el.textContent=b?('open'in b?`O ${show(b.open)}   H ${show(b.high)}   L ${show(b.low)}   C ${show(b.close)}`:`Price ${show(b.value)}`)+(this.markerDescriptions?.has(p.time)?' · '+this.markerDescriptions.get(p.time):''):'';});
   this.chart.subscribeClick(p=>{if(this.drawMode==='cursor'||!p.point||!p.time||(p.paneIndex!==undefined&&p.paneIndex!==0))return;const value=this.series.coordinateToPrice(p.point.y);if(!Number.isFinite(value)||value<=0)return;const point={time:+p.time,price:value};if(this.drawMode==='horizontal'||this.drawMode==='label'){this.addDrawing([point]);}else if(this.pendingPoint){this.addDrawing([this.pendingPoint,point]);this.pendingPoint=null;}else{this.pendingPoint=point;toast('Click the second anchor on the price chart.');}});
@@ -80,6 +80,7 @@ export class TerminalChart {
   if(!this.series)return;
   const priceFormat=axisPriceFormat(pricePrecision(this.bars.at(-1)?.close),this.instrument.quote);
   this.series.applyOptions({priceFormat});
+  this.anchoredVwapSeries?.applyOptions({priceFormat});
   for(const item of this.studyView?.series.values()??[]){
    if(item.usesQuote)item.series.applyOptions({priceFormat});
   }
@@ -100,6 +101,7 @@ export class TerminalChart {
    this.autoSetup={...this.autoSetup,zones:extra.zones,profile:extra.profile,guides:[...this.autoSetup.guides,...extra.guides]};
   }
   this.syncPeriodGuide(cutoff);
+  this.syncAnchoredVwap(cutoff,colors);
   const marks=new Map();
   this.markerDescriptions=new Map();
   for(const signal of this.visibleSignals){
@@ -116,9 +118,26 @@ export class TerminalChart {
  setAutoGuide(key){
   if(!AUTO_GUIDES.includes(key))return false;
   this.autoGuide=key;
-  this.syncPeriodGuide(this.completedCutoff());
+  const cutoff=this.completedCutoff();
+  this.syncPeriodGuide(cutoff);
+  this.syncAnchoredVwap(cutoff);
+  this.analysisRevision++;
   this.draw();
   return true;
+ }
+ syncAnchoredVwap(cutoff,colors=palette()){
+  if(!this.chart||!this.autoSetup)return;
+  const result=this.autoGuide==='anchored-vwap'&&!this.manualDrawing
+   ?peakVolumeVwap(this.studyBars,seconds[this.interval],cutoff):null;
+  this.autoSetup['anchored-vwap']=result;
+  if(!result){
+   if(this.anchoredVwapSeries)this.chart.removeSeries(this.anchoredVwapSeries);
+   this.anchoredVwapSeries=null;
+   return;
+  }
+  this.anchoredVwapSeries??=this.chart.addSeries(LineSeries,{color:colors.cyan,lineWidth:2,lastValueVisible:true,priceLineVisible:false,
+   priceFormat:axisPriceFormat(pricePrecision(this.bars.at(-1)?.close),this.instrument.quote)});
+  this.anchoredVwapSeries.setData(result.series);
  }
  syncPeriodGuide(cutoff){
   const key=this.autoGuide,visibleTime=this.bars.at(-1)?.time;

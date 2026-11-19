@@ -2,6 +2,29 @@ import {normalizeCandles} from './analytics.js';
 const MIN_BARS=28,WINDOW=120,BINS=18;
 const DAY=86_400, WEEK=7*DAY, MONDAY_OFFSET=4*DAY;
 const pin=(id,label,color,price,from,to)=>({id,label,color,type:'horizontal',points:[{time:from,price},{time:to,price}]});
+const validCutoff=(step,cutoff)=>Number.isSafeInteger(step)&&step>0&&Number.isFinite(cutoff);
+function closedWindow(bars,step,cutoff,limit){
+ const closed=normalizeCandles(bars).filter(bar=>bar.time%step===0&&bar.time+step<=cutoff);
+ let start=closed.length-1;
+ while(start>0&&closed.length-start<limit&&closed[start].time-closed[start-1].time===step)start--;
+ return closed.slice(start);
+}
+
+export function peakVolumeVwap(bars,step,cutoff){
+ if(!validCutoff(step,cutoff))return null;
+ const rows=closedWindow(bars,step,cutoff,60);
+ if(rows.length<20)return null;
+ const anchor=rows.reduce((best,bar,i)=>bar.volume>=rows[best].volume?i:best,0);
+ if(rows[anchor].volume<=0)return null;
+ let total=0,weighted=0;
+ const series=rows.slice(anchor).map(bar=>{
+  total+=bar.volume;
+  weighted+=(bar.high+bar.low+bar.close)/3*bar.volume;
+  return {time:bar.time,value:weighted/total};
+ });
+ return {label:'Anchored VWAP',detail:`Starts at the highest-volume candle in the latest ${rows.length} consecutive closed candles. Each candle contributes its average of high, low and close, weighted by venue volume. The anchor can move as the window advances.`,
+  anchor:rows[anchor].time,series,levels:[{name:'Anchor candle typical price',price:series[0].value,time:rows[anchor].time},{name:'Latest anchored VWAP',price:series.at(-1).value,time:series.at(-1).time}]};
+}
 function groupPivots(rows,wiggle,kind,cutoff,step){
  const groups=[];
  for(let i=2;i<rows.length-2;i++){
@@ -67,10 +90,8 @@ export function previousPeriodLevels(bars,step,visibleTime,cutoff,key){
  };
 }
 export function structureTools(bars,step,closedThrough){
- const empty={zones:null,profile:null,guides:[]};if(!Number.isSafeInteger(step)||step<=0||!Number.isFinite(closedThrough))return empty;
- const closed=normalizeCandles(bars).filter(b=>b.time%step===0&&b.time+step<=closedThrough);
- let start=closed.length-1;while(start>0&&closed.length-start<WINDOW&&closed[start].time-closed[start-1].time===step)start--;
- const rows=closed.slice(start);if(rows.length<MIN_BARS)return empty;
+ const empty={zones:null,profile:null,guides:[]};if(!validCutoff(step,closedThrough))return empty;
+ const rows=closedWindow(bars,step,closedThrough,WINDOW);if(rows.length<MIN_BARS)return empty;
  const latest=rows.at(-1),first=rows[0],wiggle=Math.max(latest.close*.001,rows.slice(-24).reduce((mean,b)=>mean+(b.high-b.low)/24,0)*.4);
  const above=groupPivots(rows,wiggle,'high',closedThrough,step).filter(x=>x.price>latest.close).sort((a,b)=>a.price-b.price)[0];
  const below=groupPivots(rows,wiggle,'low',closedThrough,step).filter(x=>x.price<latest.close).sort((a,b)=>b.price-a.price)[0];
