@@ -1,8 +1,16 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import test from 'node:test';
-import handler from '../api/[route].mjs';
+import handler, { marketRequestUrl } from '../api/[route].mjs';
 import release from '../package.json' with { type: 'json' };
+
+test('Vercel routing metadata stays outside the gateway query contract', () => {
+  const rate = marketRequestUrl('/api/fx?pair=USD-INR&route=fx');
+  assert.equal(rate.pathname, '/api/fx');
+  assert.equal(rate.search, '?pair=USD-INR');
+  assert.equal(marketRequestUrl('/api/insights?route=insights&section=macro&extra=1').search, '?section=macro&extra=1');
+  assert.equal(marketRequestUrl('/api/fx?route=unrelated&pair=USD-INR').search, '?route=unrelated&pair=USD-INR');
+});
 
 test('Vercel entry routes health and forwards market requests to the read-only gateway', async () => {
   const server = createServer(handler);
