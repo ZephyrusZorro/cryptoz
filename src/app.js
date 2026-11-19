@@ -34,8 +34,7 @@ import './analyst-layout.css';
 import './era.css';
 import './desktop-polish.css';
 import './phone-layout.css';
-import './material.css';
-import {dismissSurface,motionEnabled as navigationMotion,moveSelection,reveal,usingLiquidGlass} from './motion.js';
+import {dismissSurface,motionEnabled as navigationMotion,moveSelection,reveal} from './motion.js';
 import {PHONE_LAYOUT,chartScrollOptions} from './phone-layout.js';
 import {BENCHMARK_RANGES,benchmarkWindow,dashboardShortcuts} from './dashboard.js';
 import {createMarketMovers,marketMoversPanel} from './market-movers.js';
@@ -118,12 +117,12 @@ function setDock(mode){dockMode=normalizeDock(mode);document.body.dataset.dock=d
 
 function secondaryNav({primary,items,current}){
  if(items.length<2)return '';
- const links=items.map(item=>`<a href="#${item.route}" ${item===current?'aria-current="page"':''}><span class="glass-selection" aria-hidden="true"></span>${esc(item.label)}</a>`).join('');
+ const links=items.map(item=>`<a href="#${item.route}" ${item===current?'aria-current="page"':''}>${esc(item.label)}</a>`).join('');
  return `<nav class="context-nav" aria-label="${primary.sectionLabel}" data-count="${items.length}">${links}</nav>`;
 }
 
 function shell(){
- const dockLinks=phone=>PRIMARY.map(item=>`<a href="#${item.route}" data-group="${item.id}" aria-label="${item.label}"><span class="${phone?'phone-selection':'glass-selection'}" aria-hidden="true"></span>${icon(item.icon)}<span class="dock-label" aria-hidden="true">${item.label}</span></a>`).join('');
+ const dockLinks=phone=>PRIMARY.map(item=>`<a href="#${item.route}" data-group="${item.id}" aria-label="${item.label}">${phone?'<span class="phone-selection" aria-hidden="true"></span>':''}${icon(item.icon)}<span class="dock-label" aria-hidden="true">${item.label}</span></a>`).join('');
  $('#app').innerHTML=`
   <aside class="sidebar" id="navigation-dock" aria-label="Navigation dock">
    <a href="#overview" class="dock-brand" aria-label="CRYPTOZ Home">
@@ -204,11 +203,7 @@ function cleanPage(){benchmarkObserver?.disconnect();benchmarkObserver=null;benc
 function route(){
  const animate=pageGeneration>0;
  const oldNav=navigationFor(page);
- const glass=usingLiquidGlass();
- const dockSelection=phoneView.matches?'.phone-dock .active .phone-selection':'.sidebar .active .glass-selection';
- const sectionSelection='#context-root a[aria-current=page] .glass-selection';
- const previousDock=(phoneView.matches||glass)?$(dockSelection)?.getBoundingClientRect():null;
- const previousSection=glass?$(sectionSelection)?.getBoundingClientRect():null;
+ const previousPhoneSelection=phoneView.matches?$('.phone-dock .active .phone-selection')?.getBoundingClientRect():null;
  closeModal({restoreFocus:false});
  operationError='';
  const next=resolveNavigation(location.hash);
@@ -232,10 +227,8 @@ function route(){
   const sameGroup=oldNav.group===navigation.group;
   const direction=sameGroup?Math.sign(navigation.items.indexOf(navigation.current)-navigation.items.indexOf(oldNav.current)):0;
   reveal($('#main > .era-dashboard')??$('#main'),{direction,offset:direction?2:7});
-  if(glass&&sameGroup&&previousSection?.width){
-   if(direction)moveSelection(previousSection,$(sectionSelection));
-  }else reveal($('#context-root .context-nav'),{direction,offset:2,duration:230});
-  if(!sameGroup&&(glass||phoneView.matches))moveSelection(previousDock,$(dockSelection));
+  reveal($('#context-root .context-nav'),{direction,offset:2,duration:230});
+  if(!sameGroup&&phoneView.matches)moveSelection(previousPhoneSelection,$('.phone-dock .active .phone-selection'));
  }
 }
 function renderPage(){
@@ -269,7 +262,7 @@ function patchLiveQuotes(batch){
  }
 }
 function appearanceModal(){
- modal('Appearance',`<div class="appearance-options"><label>Color theme<select id="appearance-theme"><option value="dark">Dark</option><option value="light">Light</option></select></label><label>Surfaces<select id="appearance-material"><option value="glass">Liquid Glass</option><option value="system">Follow device preference</option><option value="solid">Solid</option></select></label><label>Interface motion<select id="appearance-motion"><option value="auto">Follow device preference</option><option value="reduced">Reduce motion</option></select></label><label>Price display<select id="display-currency"><option value="USD">USD · US dollar</option><option value="INR">INR · Indian rupee</option></select></label><p class="data-note" id="display-currency-status">${esc(displayCurrencyStatus())}</p><p class="data-note">Chart display uses the latest reference rate for the whole view. Orders, inputs and raw exports use the exchange quote.</p></div>`);
+ modal('Appearance',`<div class="appearance-options"><label>Color theme<select id="appearance-theme"><option value="dark">Dark</option><option value="light">Light</option></select></label><label>Surfaces<select id="appearance-material"><option value="glass">Glass</option><option value="system">Follow device preference</option><option value="solid">Solid</option></select></label><label>Interface motion<select id="appearance-motion"><option value="auto">Follow device preference</option><option value="reduced">Reduce motion</option></select></label><label>Price display<select id="display-currency"><option value="USD">USD · US dollar</option><option value="INR">INR · Indian rupee</option></select></label><p class="data-note" id="display-currency-status">${esc(displayCurrencyStatus())}</p><p class="data-note">Chart display uses the latest reference rate for the whole view. Orders, inputs and raw exports use the exchange quote.</p></div>`);
  $('#appearance-theme').value=appearance.theme;$('#appearance-motion').value=appearance.motion;$('#appearance-material').value=materialMode;
  $('#display-currency').value=currency.selected;
  $('#display-currency').addEventListener('change',event=>{
@@ -836,14 +829,7 @@ function syncSheetViewport(){
  style.setProperty('--phone-sheet-height',`${view.height}px`);
  style.setProperty('--phone-sheet-top',`${view.offsetTop}px`);
 }
-function modal(title,content,wide=false){
- modalGeneration++;
- clearTimeout(searchTimer);
- catalogSearch.cancel();
- dialogController.open(title,content,wide);
- $('#modal-root .modal').dataset.surfaceEntry=document.documentElement.dataset.material;
- syncSheetViewport();
-}
+function modal(title,content,wide=false){modalGeneration++;clearTimeout(searchTimer);catalogSearch.cancel();dialogController.open(title,content,wide);syncSheetViewport();}
 function closeModal(options){dialogController?.close(options);}
 
 function openSearch(){remoteAssets=[];remoteError='';remoteLoading=false;modal('Find an asset',`<label class="command-search">${icon('search')}<input id="command-input" maxlength="80" placeholder="Name, ticker or trading pair" autocomplete="off" aria-label="Search coins and instruments"></label><div id="command-results" class="command-results"></div><div class="modal-footer">Search catalog identities and supported exchange pairs. <kbd>ESC</kbd> to close.</div>`,true);$('#command-input').addEventListener('input',e=>{const q=e.target.value;clearTimeout(searchTimer);catalogSearch.cancel();remoteAssets=[];remoteError='';remoteLoading=normalizeSearch(q).length>=2;searchResults(q);if(remoteLoading)searchTimer=setTimeout(()=>catalogSearch.run(q),300);});searchResults('');if(phoneView.matches)$('#command-input')?.focus({preventScroll:true});}

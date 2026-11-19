@@ -1,6 +1,6 @@
 {
   "name": "cryptoz",
-  "version": "5.1.2",
+  "version": "5.1.1",
   "private": true,
   "type": "module",
   "scripts": {
