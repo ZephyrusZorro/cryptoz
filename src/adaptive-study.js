@@ -1,13 +1,13 @@
-import { normalizeCandles } from './analytics.js';
+import { atr, normalizeCandles, sma } from './analytics.js';
 import { INTERVALS, validInstrument } from './preferences.js';
 import { FORECAST_MAX_CANDLES, validForecastHorizon } from './forecast-settings.js';
 
-export const FORECAST_VERSION = 'adaptive-v3';
+export const FORECAST_VERSION = 'adaptive-v4';
 export const FORECAST_HORIZON = 5;
 export const FORECAST_HORIZONS = Object.freeze([FORECAST_HORIZON, 12, 24]);
 export const MIN_HOLDOUT_ORIGINS = 50;
 
-const METHOD = 'Walk-forward logistic regression with time-ordered calibration';
+const METHOD = 'Walk-forward horizon-regularized logistic regression with volatility regime & time-ordered calibration';
 const LOOKBACK = 12;
 const EMBARGO = 1;
 const MIN_TRAINING = 160;
@@ -19,11 +19,21 @@ const MIN_DIRECTION_PROBABILITY = 0.60;
 const MIN_RELIABILITY_CASES = 12;
 const RECENT_TRAINING = 96;
 const BLOCKS = 4;
-const FIT_ITERATIONS = 54;
-const RIDGE = 0.035;
-const LEARNING_RATE = 0.8;
+const FIT_ITERATIONS = 58;
+const BASE_RIDGE = 0.045;
+const LEARNING_RATE = 0.75;
 const PRICE_FIELDS = ['open', 'high', 'low', 'close', 'volume'];
 const SCORE_BANDS = [[0, 0.4], [0.4, 0.6], [0.6, 1]];
+const FEATURE_META = Object.freeze([
+  { id: 'move1', label: '1-bar momentum' },
+  { id: 'move3', label: '3-bar momentum' },
+  { id: 'move6', label: '6-bar momentum' },
+  { id: 'move12', label: '12-bar trend' },
+  { id: 'rangePos', label: 'Close position in bar' },
+  { id: 'rangeExp', label: 'Bar range expansion' },
+  { id: 'volImpulse', label: 'Volume impulse' },
+  { id: 'gkRegime', label: 'Short-term volatility shift' },
+]);
 const BENCHMARKS = [
   { id: 'historical', label: 'Historical up rate', field: 'baselineProbability' },
   { id: 'recent', label: 'Recent up rate', field: 'recentBaselineProbability' },
@@ -55,10 +65,18 @@ function studyFeatures(rows, i) {
   let squaredMoves = 0;
   let totalRange = 0;
   let priorVolume = 0;
+  let gkEarly = 0;
+  let gkRecent = 0;
+  const half = LOOKBACK >> 1;
   for (let j = i - LOOKBACK + 1; j <= i; j++) {
     squaredMoves += (rows[j].close - rows[j - 1].close) ** 2;
-    totalRange += rows[j].high - rows[j].low;
+    const hl = rows[j].high - rows[j].low;
+    totalRange += hl;
     priorVolume += rows[j - 1].volume / LOOKBACK;
+    const co = rows[j].close - rows[j].open;
+    const gk = Math.max(0, 0.5 * hl * hl - (2 * Math.LN2 - 1) * co * co);
+    if (j <= i - half) gkEarly += gk;
+    else gkRecent += gk;
   }
   const scale = Math.max(Math.sqrt(squaredMoves / LOOKBACK), 1e-8);
   const scaledMove = n => Math.tanh((rows[i].close - rows[i - n].close) / (scale * Math.sqrt(n)));
@@ -67,10 +85,12 @@ function studyFeatures(rows, i) {
   const rangeExpansion = totalRange > 1e-8 ? Math.tanh(LOOKBACK * range / totalRange - 1) : 0;
   const volumeImpulse = priorVolume > 0 && rows[i].volume > 0
     ? Math.tanh(Math.log(rows[i].volume) - Math.log(priorVolume)) : 0;
-  return [1, scaledMove(1), scaledMove(3), scaledMove(6), scaledMove(LOOKBACK), rangePosition, rangeExpansion, volumeImpulse];
+  const gkShift = gkEarly > 1e-14 && gkRecent > 1e-14
+    ? Math.tanh(0.5 * Math.log(gkRecent / gkEarly)) : 0;
+  return [1, scaledMove(1), scaledMove(3), scaledMove(6), scaledMove(LOOKBACK), rangePosition, rangeExpansion, volumeImpulse, gkShift];
 }
 
-const sigmoid = value => 1 / (1 + Math.exp(-value));
+const sigmoid = value => 1 / (1 + Math.exp(-Math.max(-30, Math.min(30, value))));
 
 function predict(coefficients, features) {
   let logOdds = 0;
@@ -95,6 +115,8 @@ function train(features, labels, rows, origin, horizon) {
   const coefficients = new Float64Array(features[origin].length);
   const gradient = new Float64Array(coefficients.length);
   coefficients[0] = Math.log(baseline / (1 - baseline));
+  // Scale L2 penalty with horizon overlap because overlapping multi-bar targets reduce effective sample size.
+  const ridge = BASE_RIDGE * Math.sqrt(Math.max(1, horizon / FORECAST_HORIZON));
 
   for (let pass = 0; pass < FIT_ITERATIONS; pass++) {
     gradient.fill(0);
@@ -104,13 +126,13 @@ function train(features, labels, rows, origin, horizon) {
     }
     coefficients[0] -= LEARNING_RATE * gradient[0] / count;
     for (let k = 1; k < coefficients.length; k++) {
-      coefficients[k] -= LEARNING_RATE * (gradient[k] / count + RIDGE * coefficients[k]);
+      coefficients[k] -= LEARNING_RATE * (gradient[k] / count + ridge * coefficients[k]);
     }
   }
   const probability = Math.max(0.01, Math.min(0.99, predict(coefficients, features[origin])));
   const move = Math.sign(rows[origin].close - rows[origin - 1].close);
   return {
-    count, trainedThrough, rawProbability: probability,
+    count, trainedThrough, rawProbability: probability, coefficients,
     baselineProbability: baseline,
     recentBaselineProbability: (recentUps + 1) / (last - recentStart + 3),
     momentumBaselineProbability: 0.5 + 0.25 * move,
@@ -157,9 +179,12 @@ function scoreOrigins(origins, trainingCount) {
     accuracy: model.accuracy >= strongestBaseline.accuracy,
     stability: winningBlocks >= 3 && blocks.at(-1).baselineLoss > blocks.at(-1).modelLoss,
   };
+  const brierSkill = strongestBaseline.brier > 0 ? 1 - model.brier / strongestBaseline.brier : 0;
+  const logLossSkill = strongestBaseline.logLoss > 0 ? 1 - model.logLoss / strongestBaseline.logLoss : 0;
   return {
     count, start: origins[0].asOf, end: origins.at(-1).targetCloseAt, trainingCount,
     modelBrier: model.brier, modelLogLoss: model.logLoss, modelAccuracy: model.accuracy,
+    brierSkill, logLossSkill,
     baselineBrier: baselines[0].brier, baselineAccuracy: baselines[0].accuracy, baselines, strongestBaseline,
     upCount, notUpCount, winningBlocks, blockCount: BLOCKS,
     blocks: blocks.map(block => ({count:block.count, modelBrier:block.count ? block.modelLoss/block.count : null,
@@ -214,12 +239,56 @@ function historicalScenarios(origins) {
   return { count, lower: at(0.1), median: at(0.5), upper: at(0.9), up, down, flat: count - up - down };
 }
 
+function marketRegime(rows, horizon) {
+  if (rows.length < 50) return null;
+  const recent = rows.slice(-64);
+  const closes = recent.map(bar => bar.close);
+  const lastClose = closes.at(-1);
+  const fast = sma(closes, 20).at(-1);
+  const slow = sma(closes, 50).at(-1);
+  const ranges = atr(recent, 14);
+  const currentAtr = ranges.at(-1);
+  if (![lastClose, fast, slow, currentAtr].every(Number.isFinite) || lastClose <= 0) return null;
+  const atrPct = currentAtr / lastClose * 100;
+  const priorAtrs = ranges.slice(0, -1).filter(Number.isFinite);
+  const baselineAtr = priorAtrs.length ? priorAtrs.reduce((sum, val) => sum + val, 0) / priorAtrs.length : currentAtr;
+  const volRatio = baselineAtr > 0 ? currentAtr / baselineAtr : 1;
+  const volatility = volRatio >= 1.3 ? 'Elevated' : volRatio <= 0.75 ? 'Quiet' : 'Normal';
+  const structure = lastClose > fast && fast > slow ? 'Trending up'
+    : lastClose < fast && fast < slow ? 'Trending down' : 'Ranging / mixed';
+  const recent20 = recent.slice(-20);
+  const rangeHigh = Math.max(...recent20.map(bar => bar.high));
+  const rangeLow = Math.min(...recent20.map(bar => bar.low));
+  const horizonMoveScalePct = atrPct * Math.sqrt(horizon);
+  return {
+    structure, volatility, volRatio, atr: currentAtr, atrPct, horizonMoveScalePct,
+    supportLevel: rangeLow, resistanceLevel: rangeHigh,
+    atrSupport: Math.max(0, lastClose - 1.5 * currentAtr),
+    atrResistance: lastClose + 1.5 * currentAtr,
+  };
+}
+
+function featureDrivers(coefficients, featureRow) {
+  if (!coefficients || !featureRow) return [];
+  return FEATURE_META.map((meta, index) => {
+    const k = index + 1;
+    const value = featureRow[k];
+    const weight = coefficients[k];
+    const contribution = weight * value;
+    return {
+      id: meta.id, label: meta.label, value, contribution,
+      direction: contribution > 0.005 ? 'up' : contribution < -0.005 ? 'down' : 'neutral',
+    };
+  }).sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+}
+
 function evaluateHorizon({ rows, features, instrument, interval, step, nowSeconds, stale, validationReason, gap, incompleteHistory }, horizon) {
   const result = {
     version: FORECAST_VERSION, method: METHOD, horizon,
     venue: instrument?.venue ?? null, symbol: instrument?.symbol ?? null, interval,
     closedCount: rows.length, sampleStart: null, asOf: null, targetCloseAt: null,
     reason: null, evidence: null, forecast: null, reliability: null, scenarios: null,
+    regime: null, drivers: [], rawProbabilityUp: null, calibratedProbabilityUp: null,
     requiredCandles: forecastHistoryMinimum(horizon), gap, incompleteHistory,
   };
   const abstain = reason => ({ ...result, reason });
@@ -261,7 +330,7 @@ function evaluateHorizon({ rows, features, instrument, interval, step, nowSecond
     return band;
   }
   for (let i = firstSlot; i <= lastSlot; i += horizon) {
-    const { count, trainedThrough, rawProbability, ...baselines } = train(features, labels, rows, i, horizon);
+    const { count, trainedThrough, rawProbability, coefficients: _unused, ...baselines } = train(features, labels, rows, i, horizon);
     const record = {
       horizon, asOf: closeAt(i), targetCloseAt: closeAt(i + horizon),
       actualUp: labels[i], rawProbability, trainedThrough: closeAt(trainedThrough),
@@ -288,8 +357,12 @@ function evaluateHorizon({ rows, features, instrument, interval, step, nowSecond
   const fitted = train(features, labels, rows, query, horizon);
   result.evidence = { ...scoreOrigins(origins, fitted.count), calibrationOrigins };
   result.scenarios = historicalScenarios(origins);
+  result.regime = marketRegime(rows, horizon);
+  result.drivers = featureDrivers(fitted.coefficients, features[query]);
   const band = calibrationBand(query, fitted.rawProbability);
   const probabilityUp = calibratedScore(band, fitted.rawProbability);
+  result.rawProbabilityUp = fitted.rawProbability;
+  result.calibratedProbabilityUp = probabilityUp;
   result.reliability = {
     bands: scoredBands.map(reportBand), current: currentReliability(band, probabilityUp),
     calibratedOrigins: origins.filter(row => row.calibrated).length,
@@ -331,8 +404,8 @@ export function evaluateAdaptiveStudy({
   while (first > 0 && closed.length - first < max && closed[first].time - closed[first - 1].time === step) first--;
   const rows = closed.slice(first);
   const gap = first > 0 && closed[first].time - closed[first - 1].time !== step;
-  const logRows = rows.map(({ close, high, low, volume }) => ({
-    close: Math.log(close), high: Math.log(high), low: Math.log(low), volume,
+  const logRows = rows.map(({ open, close, high, low, volume }) => ({
+    open: Math.log(open), close: Math.log(close), high: Math.log(high), low: Math.log(low), volume,
   }));
   const features = rows.map((_, index) => index >= LOOKBACK ? studyFeatures(logRows, index) : null);
   const context = { rows, features, instrument, interval, step, nowSeconds, stale, validationReason, gap,

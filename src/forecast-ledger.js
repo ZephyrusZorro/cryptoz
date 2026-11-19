@@ -5,7 +5,8 @@ import { INTERVALS, validInstrument } from './preferences.js';
 export const FORECAST_STORAGE_KEY = 'cryptoz.forecasts.v1';
 const LEGACY_VERSION = 'adaptive-v1';
 const PRESET_VERSION = 'adaptive-v2';
-const MAX_RECORDS = { [LEGACY_VERSION]: 192, [PRESET_VERSION]: 384, [FORECAST_VERSION]: 384 };
+const PRIOR_VERSION = 'adaptive-v3';
+const MAX_RECORDS = { [LEGACY_VERSION]: 192, [PRESET_VERSION]: 384, [PRIOR_VERSION]: 384, [FORECAST_VERSION]: 384 };
 const MAX_PER_SCOPE = 32;
 const MAX_SERIALIZED_LENGTH = 512_000;
 const BENCHMARK_IDS = new Set(['historical', 'recent', 'momentum']);
@@ -47,9 +48,10 @@ function forecastFields(row) {
   const suffix = venue === 'binance' ? 'USDT' : '-USD';
   if (!validInstrument({ venue, symbol, base: symbol.slice(0, -suffix.length), quote })) return null;
   const step = stepFor(interval);
+  const windowedVersion = version === PRIOR_VERSION || version === FORECAST_VERSION;
   const supported = version === LEGACY_VERSION && horizon === FORECAST_HORIZON
     || version === PRESET_VERSION && FORECAST_HORIZONS.includes(horizon)
-    || version === FORECAST_VERSION && validForecastHorizon(horizon)
+    || windowedVersion && validForecastHorizon(horizon)
       && Number.isSafeInteger(sampleStart) && sampleStart > 0 && sampleStart <= asOf && sampleStart % step === 0
       && (asOf - sampleStart) / step < FORECAST_MAX_CANDLES;
   if (!step || !supported
@@ -59,7 +61,7 @@ function forecastFields(row) {
       || !(direction === 'up' && probabilityUp >= 0.60 || direction === 'not-higher' && probabilityUp <= 0.40)) return null;
 
   const fields = { venue, symbol, interval, version, horizon, asOf, targetCloseAt, originClose, probabilityUp, baselineProbabilityUp, direction };
-  if (version === FORECAST_VERSION) fields.sampleStart = sampleStart;
+  if (windowedVersion) fields.sampleStart = sampleStart;
   const { benchmarkId, benchmarkProbabilityUp } = row;
   if (BENCHMARK_IDS.has(benchmarkId) && validProbability(benchmarkProbabilityUp)) {
     return { ...fields, benchmarkId, benchmarkProbabilityUp };

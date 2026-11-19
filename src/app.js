@@ -522,7 +522,7 @@ function paintForecast(chart){
  const target=forecastTarget();if(!target)return;
  const rows=forecastLedger.list(chart.instrument,chart.interval).filter(row=>row.horizon===forecastHorizon);
  const opened=new Set([...target.querySelectorAll('details[open]')].map(node=>node.dataset.disclosure));
- target.innerHTML=(forecastView?forecastPanel(forecastView.result,{archive:Boolean(chart.historyAnchor),recorded:forecastView.recorded,superseded:!chart.historyAnchor&&forecastView.result.asOf<chart.completedCutoff()}):'<p>Run a study to see the tested dates, sample size and baseline comparison.</p>')+forecastJournal(rows);
+ target.innerHTML=(forecastView?forecastPanel(forecastView.result,{archive:Boolean(chart.historyAnchor),recorded:forecastView.recorded,superseded:!chart.historyAnchor&&forecastView.result.asOf<chart.completedCutoff(),quote:chart.instrument.quote}):'<p>Run a study to see the tested dates, sample size and baseline comparison.</p>')+forecastJournal(rows);
  target.querySelectorAll('details').forEach(node=>node.open=opened.has(node.dataset.disclosure));
 }
 function syncForecastScope(chart){
