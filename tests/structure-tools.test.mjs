@@ -61,3 +61,31 @@ test('ATR-scaled swing clustering attaches percent distance from latest close an
  }
  assert.ok(sample.profile.levels.every(level=>Number.isFinite(level.distancePct)));
 });
+
+test('new analytical overlays detect unmitigated FVG, order blocks, ATR channels and BOS/CHoCH causally',()=>{
+ const bars=Array.from({length:60},(_,i)=>{
+  const base=100+Math.sin(i*0.4)*3;
+  return {time:T+i*step,open:base,close:base,high:base+1,low:base-1,volume:20};
+ });
+ // Inject clear bearish origin candle followed by sharp bullish displacement + FVG
+ bars[44]={time:T+44*step,open:101,close:99,high:101.2,low:98.8,volume:30};
+ bars[45]={time:T+45*step,open:99.2,close:109.5,high:110,low:99,volume:120};
+ bars[46]={time:T+46*step,open:109.5,close:111,high:112,low:106.5,volume:80};
+ for(let i=47;i<60;i++){
+  const p=111+(i-47)*0.3;
+  bars[i]={time:T+i*step,open:p,close:p+0.2,high:p+0.8,low:p-0.4,volume:30};
+ }
+ const edge=bars.at(-1).time+step;
+ const result=structureTools(bars,step,edge);
+ assert.ok(result.fvg?.levels?.some(lv=>lv.side==='bullish'&&lv.bottom===101.2&&lv.top===106.5));
+ assert.ok(result['order-blocks']?.levels?.some(lv=>lv.side==='demand'&&lv.bottom===98.8));
+ assert.equal(result['atr-bands']?.levels?.length,5);
+ assert.ok(result.structure?.pivots?.length>=3);
+ assert.ok(result.structure?.breaks?.length>=1);
+ assert.ok(result.guides.some(g=>g.type==='zone'&&g.id.startsWith('fvg-')));
+ assert.ok(result.guides.some(g=>g.type==='zone'&&g.id.startsWith('order-blocks-')));
+ assert.ok(result.guides.some(g=>g.type==='pivot'&&g.id.startsWith('structure-pivot-')));
+ // Causal guarantee: adding an unconfirmed forming bar must not change any overlay output
+ const withForming=structureTools([...bars,{time:edge,open:115,close:60,high:120,low:55,volume:999}],step,edge);
+ assert.deepEqual(withForming,result);
+});

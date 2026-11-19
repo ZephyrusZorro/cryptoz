@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGateway, parseNews, relevantHeadline } from '../server/gateway.js';
+import { createGateway, parseNews, relevantHeadline, scoreNewsImpact } from '../server/gateway.js';
 
 const req=(s)=>new Request('http://localhost/api/'+s);
 test('rejects arbitrary upstreams, invalid symbols and invalid intervals before fetching',async()=>{
@@ -39,3 +39,18 @@ test('all twelve venue/timeframe combinations normalize genuine OHLCV shapes',as
 test('inherited timeframe names are rejected before upstream requests',async()=>{let calls=0;const g=createGateway({fetcher:async()=>{calls++;return Response.json([])}});for(const interval of ['constructor','__proto__','toString'])assert.equal((await g(req('candles?venue=binance&symbol=BTCUSDT&interval='+interval))).status,400);assert.equal(calls,0);});
 
 test('four-hour aggregation excludes incomplete historical source buckets',async()=>{const base=Math.floor(1700000000/14400)*14400,times=[base+3600,base+7200,...Array.from({length:4},(_,i)=>base+14400+i*3600)];const g=createGateway({now:()=>((base+10*14400)*1000),fetcher:async()=>Response.json(times.map(t=>[t,9,12,10,11,2]))});const b=await(await g(req('candles?venue=coinbase&symbol=BTC-USD&interval=4h'))).json();assert.equal(b.data.bars.length,1);assert.equal(b.data.bars[0].time,base+14400);assert.equal(b.data.bars[0].volume,8);});
+
+test('news impact scoring prioritizes fresh market-moving headlines over stale archives',()=>{
+ const now=Date.parse('2026-11-19T12:00:00Z');
+ const fed=scoreNewsImpact({title:'Federal Reserve announces FOMC interest rate cut decision',source:'Federal Reserve',publishedAt:'2026-11-19T11:30:00Z'},now);
+ const hack=scoreNewsImpact({title:'Major DeFi protocol drained in $120M bridge exploit',source:'DL News',publishedAt:'2026-11-19T11:45:00Z'},now);
+ const minor=scoreNewsImpact({title:'Bitcoin community hosts local weekend meetup',source:'Decrypt',publishedAt:'2026-11-19T11:50:00Z'},now);
+ const stale=scoreNewsImpact({title:'Bitcoin tops $80,000 as Clarity Act nears Senate floor with Fed chair',source:'DL News',publishedAt:'2026-05-04T10:00:00Z'},now);
+ assert.equal(fed.impact,'high');
+ assert.equal(hack.impact,'high');
+ assert.equal(minor.impact,'normal');
+ assert.equal(stale.impact,'normal');
+ assert.ok(fed.priority>minor.priority);
+ assert.ok(hack.priority>minor.priority);
+ assert.ok(minor.priority>stale.priority,'fresh headline must outrank 6-month-old archive');
+});

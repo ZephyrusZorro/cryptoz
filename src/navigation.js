@@ -2,6 +2,7 @@ export const PRIMARY = [
  { id: 'home', label: 'Home', icon: 'layout-dashboard', route: 'overview', sectionLabel: 'Home sections' },
  { id: 'markets', label: 'Markets', icon: 'globe', route: 'markets', sectionLabel: 'Market tools' },
  { id: 'research', label: 'Charts', icon: 'chart-no-axes-combined', route: 'terminal', sectionLabel: 'Chart tools' },
+ { id: 'backtest', label: 'Backtest', icon: 'activity', route: 'backtest', sectionLabel: 'Backtesting studio' },
  { id: 'practice', label: 'Practice', icon: 'layers', route: 'practice', sectionLabel: 'Practice tools' },
  { id: 'learn', label: 'Learn', icon: 'book-open', route: 'learn' }
 ];
@@ -23,10 +24,12 @@ export const GROUPS = {
   { route: 'terminal', label: 'Workbench' },
   { route: 'compare', label: 'Compare' }
  ],
+ backtest: [
+  { route: 'backtest', label: 'Backtest studio' }
+ ],
  practice: [
   { route: 'practice', label: 'Paper trading' },
   { route: 'replay', label: 'Market replay' },
-  { route: 'backtest', label: 'Strategy lab' },
   { route: 'risk', label: 'Position calculator' }
  ],
  learn: [{ route: 'learn', label: 'Learning desk' }]

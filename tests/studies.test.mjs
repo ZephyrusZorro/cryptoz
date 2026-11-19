@@ -102,7 +102,7 @@ test('Chaikin Money Flow weights closes by location and counts flat bars as neut
 
 test('chart selections cap active overlays and prefer the latest selected pane', () => {
   assert.deepEqual(studies.normalizeStudyIds(['rsi', 'ema', 'sma', 'bb', 'vwap', 'levels', 'macd', 'levels', 'constructor']), ['rsi','ema','sma','bb','vwap','macd','levels']);
-  assert.equal(studies.normalizeStudyIds(Object.keys(studies.STUDIES)).length,10);
+  assert.equal(studies.normalizeStudyIds(Object.keys(studies.STUDIES)).length, studies.MAX_STUDY_OVERLAYS + studies.MAX_STUDY_PANES);
   assert.deepEqual(studies.normalizeStudyIds(undefined), []);
   for (const preset of Object.values(studies.STUDY_PRESETS)) {
     assert.deepEqual(studies.normalizeStudyIds(preset.studies), preset.studies);
@@ -253,4 +253,23 @@ test('study rendering updates the last point and keeps the resized pane when cha
   view = studies.renderStudies(chart, price, view, revised, ['ema']);
   assert.equal(panes.has(1), false);
   assert.equal(view.paneChanged, true);
+});
+
+test('multi-SMA supports more than 4 simultaneous periods (up to 10) and new institutional studies compute accurately', () => {
+  const sample = bars(Array.from({length: 220}, (_, i) => 100 + Math.sin(i / 9) * 12 + i * 0.25));
+  const periods = [5, 10, 20, 40, 60, 80, 100, 120, 150, 200];
+  const smaRes = study('sma', sample, {smaPeriods: periods});
+  assert.equal(smaRes.series.length, 10);
+  assert.deepEqual(smaRes.series.map(s => s.title), periods.map(p => `SMA ${p}`));
+  assert.ok(smaRes.series.every(s => Number.isFinite(s.values.at(-1))));
+
+  for (const id of ['supertrend', 'ema-ribbon', 'ichimoku', 'psar', 'adx', 'stoch-rsi']) {
+    const res = study(id, sample, {interval: '1h'});
+    assert.equal(res.ready, true, `${id} should be ready`);
+    assert.ok(res.series.length >= 1, `${id} should produce series`);
+  }
+  const vb = study('vwap-bands', sample, {interval: '1h'});
+  assert.equal(vb.ready, true);
+  assert.equal(vb.series.length, 5);
+  assert.equal(study('vwap-bands', sample, {interval: '1d'}).series.length, 0);
 });

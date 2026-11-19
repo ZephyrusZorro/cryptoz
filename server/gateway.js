@@ -11,13 +11,85 @@ const B='https://data-api.binance.vision/api/v3', C='https://api.exchange.coinba
 const fiat=new Set(['USD','EUR','GBP','AUD','CAD','CHF','JPY','CNY','CNH','KRW','INR','BRL','TRY','RUB','UAH','PLN','ARS','IDR','MXN','ZAR']);
 const intervals={'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400};
 const headers={'User-Agent':'CRYPTOZ/1.0 public research terminal','Accept':'application/json, application/rss+xml, text/xml'};
-const sources=[{name:'The Block',url:'https://www.theblock.co/rss.xml'},{name:'CoinDesk',url:'https://www.coindesk.com/arc/outboundfeeds/rss/'},{name:'Decrypt',url:'https://decrypt.co/feed'},{name:'Cointelegraph',url:'https://cointelegraph.com/rss'}];
-export const relevantHeadline=title=>/\b(crypto|bitcoin|btc|ethereum|ether|eth|solana|sol|xrp|blockchain|stablecoin|defi|nft|token|altcoin|binance|coinbase|kraken|tether|usdt|usdc|wallet|trezor|ledger|satoshi|on-chain|web3|hyperliquid|ripple|dogecoin|doge|sec|fed|federal reserve|interest rate|inflation|treasury|cpi|etf)\b/i.test(title);
+const sources=[
+ {name:'Federal Reserve',url:'https://www.federalreserve.gov/feeds/press_all.xml',tier:'official'},
+ {name:'SEC',url:'https://www.sec.gov/news/pressreleases.rss',tier:'official'},
+ {name:'The Block',url:'https://www.theblock.co/rss.xml',tier:'institutional'},
+ {name:'Blockworks',url:'https://blockworks.co/feed',tier:'institutional'},
+ {name:'Glassnode Insights',url:'https://insights.glassnode.com/rss/',tier:'research'},
+ {name:'CoinMetrics',url:'https://coinmetrics.substack.com/feed',tier:'research'},
+ {name:'DL News',url:'https://www.dlnews.com/arc/outboundfeeds/rss/',tier:'investigative'},
+ {name:'The Defiant',url:'https://thedefiant.io/api/feed',tier:'investigative'},
+ {name:'Unchained',url:'https://unchainedcrypto.com/feed/',tier:'institutional'},
+ {name:'CoinDesk',url:'https://www.coindesk.com/arc/outboundfeeds/rss/',tier:'major'},
+ {name:'Decrypt',url:'https://decrypt.co/feed',tier:'major'},
+ {name:'CryptoSlate',url:'https://cryptoslate.com/feed/',tier:'major'},
+ {name:'Cointelegraph',url:'https://cointelegraph.com/rss',tier:'major'},
+ {name:'Bitcoin Magazine',url:'https://bitcoinmagazine.com/.rss/full/',tier:'major'},
+];
+const SOURCE_TIERS=new Map(sources.map(s=>[s.name,s.tier]));
+export const relevantHeadline=title=>/\b(crypto|bitcoin|btc|ethereum|ether|eth|solana|sol|xrp|blockchain|stablecoin|defi|nft|token|altcoin|binance|coinbase|kraken|tether|usdt|usdc|wallet|trezor|ledger|satoshi|on-chain|onchain|web3|hyperliquid|ripple|dogecoin|doge|sec|cftc|fed|fomc|federal reserve|monetary policy|interest rate|rate cut|rate hike|inflation|treasury|cpi|pce|etf|digital asset|layer[- ]?2|l2|staking|airdrop|halving|validator|memecoin|perp|perpetual|liquidat|whale)\b/i.test(title);
+const IMPACT_RULES=[
+ {weight:36,reason:'Macro catalyst',pattern:/\b(fomc|rate cut|rate hike|interest rate|cpi\b|pce\b|inflation|payroll|recession|tariff|strategic reserve|balance sheet|fed\s+(chair|holds|cuts|hikes|signals|minutes|policy|rate))\b/i},
+ {weight:34,reason:'Security / liquidity',pattern:/\b(hack|hacked|exploit|drained|stolen|breach|depeg|insolven|bankrupt|halted withdrawals|liquidat|flash crash|rug pull|vulnerability|zero-day)\b/i},
+ {weight:32,reason:'Regulatory / ETF',pattern:/\b(spot etf|etf (inflow|outflow|approv|fil|launch|record|flow)|sec\b|cftc\b|lawsuit|enforcement|indict|sanction|subpoena|blackrock|fidelity|microstrategy|stablecoin bill|clarity act|mica\b|regulatory|charges\b)\b/i},
+ {weight:22,reason:'Market mover',pattern:/\b(halving|hard fork|mainnet|all-time high|record high|\$\d+(?:\.\d+)?\s?(b|bn|billion)|whale|short squeeze|open interest|funding rate|delist|token unlock|treasury buys|institutional)\b/i},
+];
+const TIER_WEIGHT={official:16,research:12,institutional:10,investigative:10,major:4};
+export function scoreNewsImpact(item,nowMs=Date.now()){
+ const title=String(item?.title??'');
+ const tier=item?.tier??SOURCE_TIERS.get(item?.source)??'major';
+ let catalyst=0,impactReason=null;
+ for(const rule of IMPACT_RULES){
+  if(rule.pattern.test(title)){
+   catalyst+=rule.weight;
+   if(!impactReason)impactReason=rule.reason;
+  }
+ }
+ const sourceWeight=TIER_WEIGHT[tier]??4;
+ const rawImpact=catalyst+sourceWeight;
+ const publishedMs=Date.parse(item?.publishedAt);
+ const ageHours=Number.isFinite(publishedMs)?Math.max(0,(nowMs-publishedMs)/3_600_000):72;
+ // Only fresh articles (< 7 days) carry High impact priority badges; stale archive items decay strongly
+ const impact=ageHours>168?'normal':(rawImpact>=38?'high':rawImpact>=20?'medium':'normal');
+ const freshness=Math.exp(-ageHours/32);
+ const stalePenalty=ageHours>48?Math.min(55,(ageHours-48)*0.22):0;
+ const priority=Math.round(((Math.min(68,catalyst)+sourceWeight+24)*(0.2+0.8*freshness)-stalePenalty)*10)/10;
+ return {impact,impactReason:impact==='normal'?null:(impactReason??(tier==='official'?'Official release':tier==='research'?'Research brief':'Desk priority')),tier,priority};
+}
+function headlineTokens(title){return new Set(String(title).toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(w=>w.length>3));}
+function isNearDuplicate(a,b){
+ if(a.size<3||b.size<3)return false;
+ let shared=0;for(const w of a)if(b.has(w))shared++;
+ return shared/(a.size+b.size-shared)>=0.72;
+}
+function dedupePrioritizedNews(items){
+ const kept=[],tokens=[];
+ for(const item of items){
+  const t=headlineTokens(item.title);
+  if(tokens.some(prev=>isNearDuplicate(prev,t)))continue;
+  kept.push(item);tokens.push(t);
+ }
+ return kept;
+}
 const textValue=x=>typeof x==='object'?(x?.['#text']??''):String(x??'');
 const strip=s=>textValue(s).replace(/<[^>]*>/g,'').replace(/&(?:amp|lt|gt|quot|apos|#39|#\d+|#x[0-9a-f]+);/gi,e=>{const m={'&amp;':'&','&lt;':'<','&gt;':'>','&quot;':'"','&apos;':"'",'&#39;':"'"};if(m[e])return m[e];const n=e.startsWith('&#x')?parseInt(e.slice(3),16):parseInt(e.slice(2),10);return Number.isFinite(n)&&n>0&&n<=0x10ffff?String.fromCodePoint(n):'';}).replace(/\s+/g,' ').trim().slice(0,500);
+const OFFICIAL_RELEVANT=/\b(fomc|federal funds|monetary policy|interest rate|rate cut|rate hike|inflation|cpi\b|pce\b|balance sheet|treasury|liquidity|crypto|bitcoin|ethereum|digital asset|stablecoin|etf\b|blockchain|defi|token|virtual currency|bitcoin|spot\s+bitcoin|spot\s+ether)\b/i;
+function relevantNewsItem(item){
+ if(!relevantHeadline(item.title))return false;
+ if(item.tier==='official')return OFFICIAL_RELEVANT.test(item.title);
+ return true;
+}
+function extractLink(link){
+ if(Array.isArray(link)){
+  const pick=link.find(l=>l&&(!l['@_rel']||l['@_rel']==='alternate'))??link[0];
+  return textValue(pick?.['@_href']??pick);
+ }
+ return textValue(link?.['@_href']??link);
+}
 export function parseNews(xml,source) {
  const doc=new XMLParser({ignoreAttributes:false,processEntities:true,htmlEntities:true}).parse(xml);let items=doc?.rss?.channel?.item??doc?.feed?.entry??[];if(!Array.isArray(items))items=[items];
- const seen=new Set();return items.flatMap(item=>{const title=strip(item.title),url=textValue(item.link?.['@_href']??item.link),date=Date.parse(textValue(item.pubDate??item.published??item.updated));try{const u=new URL(url);if(u.protocol!=='https:'||!title||seen.has(u.href))return [];seen.add(u.href);return [{title,url:u.href,source,publishedAt:Number.isFinite(date)?new Date(date).toISOString():null}];}catch{return [];}}).slice(0,25);
+ const seen=new Set();return items.flatMap(item=>{const title=strip(item.title),url=extractLink(item.link),date=Date.parse(textValue(item.pubDate??item.published??item.updated));try{const u=new URL(url);if(u.protocol!=='https:'||!title||seen.has(u.href))return [];seen.add(u.href);return [{title,url:u.href,source,publishedAt:Number.isFinite(date)?new Date(date).toISOString():null}];}catch{return [];}}).slice(0,25);
 }
 export function createGateway({fetcher=fetch,now=Date.now}={}) {
  const runCached=createProviderCache({now});
@@ -29,8 +101,8 @@ export function createGateway({fetcher=fetch,now=Date.now}={}) {
    return await abortable(text?response.text():response.json(),timing.signal);
   }finally{timing.dispose();}
  },parseNews,now});
- async function upstream(url,xml=false,signal){
-  const timing=deadline(signal,12000);try{const response=await abortable(fetcher(url,{headers,signal:timing.signal}),timing.signal);if(!response.ok)throw Error(`Upstream HTTP ${response.status}`);return await abortable(xml?response.text():response.json(),timing.signal);}finally{timing.dispose();}
+ async function upstream(url,xml=false,signal,timeoutMs=12000){
+  const timing=deadline(signal,timeoutMs);try{const response=await abortable(fetcher(url,{headers,signal:timing.signal}),timing.signal);if(!response.ok)throw Error(`Upstream HTTP ${response.status}`);return await abortable(xml?response.text():response.json(),timing.signal);}finally{timing.dispose();}
  }
  async function loadInstruments(venue,requestSignal){return runCached(`instruments:${venue}`,venue==='binance'?'Binance':'Coinbase',3600000,async signal=>{const d=await upstream(venue==='binance'?`${B}/exchangeInfo`:`${C}/products`,false,signal);if(venue==='binance'){if(!Array.isArray(d.symbols))throw Error('Invalid instruments');return d.symbols.filter(x=>x.status==='TRADING'&&x.quoteAsset==='USDT'&&!fiat.has(x.baseAsset)&&x.isSpotTradingAllowed!==false).map(x=>({symbol:x.symbol,base:x.baseAsset,quote:x.quoteAsset,venue}));}if(!Array.isArray(d))throw Error('Invalid instruments');return d.filter(x=>x.quote_currency==='USD'&&!fiat.has(x.base_currency)&&x.status==='online').map(x=>({symbol:x.id,base:x.base_currency,quote:'USD',venue}));},requestSignal);}
  return async function handle(request) {
@@ -123,7 +195,22 @@ export function createGateway({fetcher=fetch,now=Date.now}={}) {
    } else if(route==='global'){try{result=await cached('global','CoinGecko',120000,async signal=>{const d=(await upstream('https://api.coingecko.com/api/v3/global',false,signal)).data;if(!d?.total_market_cap?.usd)throw Error('Invalid global data');return {marketCap:d.total_market_cap.usd,volume:d.total_volume.usd,change:d.market_cap_change_percentage_24h_usd,btcDominance:d.market_cap_percentage.btc,ethDominance:d.market_cap_percentage.eth,activeCoins:d.active_cryptocurrencies,updatedAt:new Date(d.updated_at*1000).toISOString()};});}catch{result=await cached('global-fallback','Coinpaprika',120000,async signal=>{const d=await upstream('https://api.coinpaprika.com/v1/global',false,signal);if(!Number.isFinite(d.market_cap_usd)||d.market_cap_usd<=0)throw Error('Invalid global fallback');return {marketCap:d.market_cap_usd,volume:d.volume_24h_usd,change:d.market_cap_change_24h,btcDominance:d.bitcoin_dominance_percentage,ethDominance:null,activeCoins:d.cryptocurrencies_number,updatedAt:new Date(d.last_updated*1000).toISOString()};});result.notice='CoinGecko unavailable; global statistics supplied by Coinpaprika.';}}
    else if(route==='chains')result=await cached('chains','DeFiLlama',300000,async signal=>{const d=await upstream('https://api.llama.fi/v2/chains',false,signal);if(!Array.isArray(d))throw Error('Invalid chain data');return d.filter(x=>Number.isFinite(x.tvl)&&x.tvl>0).map(x=>({name:x.name,symbol:x.tokenSymbol,tvl:x.tvl})).sort((a,b)=>b.tvl-a.tvl);});
    else if(route==='sentiment')result=await cached('sentiment','Alternative.me',3600000,async signal=>{const d=(await upstream('https://api.alternative.me/fng/?limit=1',false,signal)).data?.[0];if(!d||!Number.isFinite(+d.value))throw Error('Invalid sentiment');return {value:+d.value,label:d.value_classification,updatedAt:new Date(+d.timestamp*1000).toISOString()};});
-   else if(route==='news')result=await cached('news','Publisher RSS',300000,async signal=>{const responses=await Promise.allSettled(sources.map(async s=>({source:s.name,items:parseNews(await upstream(s.url,true,signal),s.name)})));const articles=[],feeds=[];responses.forEach((r,i)=>{feeds.push({source:sources[i].name,ok:r.status==='fulfilled',count:r.status==='fulfilled'?r.value.items.length:0});if(r.status==='fulfilled')articles.push(...r.value.items);});const seen=new Set();const items=articles.filter(x=>relevantHeadline(x.title)&&!seen.has(x.url)&&seen.add(x.url)).sort((a,b)=>(Date.parse(b.publishedAt)||0)-(Date.parse(a.publishedAt)||0));if(!items.length)throw Error('No publisher news currently available');return {items,feeds};});
+   else if(route==='news')result=await cached('news','Publisher RSS',300000,async signal=>{
+    const currentNow=now();
+    const responses=await Promise.allSettled(sources.map(async s=>({source:s.name,tier:s.tier,items:parseNews(await upstream(s.url,true,signal,5500),s.name)})));
+    const articles=[],feeds=[];
+    responses.forEach((r,i)=>{
+     feeds.push({source:sources[i].name,tier:sources[i].tier,ok:r.status==='fulfilled',count:r.status==='fulfilled'?r.value.items.length:0});
+     if(r.status==='fulfilled')articles.push(...r.value.items.map(item=>({...item,...scoreNewsImpact({...item,tier:sources[i].tier},currentNow)})));
+    });
+    const seen=new Set();
+    const filtered=articles
+     .filter(x=>relevantNewsItem(x)&&!seen.has(x.url)&&seen.add(x.url))
+     .sort((a,b)=>(b.priority-a.priority)||((Date.parse(b.publishedAt)||0)-(Date.parse(a.publishedAt)||0)));
+    const items=dedupePrioritizedNews(filtered);
+    if(!items.length)throw Error('No publisher news currently available');
+    return {items,feeds};
+   });
    else return Response.json({error:'Unknown API route'},{status:404});
    return Response.json(result,{headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
   }catch(e){throwIfAborted(request.signal);return Response.json({error:e.message||'Market provider unavailable',fetchedAt:new Date(now()).toISOString()},{status:e.status===503?503:502,headers:{'Cache-Control':'no-store',...(e.status===503?{'Retry-After':'2'}:{})}});}

@@ -1,8 +1,9 @@
-import {normalizePreferences,drawingValid} from './preferences.js';
+import {normalizePreferences,drawingValid,validInstrument} from './preferences.js';
+import {sanitizeCustomStudies,MAX_CUSTOM_SYMBOLS} from './custom-studies.js';
 export const STORAGE_KEY='cryptoz.workspace.v2';
 export const LEGACY_KEY='cryptoz.workspace.v1';
 export const RECOVERY_KEY='cryptoz.workspace.before-import';
-export const defaults=()=>({version:2,watchlist:[],notes:Object.create(null),drawings:Object.create(null),alerts:[],journal:[],preferences:normalizePreferences(),layouts:[]});
+export const defaults=()=>({version:2,watchlist:[],notes:Object.create(null),drawings:Object.create(null),alerts:[],journal:[],preferences:normalizePreferences(),layouts:[],customStudies:[],customSymbols:[]});
 export function validateWorkspace(data) {
  if(!data||![1,2].includes(data.version)||JSON.stringify(data).length>2000000)throw Error('Invalid CRYPTOZ workspace backup');
  const out=defaults();
@@ -14,6 +15,8 @@ export function validateWorkspace(data) {
  let armed=0;out.alerts=out.alerts.map(a=>({...a,active:a.active&&++armed<=10}));
  out.preferences=normalizePreferences(data.preferences);
  if(Array.isArray(data.layouts))out.layouts=data.layouts.filter(x=>x&&typeof x.id==='string'&&/^[a-zA-Z0-9_-]{1,80}$/.test(x.id)&&typeof x.name==='string').slice(0,8).map(x=>({id:x.id,name:x.name.slice(0,60),settings:normalizePreferences(x.settings)}));
+ if(Array.isArray(data.customStudies))out.customStudies=sanitizeCustomStudies(data.customStudies);
+ if(Array.isArray(data.customSymbols)){const seen=new Set();out.customSymbols=data.customSymbols.filter(s=>validInstrument(s)&&!seen.has(s.venue+':'+s.symbol)&&seen.add(s.venue+':'+s.symbol)).slice(0,MAX_CUSTOM_SYMBOLS).map(s=>({venue:s.venue,base:s.base,quote:s.quote,symbol:s.symbol}));}
  return out;
 }
 export function readState(storage) {try{return validateWorkspace(JSON.parse(storage.getItem(STORAGE_KEY)??storage.getItem(LEGACY_KEY)));}catch{return defaults();}}

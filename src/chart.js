@@ -22,7 +22,7 @@ const sameBar=(a,b)=>a.time===b.time&&a.open===b.open&&a.high===b.high&&a.low===
 const types={candles:CandlestickSeries,bars:BarSeries,line:LineSeries,heikin:CandlestickSeries};
 export function parseStreamBar(d){const k=d?.k;if(!k)return null;return normalizeCandles([{time:Math.floor(+k.t/1000),open:+k.o,high:+k.h,low:+k.l,close:+k.c,volume:+k.v}])[0]??null;}
 export class TerminalChart {
- constructor({host,workspace,save,onQuote,onSummary,onBook,onStatus,onDrawings,onWindow,phoneView,deskMode='pro'}){Object.assign(this,{host,workspace,save,onQuote,onSummary,onBook,onStatus,onDrawings,onWindow,phoneView,deskMode});this.studyBars=[];this.bars=[];this.visibleSignals=[];this.confirmedThrough=0;this.latestSnapshotAt=0;this.confirmedStreamBars=new Set();this.analysisRevision=0;this.generation=0;this.drawMode='cursor';this.pendingPoint=null;this.disposed=false;this.historyStatus='idle';this.indicators={ema:true,sma:false,bb:false,vwap:false};this.period=20;this.rsiPeriod=14;this.oscillator='rsi';this.style='candles';this.interval='1h';this.instrument={venue:'binance',symbol:'BTCUSDT',base:'BTC',quote:'USDT'};this.streamState='connecting';this.lastStream=0;this.liveRevision=0;this.barRevisions=new Map();this.barEvents=new Map();const p=normalizePreferences(workspace.preferences);this.indicators=p.indicators;this.period=p.period;this.smaPeriods=p.smaPeriods;this.rsiPeriod=p.rsiPeriod;this.oscillator=p.oscillator;this.autoGuide=deskMode==='basic'&&['zones','profile'].includes(p.autoGuide)?'range':p.autoGuide;this.signalKinds=p.signalKinds;this.studyIds=normalizeStudyIds((deskMode==='basic'?p.basicStudyIds??p.studyIds:p.studyIds)??[...Object.keys(p.indicators).filter(x=>p.indicators[x]),p.oscillator]);this.style=p.style;this.markers=p.markers;this.viewPreset=p.view;}
+ constructor({host,workspace,save,onQuote,onSummary,onBook,onStatus,onDrawings,onWindow,phoneView,deskMode='pro'}){Object.assign(this,{host,workspace,save,onQuote,onSummary,onBook,onStatus,onDrawings,onWindow,phoneView,deskMode});this.studyBars=[];this.bars=[];this.visibleSignals=[];this.confirmedThrough=0;this.latestSnapshotAt=0;this.confirmedStreamBars=new Set();this.analysisRevision=0;this.generation=0;this.drawMode='cursor';this.pendingPoint=null;this.disposed=false;this.historyStatus='idle';this.indicators={ema:true,sma:false,bb:false,vwap:false};this.period=20;this.rsiPeriod=14;this.oscillator='rsi';this.style='candles';this.interval='1h';this.instrument={venue:'binance',symbol:'BTCUSDT',base:'BTC',quote:'USDT'};this.streamState='connecting';this.lastStream=0;this.liveRevision=0;this.barRevisions=new Map();this.barEvents=new Map();const p=normalizePreferences(workspace.preferences);this.indicators=p.indicators;this.period=p.period;this.smaPeriods=p.smaPeriods;this.rsiPeriod=p.rsiPeriod;this.oscillator=p.oscillator;this.autoGuide=deskMode==='basic'&&['zones','profile'].includes(p.autoGuide)?'range':p.autoGuide;this.signalKinds=p.signalKinds;const defaultStudies=!p.studyIds&&p.indicators.ema&&!p.indicators.sma&&!p.indicators.bb&&!p.indicators.vwap&&p.oscillator==='rsi'?['ema','supertrend','rsi','volume']:[...Object.keys(p.indicators).filter(x=>p.indicators[x]),p.oscillator];this.studyIds=normalizeStudyIds((deskMode==='basic'?p.basicStudyIds??p.studyIds:p.studyIds)??defaultStudies);this.style=p.style;this.markers=p.markers;this.viewPreset=p.view;}
  activeStudies(){return this.studyIds.filter(id=>this.deskMode==='pro'||!STUDIES[id]?.proOnly);}
  get key(){return `${this.instrument.venue}:${this.instrument.symbol}:${this.interval}`;}
  status(s){if(this.streamState!==s){this.streamState=s;this.onStatus(s);}}
@@ -70,7 +70,7 @@ export class TerminalChart {
  }
  renderIndicators(incremental=false,{refreshAnalysis=true}={}){
   if(!this.chart)return;const p=palette(),cutoff=this.completedCutoff();
-  this.studyView=renderStudies(this.chart,this.series,this.studyView,this.bars,this.activeStudies(),{period:this.period,smaPeriods:this.smaPeriods,rsiPeriod:this.rsiPeriod,interval:this.interval,completedBefore:cutoff,palette:p,incremental,confirmed:this.studyBars,quote:this.instrument.quote});
+  this.studyView=renderStudies(this.chart,this.series,this.studyView,this.bars,this.activeStudies(),{period:this.period,smaPeriods:this.smaPeriods,rsiPeriod:this.rsiPeriod,interval:this.interval,completedBefore:cutoff,palette:p,incremental,confirmed:this.studyBars,quote:this.instrument.quote,customStudies:this.workspace?.customStudies??[]});
   if(refreshAnalysis)this.renderAnalysis(cutoff,p);
   else if(periodGuides.has(this.autoGuide)&&Math.floor(this.bars.at(-1)?.time/DAY)!==this.periodBeforeAt){
    this.syncPeriodGuide(cutoff);
@@ -107,7 +107,36 @@ export class TerminalChart {
   this.autoSetup=buildAutoSetup(closed,{interval:this.interval,completedBefore:cutoff,nowSeconds:this.historyAnchor??Date.now()/1000,stale,events:this.visibleSignals});
   if(this.deskMode==='pro'){
    const extra=structureTools(closed,step,cutoff);
-   this.autoSetup={...this.autoSetup,zones:extra.zones,profile:extra.profile,guides:[...this.autoSetup.guides,...extra.guides]};
+   const smartGuides=[],smartLevels=[];
+   const primaryZones=(extra.zones?.levels??[]).filter(lv=>lv.shortLabel==='R1'||lv.shortLabel==='S1');
+   if(primaryZones.length){
+    for(const lv of primaryZones){
+     smartLevels.push(lv);
+     const match=extra.guides.find(g=>g.id.startsWith('zones-')&&g.label===lv.name);
+     if(match)smartGuides.push({...match,id:'auto-all-'+match.id});
+    }
+   }else if(this.autoSetup.range){
+    const lastClose=closed.at(-1)?.close;
+    const dist=p=>lastClose>0?(p/lastClose-1)*100:null;
+    smartLevels.push({name:'Range high',price:this.autoSetup.range.high,distancePct:dist(this.autoSetup.range.high)},{name:'Range low',price:this.autoSetup.range.low,distancePct:dist(this.autoSetup.range.low)});
+    for(const g of this.autoSetup.guides.filter(g=>g.id.startsWith('range-')))smartGuides.push({...g,id:'auto-all-'+g.id,shortLabel:g.id==='range-high'?'Range High':'Range Low'});
+   }
+   const trendGuide=this.autoSetup.guides.find(g=>g.id==='swing-trend');
+   if(trendGuide)smartGuides.push({...trendGuide,id:'auto-all-trend',shortLabel:trendGuide.label.includes('rising')?'Rising Trend':'Falling Trend'});
+   const latestBreak=extra.guides.filter(g=>g.id.startsWith('structure-break-')).at(-1);
+   if(latestBreak){
+    smartGuides.push({...latestBreak,id:'auto-all-break'});
+    const brLevel=extra.structure?.levels?.[0];
+    if(brLevel)smartLevels.push(brLevel);
+   }
+   const topZone=extra.guides.find(g=>g.id.startsWith('fvg-')||g.id.startsWith('order-blocks-'));
+   if(topZone){
+    smartGuides.push({...topZone,id:'auto-all-zone'});
+    const zLevel=(extra.fvg?.levels??extra['order-blocks']?.levels??[])[0];
+    if(zLevel)smartLevels.push(zLevel);
+   }
+   const smartSummary=smartGuides.length?{label:'Smart Auto Structure',detail:'Combines nearest confirmed Support/Resistance (or 20-bar range), active swing trendline, latest BOS/CHoCH break, and nearest unmitigated imbalance zone without chart clutter.',levels:smartLevels}:null;
+   this.autoSetup={...this.autoSetup,zones:extra.zones,profile:extra.profile,fvg:extra.fvg,'order-blocks':extra['order-blocks'],'atr-bands':extra['atr-bands'],structure:extra.structure,'auto-all':smartSummary,guides:[...this.autoSetup.guides,...extra.guides,...smartGuides]};
   }
   this.syncPeriodGuide(cutoff);
   this.syncAnchoredVwap(cutoff,colors);
@@ -445,7 +474,7 @@ export class TerminalChart {
  addDrawing(points){const a=this.workspace.drawings[this.key]??=[];if(a.length>=40){toast('Maximum 40 drawings per chart.');return;}a.push({id:crypto.randomUUID(),type:this.drawMode,points,label:this.drawLabel||''});this.save();this.draw();this.onDrawings();toast('Drawing saved. Edit its levels in Drawings.');}
  draw(){
   if(!this.chart||!this.svg)return;
-  const guidePrefix={range:'range-',trend:'swing-trend',fibonacci:'fibonacci-',zones:'zones-',profile:'profile-','prev-day':'prev-day-','prev-week':'prev-week-','daily-pivots':'daily-pivots-'}[this.autoGuide];
+  const guidePrefix={'auto-all':'auto-all-',range:'range-',trend:'swing-trend',fibonacci:'fibonacci-',zones:'zones-',structure:'structure-',fvg:'fvg-','order-blocks':'order-blocks-','atr-bands':'atr-bands-',profile:'profile-','prev-day':'prev-day-','prev-week':'prev-week-','daily-pivots':'daily-pivots-'}[this.autoGuide];
   const automatic=!this.manualDrawing&&guidePrefix
    ? (this.autoSetup?.guides??[]).filter(({id})=>id.startsWith(guidePrefix))
    : [];
@@ -465,18 +494,84 @@ export class TerminalChart {
    return Number.isFinite(nearest)?scale.timeToCoordinate(nearest):null;
   };
   const labelX=x=>Math.max(8,Math.min(x,plotWidth-104));
+  const placedLabels=[];
+  const placeY=(rawY,xAnchor,minGap=17)=>{
+   let y=Math.max(14,Math.min(paneHeight-6,rawY));
+   for(let tries=0;tries<8;tries++){
+    const clash=placedLabels.find(p=>Math.abs(p.y-y)<minGap&&Math.abs(p.x-xAnchor)<120);
+    if(!clash)break;
+    y=clash.y+minGap;
+    if(y>paneHeight-6)y=Math.max(14,clash.y-minGap);
+   }
+   placedLabels.push({x:xAnchor,y});
+   return y;
+  };
+  const pill=(text,x,y,color,align='end')=>{
+   const clean=esc(text.slice(0,28));
+   const estWidth=Math.max(30,clean.length*6.4+10);
+   const rx=align==='end'?x-estWidth:align==='middle'?x-estWidth/2:x;
+   const tx=align==='end'?x-5:align==='middle'?x:x+5;
+   return `<g class="auto-pill"><rect x="${rx.toFixed(1)}" y="${(y-11).toFixed(1)}" width="${estWidth.toFixed(1)}" height="15" rx="3.5" fill="${colors.panel}" fill-opacity="0.88" stroke="${color}" stroke-opacity="0.45" stroke-width="0.8"/><text x="${tx.toFixed(1)}" y="${y.toFixed(1)}" fill="${color}" font-size="10" font-weight="600" text-anchor="${align}">${clean}</text></g>`;
+  };
+  const shortTitle=drawing=>{
+   if(drawing.shortLabel)return drawing.shortLabel;
+   if(drawing.id==='range-high')return 'Range High';
+   if(drawing.id==='range-low')return 'Range Low';
+   if(drawing.id.startsWith('fibonacci-')){
+    if(drawing.id==='fibonacci-leg')return 'Fib Leg';
+    const pctVal=Math.round(Number(drawing.id.slice('fibonacci-'.length))*1000)/10;
+    return Number.isFinite(pctVal)?`${pctVal}%`:'Fib';
+   }
+   return (drawing.label||drawing.type).slice(0,22);
+  };
   const autoLine=drawing=>{
-   const [first,second]=anchors(drawing),trend=drawing.type==='trend';
-   if(!Number.isFinite(first.y)||trend&&(!second||![first.x,second.x,second.y].every(Number.isFinite)))return '';
-   const x1=first.x??timeAfter(drawing.points[0].time),x2=trend?second.x:plotWidth,y2=trend?second.y:first.y;
+   const [first,second]=anchors(drawing);
+   const color=colors[drawing.color]??colors.gold;
+   if(drawing.type==='pivot'){
+    if(!Number.isFinite(first?.x)||!Number.isFinite(first?.y)||first.x<6||first.x>plotWidth-6||first.y<6||first.y>paneHeight-6)return '';
+    const above=drawing.side==='high';
+    const py=placeY(above?first.y-10:first.y+18,first.x,16);
+    return `<circle data-auto-guide="${drawing.id}" cx="${first.x.toFixed(1)}" cy="${first.y.toFixed(1)}" r="3.2" fill="${color}" stroke="${colors.panel}" stroke-width="1"/>`+pill(shortTitle(drawing),first.x,py,color,'middle');
+   }
+   if(drawing.type==='zone'){
+    if(!Number.isFinite(first?.y)||!Number.isFinite(second?.y))return '';
+    const x1=first.x??timeAfter(drawing.points[0].time);
+    if(!Number.isFinite(x1)||x1>=plotWidth)return '';
+    const clampedX1=Math.max(0,x1),rectW=Math.max(1,plotWidth-clampedX1);
+    const topY=Math.min(first.y,second.y),botY=Math.max(first.y,second.y);
+    if(botY<0||topY>paneHeight)return '';
+    const clippedTop=Math.max(0,topY),clippedBot=Math.min(paneHeight,botY);
+    const rectH=Math.max(3,clippedBot-clippedTop);
+    const lx=Math.max(8,Math.min(clampedX1+6,plotWidth-130));
+    const midY=placeY((clippedTop+clippedBot)/2+4,lx,18);
+    return `<rect data-auto-guide="${drawing.id}" x="${clampedX1.toFixed(1)}" y="${clippedTop.toFixed(1)}" width="${rectW.toFixed(1)}" height="${rectH.toFixed(1)}" fill="${color}" fill-opacity="0.13" stroke="${color}" stroke-opacity="0.55" stroke-width="1" stroke-dasharray="4 3"/>`+pill(shortTitle(drawing),lx,midY,color,'start');
+   }
+   const trend=drawing.type==='trend';
+   if(!Number.isFinite(first?.y)||trend&&(!second||![first.x,second.x,second.y].every(Number.isFinite)))return '';
+   const x1=first.x??timeAfter(drawing.points[0].time);
+   const boundedEnd=drawing.bounded&&Number.isFinite(second?.x)?Math.min(plotWidth,second.x):plotWidth;
+   const x2=trend?second.x:boundedEnd,y2=trend?second.y:first.y;
    const bothAbove=first.y<0&&y2<0,bothBelow=first.y>paneHeight&&y2>paneHeight;
    if(!Number.isFinite(x1)||Math.min(x1,x2)>=plotWidth||Math.max(x1,x2)<0||bothAbove||bothBelow)return '';
-   const color=colors[drawing.color]??colors.gold,label=esc((drawing.label||drawing.type).slice(0,34));
-   const line=`<line data-auto-guide="${drawing.id}" x1="${x1}" y1="${first.y}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-dasharray="5 4"/>`;
-   const tuckLabel=this.phoneView?.matches&&!trend&&x1>=100;
-   const textX=tuckLabel?Math.max(96,Math.min(x1-6,plotWidth-78)):labelX(x1+6);
-   const text=drawing.id.startsWith('fibonacci-')?'':`<text x="${textX}" y="${first.y-5}" fill="${color}"${tuckLabel?' text-anchor="end"':''}>${label}</text>`;
-   return line+text+(trend?`<circle cx="${x1}" cy="${first.y}" r="3" fill="${color}"/><circle cx="${x2}" cy="${y2}" r="3" fill="${color}"/>`:'');
+   const clampedX1=Math.max(0,x1);
+   const dash=trend?'stroke-width="1.6"':'stroke-dasharray="5 4" stroke-width="1.15"';
+   const line=`<line data-auto-guide="${drawing.id}" x1="${clampedX1}" y1="${first.y}" x2="${x2}" y2="${y2}" stroke="${color}" ${dash}/>`;
+   const tag=shortTitle(drawing);
+   let text='';
+   if(trend){
+    const midX=Math.max(42,Math.min(plotWidth-120,(clampedX1+x2)/2));
+    const midY=placeY((first.y+y2)/2-6,midX,18);
+    text=drawing.id==='fibonacci-leg'?'':pill(tag,midX,midY,color,'middle');
+   }else if(drawing.bounded){
+    const bx=Math.max(40,Math.min(plotWidth-95,x2));
+    const by=placeY(first.y-5,bx,18);
+    text=pill(tag,bx,by,color,'end');
+   }else{
+    const lx=Math.max(8,Math.min(clampedX1+6,plotWidth-130));
+    const ly=placeY(first.y-4,lx,18);
+    text=pill(tag,lx,ly,color,'start');
+   }
+   return line+text+(trend?`<circle cx="${x1}" cy="${first.y}" r="3.2" fill="${color}"/><circle cx="${x2}" cy="${y2}" r="3.2" fill="${color}"/>`:'');
   };
   const manualLine=drawing=>{
    const [first,second]=anchors(drawing),label=esc(drawing.label||drawing.type);

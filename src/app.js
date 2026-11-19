@@ -8,16 +8,18 @@ import './beginner.css';
 import './guided.css';
 import {riskSection} from './guided-ui.js';
 import {STUDIES,STUDY_PRESETS,normalizeStudyIds,normalizeSmaPeriods,MAX_STUDY_OVERLAYS,MAX_STUDY_PANES,MAX_SMA_PERIODS,MAX_SMA_LENGTH} from './studies.js';
+import {CUSTOM_COLORS,CUSTOM_IMPORT_SAMPLE,CUSTOM_STUDY_TEMPLATES,MAX_CUSTOM_STUDIES,MAX_CUSTOM_SYMBOLS,parseAssistanceImport,validateCustomStudy} from './custom-studies.js';
 import {ANALYST_ASSETS,analystAssetKey} from './analyst-research.js';
 import {buildStudyPov} from './study-pov.js';
 import './paper.css';
 import './decision-desk.css';
 import './workbench.css';
 import {chartPanelFor,chartWorkbench} from './workbench.js';
-import {initialScreen,screenMarket,screenerControls,sectorPulse,marketBrief} from './screener.js';
+import {SECTOR_GROUPS,initialScreen,screenMarket,screenerControls,sectorPulse,marketBrief} from './screener.js';
 import {renderInsightsDesk} from './insights-desk.js';
 import './insights-desk.css';
 import './practice.css';
+import './backtest.css';
 import {usableQuote} from './market-integrity.js';
 import {mountPracticeDesk} from './practice-desk.js';
 import {analystPanel,chartGuide,forecastPanel,forecastJournal,renderGuideAudit} from './decision-views.js';
@@ -75,10 +77,10 @@ const icons={LayoutDashboard,ChartNoAxesCombined,Globe,Newspaper,Bookmark,Databa
 
 const $=s=>document.querySelector(s);const storage=safeStorage();const drafts=createDraftStore(storage);const learningProgress=createLearningProgress(storage);let workspace=readState(storage);const data={markets:null,global:null,sentiment:null,news:null,chains:null,exchange:null};const errors={};let instruments={binance:[],coinbase:[]};let page='overview',terminal=null,mini=null,visuals=[],pageGeneration=0,marketPage=0,marketQuery='',marketSort='rank',marketUniverse='aggregate',onlyWatch=false,newsQuery='',newsTopic='all',loading=false;
 
-let selected=workspace.preferences.lastInstrument;let selectedInterval=workspace.preferences.interval;let comparison=null,studioViewName='map';let riskCalculator;let modalGeneration=0,studioGeneration=0;const alertPrices=new Map();let learning=null,marketStream=null,miniSeries=null;let appearance=applyAppearance(readAppearance(storage),storage);
+let selected=workspace.preferences.lastInstrument;let selectedInterval=workspace.preferences.interval;let comparison=null,studioViewName='map',studioMapMetric='marketCap',studioMapLimit=45,studioDepthPair=null;let riskCalculator;let modalGeneration=0,studioGeneration=0;const alertPrices=new Map();let learning=null,marketStream=null,miniSeries=null;let appearance=applyAppearance(readAppearance(storage),storage);
 
-let dockMode=readDock(storage),newsLimit=20;let searchTimer,marketSearchTimer,remoteAssets=[],marketRemoteAssets=[],remoteLoading=false,remoteError='',marketRemoteLoading=false,marketRemoteError='';const assetLookup=new Map();let dialogController,manualRefreshing=false,operationError='';
-let benchmarkTask=null,benchmarkObserver=null,practice=null,practiceSelected=null,homeNewsTopic='all',marketGroup='all',insightsView=null,marketScreen=initialScreen();
+let dockMode=readDock(storage),newsLimit=20,newsSource='all',newsSort='impact';let searchTimer,marketSearchTimer,remoteAssets=[],marketRemoteAssets=[],remoteLoading=false,remoteError='',marketRemoteLoading=false,marketRemoteError='';const assetLookup=new Map();let dialogController,manualRefreshing=false,operationError='';
+let benchmarkTask=null,benchmarkObserver=null,practice=null,backtestView=null,practiceSelected=null,homeNewsTopic='all',marketGroup='all',insightsView=null,marketScreen=initialScreen();
 let benchmarkRange='7d', benchmarkDisplayed=null;
 const transparencyPreference=matchMedia('(prefers-reduced-transparency: reduce)');
 let materialMode='glass';
@@ -164,10 +166,11 @@ function updateCurrentData(key){
   if(key==='markets'){if($('#home-breadth'))$('#home-breadth').innerHTML=breadthContent();if($('#home-brief'))$('#home-brief').innerHTML=marketBrief(data.markets?.data??[],workspace.watchlist);}
   if(key==='news'){renderNewsResults();if($('#home-news-meta'))$('#home-news-meta').innerHTML=stateBadge('news');}
  }else if(isMarketPage()&&key===(marketUniverse==='exchange'?'exchange':'markets'))renderMarketResults();
- else if(page==='news'&&key==='news')renderNewsResults();
+ else if(page==='news'&&key==='news'){syncNewsSources();renderNewsResults();}
+ else if(page==='analysts'&&key==='markets'&&$('#analyst-asset')){$('#analyst-asset').dispatchEvent(new Event('change'));}
  else if(page==='workspace'&&key==='markets')updateWorkspacePrices();
  else if(page==='terminal'&&key==='markets')updateWatchPanel();
- else if(page==='studio'&&(key==='markets'&&['map','momentum'].includes(studioViewName)||key==='chains'&&studioViewName==='defi'))studioView(studioViewName,pageGeneration,true);
+ else if(page==='studio'&&(key==='markets'&&['map','momentum','sectors'].includes(studioViewName)||key==='chains'&&studioViewName==='defi'))studioView(studioViewName,pageGeneration,true);
  hydrate();
 }
 async function fetchData(keys=['markets','global','sentiment','news']){const task=dataLoader.load(keys);loading=dataLoader.busy;syncNetworkState();await task;loading=dataLoader.busy;syncNetworkState();}
@@ -196,9 +199,10 @@ async function loadVenueInstruments(venue){
  if(page==='compare')comparison?.updateInstruments();
  learning?.updateInstruments();
  practice?.options();
+ backtestView?.options?.();
 }
 
-function cleanPage(){benchmarkObserver?.disconnect();benchmarkObserver=null;benchmarkTask?.controller.abort();benchmarkTask=null;calculatorRequest?.abort();calculatorRequest=null;practice?.dispose();practice=null;insightsView?.dispose();insightsView=null;resetForecast();riskCalculator?.dispose();riskCalculator=null;clearTimeout(marketSearchTimer);marketCatalogSearch.cancel();document.body.classList.remove('chart-focus');learning?.dispose();learning=null;miniSeries=null;comparison?.dispose();comparison=null;terminal?.dispose();terminal=null;mini?.remove();mini=null;for(const v of visuals)v.dispose();visuals=[];}
+function cleanPage(){benchmarkObserver?.disconnect();benchmarkObserver=null;benchmarkTask?.controller.abort();benchmarkTask=null;calculatorRequest?.abort();calculatorRequest=null;practice?.dispose();practice=null;backtestView?.dispose?.();backtestView=null;insightsView?.dispose();insightsView=null;resetForecast();riskCalculator?.dispose();riskCalculator=null;clearTimeout(marketSearchTimer);marketCatalogSearch.cancel();document.body.classList.remove('chart-focus');learning?.dispose();learning=null;miniSeries=null;comparison?.dispose();comparison=null;terminal?.dispose();terminal=null;mini?.remove();mini=null;for(const v of visuals)v.dispose();visuals=[];}
 
 function route(){
  const animate=pageGeneration>0;
@@ -244,7 +248,7 @@ function renderPage(){
   else link.removeAttribute('aria-current');
  }
  $('#context-root').innerHTML=secondaryNav(navigation);
- ({overview:renderOverview,markets:renderMarkets,screener:renderMarkets,terminal:renderTerminal,compare:renderComparison,studio:renderStudio,learn:renderLearning,news:renderNews,analysts:renderAnalystDesk,practice:renderPractice,replay:renderPractice,backtest:renderPractice,risk:renderRisk,'market-insights':renderInsights,workspace:renderWorkspace}[page])();hydrate();updateAlertCount();patchLiveQuotes();syncNetworkState();if(document.activeElement===document.body)$('#main').focus({preventScroll:true});
+ ({overview:renderOverview,markets:renderMarkets,screener:renderMarkets,terminal:renderTerminal,compare:renderComparison,studio:renderStudio,learn:renderLearning,news:renderNews,analysts:renderAnalystDesk,practice:renderPractice,replay:renderPractice,backtest:renderBacktest,risk:renderRisk,'market-insights':renderInsights,workspace:renderWorkspace}[page])();hydrate();updateAlertCount();patchLiveQuotes();syncNetworkState();if(document.activeElement===document.body)$('#main').focus({preventScroll:true});
 }
 
 function liveStrip(){return `<section class="live-strip" aria-label="Live Binance prices"><div class="live-strip-label"><strong>Live prices</strong><small class="live-status" data-live-status>Connecting to Binance</small></div><div class="live-quote-track">${BENCHMARK_ASSETS.map(b=>`<button class="live-quote" data-action="live-chart" data-symbol="${b}USDT" data-live-chip="${b}USDT" aria-label="Open ${b} spot chart"><span>${b}</span><strong>—</strong><small>Awaiting quote</small></button>`).join('')}</div></section>`;}
@@ -271,7 +275,7 @@ function appearanceModal(){
   syncDisplayCurrency();refreshFx();
  });
  $('#appearance-material').addEventListener('change',()=>{materialMode=$('#appearance-material').value;applyMaterial();try{storage.setItem('cryptoz.material.v1',materialMode);}catch{}});
- const update=()=>{const previousTheme=appearance.theme;appearance=applyAppearance({theme:$('#appearance-theme').value,motion:$('#appearance-motion').value},storage);if(appearance.theme===previousTheme)return;if(terminal?.bars.length)terminal.build();comparison?.applyTheme();learning?.applyTheme();if(mini){mini.applyOptions(chartOptions());miniSeries?.applyOptions({lineColor:palette().accent,topColor:palette().accent+'30',bottomColor:palette().accent+'00'});}if(page==='studio')studioView(studioViewName,pageGeneration,true);};
+ const update=()=>{const previousTheme=appearance.theme;appearance=applyAppearance({theme:$('#appearance-theme').value,motion:$('#appearance-motion').value},storage);if(appearance.theme===previousTheme)return;if(terminal?.bars.length)terminal.build();comparison?.applyTheme();learning?.applyTheme();backtestView?.applyTheme?.();if(mini){mini.applyOptions(chartOptions());miniSeries?.applyOptions({lineColor:palette().accent,topColor:palette().accent+'30',bottomColor:palette().accent+'00'});}if(page==='studio')studioView(studioViewName,pageGeneration,true);};
  $('#appearance-theme').addEventListener('change',update);$('#appearance-motion').addEventListener('change',update);
 }
 
@@ -309,9 +313,22 @@ function refreshFx(){
 
 function renderLearning(){$('#main').innerHTML=header('Learn crypto','Build the basics, read a live chart and test what you know.')+'<div id="learning-root"></div>';learning=mountLearningHub($('#learning-root'),{instruments,hydrate,storage,progress:learningProgress,initialView:new URLSearchParams(location.hash.split('?')[1]??'').get('view')??'start',onViewChange:view=>history.replaceState(null,'','#learn'+(view==='start'?'':'?view='+view)),onChart:i=>{selected=i;location.hash='terminal';}});}
 
-function newsToolbar(){return `<div class="news-toolbar"><div class="tabs" aria-label="News topics">${['all','MARKETS','POLICY','MACRO','SECURITY','ECOSYSTEM'].map(n=>`<button class="tab ${newsTopic===n?'active':''}" data-action="news-topic" data-topic="${n}" aria-pressed="${newsTopic===n}">${n==='all'?'Latest':n[0]+n.slice(1).toLowerCase()}</button>`).join('')}</div><label class="search-field">${icon('search')}<input id="news-search" aria-label="Search news" placeholder="Search headlines" value="${esc(newsQuery)}"></label></div>`;}
+function newsSourceOptions(){
+ const feeds=(data.news?.data?.feeds??[]).filter(f=>f.ok&&f.count>0).map(f=>f.source);
+ const itemSources=[...new Set((data.news?.data?.items??[]).map(x=>x.source))];
+ const names=[...new Set([...feeds,...itemSources])];
+ return `<option value="all">All sources${names.length?` (${names.length})`:''}</option>`+names.map(s=>`<option value="${esc(s)}"${newsSource===s?' selected':''}>${esc(s)}</option>`).join('');
+}
+function syncNewsSources(){const sel=$('#news-source');if(sel){sel.innerHTML=newsSourceOptions();sel.value=newsSource;}}
+function newsToolbar(){
+ const topics=[['all','All'],['HIGH_IMPACT','High impact'],['MACRO','Macro'],['POLICY','Policy'],['INSTITUTIONAL','Institutional'],['SECURITY','Security'],['MARKETS','Markets'],['ECOSYSTEM','Ecosystem']];
+ return `<div class="news-toolbar"><div class="tabs" aria-label="News topics">${topics.map(([key,label])=>`<button class="tab ${newsTopic===key?'active':''}" data-action="news-topic" data-topic="${key}" aria-pressed="${newsTopic===key}">${label}</button>`).join('')}</div><div class="news-controls-right"><div class="news-sort-toggle" role="group" aria-label="News sort order"><button type="button" data-action="news-sort" data-sort="impact" aria-pressed="${newsSort==='impact'}">Impact first</button><button type="button" data-action="news-sort" data-sort="latest" aria-pressed="${newsSort==='latest'}">Latest</button></div><select id="news-source" aria-label="Filter by publisher">${newsSourceOptions()}</select><label class="search-field">${icon('search')}<input id="news-search" aria-label="Search news" placeholder="Search headlines" value="${esc(newsQuery)}"></label></div></div>`;
+}
 
-function bindNewsSearch(){const field=$('#news-search');if(field)field.addEventListener('input',e=>{newsQuery=e.target.value;newsLimit=20;renderNewsResults();});}
+function bindNewsSearch(){
+ const field=$('#news-search');if(field)field.addEventListener('input',e=>{newsQuery=e.target.value;newsLimit=20;renderNewsResults();});
+ const sel=$('#news-source');if(sel)sel.addEventListener('change',e=>{newsSource=e.target.value;newsLimit=20;renderNewsResults();});
+}
 function marketStats(){const g=data.global?.data,s=data.sentiment?.data;return `<div class="stats-grid"><article class="stat-card"><span>Market cap ${icon('globe')}</span><div>${g?moneyMarkup(g.marketCap,'USD','compact'):'—'}</div><p class="${tone(g?.change)}">${pct(g?.change)} <small>24h</small></p>${stateBadge('global')}</article><article class="stat-card"><span>Trading volume ${icon('chart-no-axes-combined')}</span><div>${g?moneyMarkup(g.volume,'USD','compact'):'—'}</div><p class="muted">24-hour volume</p>${stateBadge('global')}</article><article class="stat-card"><span>Bitcoin dominance ${icon('layers')}</span><div>${g?num(g.btcDominance)+'<small>%</small>':'—'}</div><div class="dominance-track"><span style="width:${g?.btcDominance??0}%"></span></div>${stateBadge('global')}</article><article class="stat-card"><span>Fear & Greed ${icon('activity')}</span><div>${s?num(s.value,0)+'<small>/ 100</small>':'—'}</div><p>${s?esc(s.label):'Awaiting index'}</p>${stateBadge('sentiment')}</article></div>`;}
 function breadthContent(){return renderMarketBreadth(data.markets?.data)+stateBadge('markets')+'<a href="#studio" class="button full">Market maps '+icon('arrow-right')+'</a>';}
 function renderAnalystDesk(){
@@ -319,11 +336,28 @@ function renderAnalystDesk(){
  const asset=(data.markets?.data??[]).find(a=>a.id===key)??assetLookup.get(key);
  const options=ANALYST_ASSETS.map(a=>`<option value="${esc(a.id)}">${esc(a.name)} · ${esc(a.symbol)}</option>`).join('');
  const uncovered=ANALYST_ASSETS.some(a=>a.id===key)?'':`<option value="${esc(key)}">${esc(asset?.name??key)}</option>`;
- $('#main').innerHTML=header('Analyst research','Read original, dated opinions and the evidence behind each view.')+`<div class="panel analyst-picker"><label>Asset <select id="analyst-asset">${uncovered}${options}</select></label><button class="button" data-action="search">${icon('search')} Find another asset</button></div><div id="analyst-review"></div>`;
+ const quickAssets=ANALYST_ASSETS.slice(0,12).map(a=>`<button type="button" class="chip ${a.id===key?'selected':''}" data-action="analyst-pick" data-id="${esc(a.id)}">${esc(a.symbol)}</button>`).join('');
+ $('#main').innerHTML=header('Analyst research','Read original, dated institutional research, key drivers, risks and live market context.')+`<div class="panel analyst-picker"><label>Asset <select id="analyst-asset">${uncovered}${options}</select></label><button class="button" data-action="search">${icon('search')} Find another asset</button><div class="analyst-quick-bar" role="group" aria-label="Covered institutional assets">${quickAssets}</div></div><div id="analyst-review"></div>`;
  const field=$('#analyst-asset');field.value=key;
- const update=()=>{$('#analyst-review').innerHTML=analystPanel(field.value===key&&asset?asset:field.value);hydrate();};
+ const update=()=>{
+  const currentId=field.value;
+  const quote=(data.markets?.data??[]).find(a=>a.id===currentId)??assetLookup.get(currentId)??null;
+  document.querySelectorAll('[data-action="analyst-pick"]').forEach(btn=>btn.classList.toggle('selected',btn.dataset.id===currentId));
+  $('#analyst-review').innerHTML=analystPanel(currentId===key&&asset?asset:currentId,quote);
+  hydrate();
+ };
  field.addEventListener('change',()=>{history.replaceState(null,'','#analysts?asset='+encodeURIComponent(field.value));update();});
  update();
+}
+function renderBacktest(){
+ const gen=pageGeneration;
+ $('#main').innerHTML=header('Backtest studio','Free, open strategy backtesting with unlimited rules, custom formulas, CSV/JSON data import, risk controls and parameter optimization.')+'<div id="backtest-root"><section class="panel"><p class="data-note">Loading Backtest studio…</p></section></div>';
+ import('./backtest-studio.js').then(({mountBacktestStudio})=>{
+  if(gen!==pageGeneration||!$('#backtest-root'))return;
+  backtestView=mountBacktestStudio({root:$('#backtest-root'),instrument:practiceSelected??selected,getInstruments:v=>instruments[v],storage,hydrate,onInstrument:i=>{practiceSelected=i;}});
+ }).catch(err=>{
+  if(gen===pageGeneration&&$('#backtest-root'))$('#backtest-root').innerHTML=empty('Backtest studio unavailable',err.message);
+ });
 }
 function renderPractice(){
  const view={practice:'paper',replay:'replay',backtest:'strategy'}[page],labels={paper:['Paper trading','Practice with virtual balances and fresh venue quotes.'],replay:['Market replay','Step through completed exchange candles and make decisions as each bar appears.'],strategy:['Strategy lab','Test fixed rules on historical candles with fees and next-open execution.']};
@@ -364,7 +398,7 @@ function renderInsights(){
  load();
 }
 function renderOverview(){
- const tabs=`<div class="home-news-tabs" role="group" aria-label="Home news topics">${[['all','Latest'],['MARKETS','Markets'],['MACRO','Macro'],['POLICY','Policy']].map(([key,label])=>`<button type="button" data-action="home-news-tab" data-topic="${key}" aria-pressed="${homeNewsTopic===key}">${label}</button>`).join('')}</div>`;
+ const tabs=`<div class="home-news-tabs" role="group" aria-label="Home news topics">${[['all','Top impact'],['HIGH_IMPACT','Movers'],['MACRO','Macro'],['POLICY','Policy'],['MARKETS','Markets']].map(([key,label])=>`<button type="button" data-action="home-news-tab" data-topic="${key}" aria-pressed="${homeNewsTopic===key}">${label}</button>`).join('')}</div>`;
  const news=`<section class="panel dashboard-news wb-news"><div class="panel-top"><div><h2>Market news</h2><span class="source">Crypto, policy and macro headlines</span></div><a href="#news" class="text-link">All headlines ${icon('arrow-right')}</a></div>${tabs}<div id="news-results" class="news-reading-panel"></div><div class="panel-bottom" id="home-news-meta">${stateBadge('news')}</div></section>`;
  const ranges=`<div class="era-segment" role="group" aria-label="Bitcoin chart history">${[['24h','24H'],['7d','7D'],['30d','30D'],['1y','1Y']].map(([key,label])=>`<button data-action="benchmark-range" data-range="${key}" aria-pressed="${key===benchmarkRange}">${label}</button>`).join('')}</div>`;
  const benchmark=`<section class="panel feature-chart era-benchmark"><div class="panel-top"><h2>${coinMark('BTC')} Bitcoin <span>BTC / USDT</span></h2><a href="#terminal" data-action="default-chart" class="text-link">Full chart ${icon('arrow-up-right')}</a></div><div class="era-benchmark-tools"><div class="benchmark-quote"><strong id="benchmark-price">—</strong><span id="benchmark-change"></span></div>${ranges}</div><div id="benchmark-chart" class="benchmark-chart" aria-label="Bitcoin price history"></div><div class="panel-bottom" id="benchmark-source" role="status">Waiting for exchange candles…</div></section>`;
@@ -459,19 +493,24 @@ function capturePreferences(){if(!terminal)return;workspace.preferences=normaliz
 function refreshIndicatorStrip(){
  const legend=$('#indicator-strip .active-chain');if(!terminal||!legend)return;
  const active=terminal.activeStudies(),results=(terminal.chart?terminal.studyView?.results:null)??[];
+ const activeCustom=(workspace.customStudies??[]).filter(c=>c.enabled!==false);
  const colors=palette();
- const groups=[['overlay','On price'],['pane','Below price']].map(([placement,title])=>({title,ids:active.filter(id=>STUDIES[id].placement===placement)}));
- const label=groups.filter(group=>group.ids.length).map(group=>`${group.ids.length} ${group.title.toLowerCase()}`).join(' · ')||'Price only';
+ const groups=[['overlay','On price'],['pane','Below price']].map(([placement,title])=>({
+  title,
+  ids:active.filter(id=>STUDIES[id].placement===placement),
+  custom:activeCustom.filter(c=>c.placement===placement)
+ }));
+ const label=groups.filter(g=>g.ids.length+g.custom.length).map(g=>`${g.ids.length+g.custom.length} ${g.title.toLowerCase()}`).join(' · ')||'Price only';
  if(legend.textContent!==label)legend.textContent=label;
  const wrap=$('.wb-study-legend');
- wrap.hidden=!active.length;
+ wrap.hidden=!(active.length+activeCustom.length);
  const lines=wrap.querySelector('.wb-study-lines');
- const content=groups.filter(group=>group.ids.length).map(({title,ids})=>`<div><strong>${title}</strong><ul>${ids.flatMap(id=>{
+ const content=groups.filter(g=>g.ids.length+g.custom.length).map(({title,ids,custom})=>`<div><strong>${title}</strong><ul>${ids.flatMap(id=>{
   const result=results.find(item=>item.id===id);
   const plots=result?.series??[];
-  if(['ema','sma'].includes(id)&&plots.length)return plots.map(plot=>`<li><span class="study-swatch" style="--swatch:${colors[plot.color]}"></span>${esc(plot.title)}${Number.isFinite(plot.values.at(-1))?'':' · Awaiting history'}</li>`);
+  if(['ema','sma','ema-ribbon','supertrend'].includes(id)&&plots.length)return plots.map(plot=>`<li><span class="study-swatch" style="--swatch:${colors[plot.color]??colors.cyan}"></span>${esc(plot.title)}${Number.isFinite(plot.values.at(-1))?'':' · Awaiting history'}</li>`);
   return [`<li>${esc(STUDIES[id].label)}${result&&!result.ready?' · Awaiting data':''}</li>`];
- }).join('')}</ul></div>`).join('');
+ }).join('')}${custom.map(c=>`<li><span class="study-swatch" style="--swatch:${colors[c.color]??colors.cyan}"></span>${esc(c.name)} <small>(custom)</small></li>`).join('')}</ul></div>`).join('');
  if(lines.dataset.content!==content){lines.dataset.content=content;lines.innerHTML=content;}
 }
 function updateChartWindow(info){
@@ -496,13 +535,15 @@ function renderComparison(){ $('#main').innerHTML=header('Compare','Compare pric
 function layoutModal(){if(!terminal)return;modal('Saved chart layouts',`<p class="muted">Layouts save indicators, chart style, interval and instrument on this browser.</p><form id="layout-form"><label>Layout name<input name="name" required maxlength="60" placeholder="e.g. Momentum research"></label><button class="button primary" type="submit">Save current layout</button></form><div class="layout-list">${workspace.layouts.map(l=>`<div class="layout-row"><span><strong>${esc(l.name)}</strong><small>${esc(l.settings.lastInstrument.symbol)} · ${esc(l.settings.interval)} · ${esc(l.settings.style)}</small></span><button class="button" data-action="load-layout" data-id="${esc(l.id)}">Load</button><button class="icon-button" data-action="delete-layout" data-id="${esc(l.id)}" aria-label="Delete ${esc(l.name)} layout">${icon('trash-2')}</button></div>`).join('')||'<p class="muted">No named layouts yet. Current settings auto-save automatically.</p>'}</div>`);$('#layout-form').addEventListener('submit',e=>{e.preventDefault();if(workspace.layouts.length>=8){toast('Maximum 8 named layouts. Delete one to save another.');return;}capturePreferences();workspace.layouts.push({id:crypto.randomUUID(),name:new FormData(e.target).get('name').trim(),settings:structuredClone(workspace.preferences)});save();layoutModal();});}
 
 const guideOptions=[
- ['none','None'],['range','Recent high and low'],['trend','Swing trend'],['fibonacci','Fibonacci levels'],
- ['zones','Support and resistance'],['profile','Volume by price'],['prev-day','Previous day'],['prev-week','Previous week'],['daily-pivots','Daily pivot levels'],['anchored-vwap','Anchored VWAP']
+ ['auto-all','Smart Auto Structure'],['range','Recent high and low'],['zones','Support and resistance'],['structure','Market structure (BOS / CHoCH)'],
+ ['fvg','Fair value gaps (FVG)'],['order-blocks','Order blocks (Supply & Demand)'],['atr-bands','ATR volatility channels'],
+ ['trend','Swing trend'],['fibonacci','Fibonacci levels'],['profile','Volume by price'],
+ ['prev-day','Previous day'],['prev-week','Previous week'],['daily-pivots','Daily pivot levels'],['anchored-vwap','Anchored VWAP'],['none','None']
 ];
 function autoControls(){
  const guide=normalizePreferences(workspace.preferences).autoGuide;
  return {
-  menu:`<details class="chart-menu era-draw-menu" name="cryptoz-chart-tools"><summary>${icon('trending-up')} Drawings</summary><div class="chart-menu-body"><button type="button" data-action="manual-guide" aria-pressed="false">${icon('mouse-pointer-2')} Manual drawing</button><button type="button" data-action="drawings">${icon('layers')} Saved drawings</button><button type="button" data-action="suggest-studies">${icon('activity')} Suggest indicators</button></div></details>`,
+  menu:`<details class="chart-menu era-draw-menu" name="cryptoz-chart-tools"><summary>${icon('trending-up')} Drawings</summary><div class="chart-menu-body"><button type="button" data-action="manual-guide" aria-pressed="false">${icon('mouse-pointer-2')} Manual drawing</button><button type="button" data-action="drawings">${icon('layers')} Saved drawings</button><button type="button" data-action="import-tools">${icon('upload')} Import indicators / tools</button><button type="button" data-action="suggest-studies">${icon('activity')} Suggest indicators</button></div></details>`,
   overlay:`<div class="overlay-controls"><label for="auto-overlay">${icon('layers')} Auto overlay</label><select id="auto-overlay">${guideOptions.map(([id,label])=>`<option value="${id}" ${id===guide?'selected':''}>${label}</option>`).join('')}</select><button type="button" class="text-link" data-action="inspect-overlay">View price levels ${icon('arrow-down')}</button></div>`
  };
 }
@@ -697,7 +738,7 @@ function placeChartLegend(){
 function syncTimeframe(){for(const b of document.querySelectorAll('[data-time]')){b.classList.toggle('selected',b.dataset.time===selectedInterval);b.setAttribute('aria-pressed',String(b.dataset.time===selectedInterval));}}
 
 function updateChartAnalyst(){const link=$('#chart-analyst');if(link)link.href='#analysts?asset='+encodeURIComponent(analystAssetKey(selected));}
-function updateInstrumentOptions(){if(!$('#instrument'))return;updateChartAnalyst();const items=[...instruments[selected.venue]];if(!items.some(x=>x.symbol===selected.symbol))items.unshift(selected);items.sort((a,b)=>a.base.localeCompare(b.base));$('#instrument').innerHTML=items.map(x=>`<option value="${esc(x.symbol)}">${esc(x.base)}/${esc(x.quote)}</option>`).join('');$('#instrument').value=selected.symbol;}
+function updateInstrumentOptions(){if(!$('#instrument'))return;updateChartAnalyst();const customForVenue=(workspace.customSymbols??[]).filter(x=>x.venue===selected.venue);const items=[...instruments[selected.venue]];for(const sym of customForVenue)if(!items.some(x=>x.symbol===sym.symbol))items.push(sym);if(!items.some(x=>x.symbol===selected.symbol))items.unshift(selected);items.sort((a,b)=>a.base.localeCompare(b.base));$('#instrument').innerHTML=items.map(x=>`<option value="${esc(x.symbol)}">${esc(x.base)}/${esc(x.quote)}</option>`).join('');$('#instrument').value=selected.symbol;}
 
 function updateQuote(q){
  const quote=$('#terminal-price');
@@ -774,42 +815,115 @@ function updateBook(r){activeBook=r;if(!$('#orderbook')||$('#wb-depth')?.hidden)
 
 function updateWatchPanel(){if(!$('#terminal-watchlist'))return;const list=(data.markets?.data??[]).filter(a=>workspace.watchlist.includes(a.id));$('#terminal-watchlist').innerHTML=list.length?list.slice(0,8).map(a=>`<button class="watch-row" data-action="asset-chart" data-id="${esc(a.id)}"><span>${esc(a.symbol)}</span><span>${moneyMarkup(a.price)}<small class="${tone(a.change)}">${pct(a.change)}</small></span></button>`).join(''):empty('Watchlist empty','Star an asset in Markets to save it.');}
 
-function renderNews(){$('#main').innerHTML=header('News','Crypto, regulation and macro market headlines.')+newsToolbar()+'<div id="news-results" class="news-reading-panel"></div><div class="news-update-note">'+stateBadge('news')+'</div>';bindNewsSearch();renderNewsResults();}
-function renderNewsResults(){if(!$('#news-results'))return;for(const id of ['#news-data-meta','#home-news-meta'])if($(id))$(id).innerHTML=stateBadge('news');const result=newsWindow(data.news?.data?.items??[],{topic:page==='overview'?homeNewsTopic:newsTopic,query:page==='overview'?'':newsQuery,limit:page==='overview'?4:newsLimit});$('#news-results').innerHTML=result.items.length?renderNewsCards(result.items)+(page==='news'?`<div class="news-load"><span>${result.items.length} of ${result.total} headlines</span>${result.remaining?`<button class="button" data-action="news-more">Show more (${Math.min(20,result.remaining)})</button>`:''}</div>`:''):data.news?empty('No matching headlines','Try another topic or search.'):errorOrLoading('news');hydrate();}
+function renderNews(){$('#main').innerHTML=header('News','Institutional, official regulatory, on-chain and macro market headlines prioritized by impact.')+newsToolbar()+'<div id="news-results" class="news-reading-panel"></div><div class="news-update-note">'+stateBadge('news')+'</div>';bindNewsSearch();renderNewsResults();}
+function renderNewsResults(){if(!$('#news-results'))return;for(const id of ['#news-data-meta','#home-news-meta'])if($(id))$(id).innerHTML=stateBadge('news');const result=newsWindow(data.news?.data?.items??[],{source:page==='overview'?'all':newsSource,topic:page==='overview'?homeNewsTopic:newsTopic,query:page==='overview'?'':newsQuery,sort:page==='overview'?'impact':newsSort,limit:page==='overview'?4:newsLimit});$('#news-results').innerHTML=result.items.length?renderNewsCards(result.items)+(page==='news'?`<div class="news-load"><span>${result.items.length} of ${result.total} headlines</span>${result.remaining?`<button class="button" data-action="news-more">Show more (${Math.min(20,result.remaining)})</button>`:''}</div>`:''):data.news?empty('No matching headlines','Try another topic, source or search.'):errorOrLoading('news');hydrate();}
 
-async function renderStudio(){
-
- const gen=pageGeneration;$('#main').innerHTML=header('Market maps','View market size, liquidity and network activity.',`<a href="#terminal" class="button">${icon('chart-no-axes-combined')} Open terminal</a>`)+`<div class="studio-tabs"><button class="chip selected" data-action="studio-tab" data-view="map">Market map</button><button class="chip" data-action="studio-tab" data-view="momentum">Liquidity & momentum</button><button class="chip" data-action="studio-tab" data-view="defi">DeFi landscape</button><button class="chip" data-action="studio-tab" data-view="depth">Exchange depth</button></div><div id="studio-content"></div>`;await studioView(studioViewName,gen);
-
+function buildSectorSummary(rows){
+ return SECTOR_GROUPS.map(([key,label])=>{
+  const members=filterMarketGroup(rows,key).filter(x=>Number.isFinite(x.marketCap)&&x.marketCap>0&&Number.isFinite(x.change));
+  const totalCap=members.reduce((s,x)=>s+x.marketCap,0);
+  const change=totalCap>0?members.reduce((s,x)=>s+x.change*(x.marketCap/totalCap),0):0;
+  const sorted=[...members].sort((a,b)=>b.change-a.change);
+  return {key,label,count:members.length,totalCap,change,leader:sorted[0]??null,laggard:sorted.at(-1)??null};
+ }).filter(x=>x.count>0).sort((a,b)=>b.change-a.change);
 }
 
-function updateStudioInsights(view,payload){if(!$('#studio-insights'))return;const a=data.markets?.data??[];const total=a.reduce((s,x)=>s+(x.marketCap??0),0);$('#studio-insights').innerHTML=view==='defi'?`<div class="insight-number">${payload.length}<small>chains reporting positive TVL</small></div><p>Compare the largest chain networks by reported capital locked.</p><div class="callout">TVL is not market cap, revenue or a valuation. Do not sum chains to assert unique deposits.</div>`:view==='depth'?`<div class="insight-number">50<small>levels requested per side</small></div><p>${esc(selected.venue.toUpperCase())} · ${esc(selected.symbol)}</p><div class="callout">Displayed orders can be canceled. Depth is a point-in-time snapshot and does not predict trade execution.</div>`:`<div class="insight-number">${a.length?num(a.length,0):'—'}<small>directory assets in snapshot</small></div><div class="pulse-item"><span>Top 10 cap share</span><strong>${total?num(a.slice(0,10).reduce((s,x)=>s+(x.marketCap??0),0)/total*100)+'%':'—'}</strong></div><p>Concentration and liquidity are different. Smaller assets can carry large execution risk.</p><div class="callout">${view==='map'?'A small tile can still have a large percentage move. Color is not a trade signal.':'Reported turnover is not audited executable liquidity. Log scaling spreads orders of magnitude.'}</div>${stateBadge('markets')}`;}
+async function renderStudio(){
+ const gen=pageGeneration;
+ $('#main').innerHTML=header('Market maps','Explore market cap heatmaps, liquidity clusters, sector rotation, DeFi TVL and live order book depth.',`<a href="#terminal" class="button">${icon('chart-no-axes-combined')} Open terminal</a>`)+`<div class="studio-tabs"><button class="chip ${studioViewName==='map'?'selected':''}" data-action="studio-tab" data-view="map">Market map</button><button class="chip ${studioViewName==='momentum'?'selected':''}" data-action="studio-tab" data-view="momentum">Liquidity &amp; momentum</button><button class="chip ${studioViewName==='sectors'?'selected':''}" data-action="studio-tab" data-view="sectors">Sector rotation</button><button class="chip ${studioViewName==='defi'?'selected':''}" data-action="studio-tab" data-view="defi">DeFi landscape</button><button class="chip ${studioViewName==='depth'?'selected':''}" data-action="studio-tab" data-view="depth">Exchange depth</button></div><div id="studio-content"></div>`;
+ await studioView(studioViewName,gen);
+}
 
-async function studioView(view,gen=pageGeneration,updateOnly=false){studioViewName=view;
- if(updateOnly&&visuals.length&&view!=='depth'){const payload=view==='defi'?data.chains?.data:data.markets?.data;if(payload){visuals[0].update(payload);updateStudioInsights(view,payload);if($('#studio-meta'))$('#studio-meta').innerHTML=stateBadge(view==='defi'?'chains':'markets');return;}}
+function updateStudioInsights(view,payload){
+ const host=$('#studio-insights');if(!host)return;
+ const a=data.markets?.data??[];
+ const totalCap=a.reduce((s,x)=>s+(x.marketCap>0?x.marketCap:0),0);
+ if(view==='defi'){
+  const list=Array.isArray(payload)?payload:[];
+  const totalTvl=list.reduce((s,x)=>s+(x.tvl>0?x.tvl:0),0);
+  const top1=list[0],top3Share=totalTvl?list.slice(0,3).reduce((s,x)=>s+x.tvl,0)/totalTvl*100:0;
+  host.innerHTML=`<div class="insight-number">${list.length}<small>chains reporting positive TVL</small></div>
+   <div class="pulse-item"><span>Reported TVL total</span><strong>${moneyMarkup(totalTvl,'USD','compact')}</strong></div>
+   ${top1?`<div class="pulse-item"><span>${esc(top1.name)} dominance</span><strong>${(top1.tvl/Math.max(totalTvl,1)*100).toFixed(1)}%</strong></div>`:''}
+   <div class="pulse-item"><span>Top 3 chains share</span><strong>${top3Share.toFixed(1)}%</strong></div>
+   <p>Compare where reported on-chain DeFi capital is concentrated across the top 15 networks.</p>
+   <div class="callout">TVL is not market cap, revenue or valuation. Bridge and restaking protocols can overlap across chains.</div>`;
+  return;
+ }
+ if(view==='depth'){
+  const pair=studioDepthPair??selected;
+  const bids=payload?.bids??[],asks=payload?.asks??[];
+  const bestBid=bids[0]?.[0],bestAsk=asks[0]?.[0];
+  const bidVol=bids.reduce((s,x)=>s+x[1],0),askVol=asks.reduce((s,x)=>s+x[1],0);
+  const totalDepth=bidVol+askVol||1,bidPct=bidVol/totalDepth*100,askPct=100-bidPct;
+  host.innerHTML=`<div class="insight-number">${esc(formatSpreadPercent(bestBid,bestAsk)||'—')}<small>top-of-book spread (${esc(pair.base)}/${esc(pair.quote)})</small></div>
+   <div class="pulse-item"><span>Bid depth (50 lvls)</span><strong class="positive">${compact(bidVol)} ${esc(pair.base)}</strong></div>
+   <div class="pulse-item"><span>Ask depth (50 lvls)</span><strong class="negative">${compact(askVol)} ${esc(pair.base)}</strong></div>
+   <div class="studio-ratio-wrap"><div class="studio-ratio-labels"><span class="positive">Bids ${bidPct.toFixed(0)}%</span><span class="negative">Asks ${askPct.toFixed(0)}%</span></div><div class="studio-ratio-bar"><span class="ratio-up" style="width:${bidPct.toFixed(1)}%"></span><span class="ratio-down" style="width:${askPct.toFixed(1)}%"></span></div></div>
+   <p>${esc(pair.venue.toUpperCase())} · ${esc(pair.symbol)} point-in-time cumulative depth across 50 levels per side.</p>
+   <div class="callout">Displayed orders can be canceled before execution. Depth is a snapshot, not guaranteed fill liquidity.</div>`;
+  return;
+ }
+ if(view==='sectors'){
+  const list=Array.isArray(payload)?payload:[];
+  const best=list[0],worst=list.at(-1);
+  host.innerHTML=`<div class="insight-number">${list.length}<small>active tracked crypto sectors</small></div>
+   ${best?`<div class="pulse-item"><span>Leading sector</span><strong class="${tone(best.change)}">${esc(best.label)} (${pct(best.change)})</strong></div>`:''}
+   ${worst?`<div class="pulse-item"><span>Lagging sector</span><strong class="${tone(worst.change)}">${esc(worst.label)} (${pct(worst.change)})</strong></div>`:''}
+   <div class="studio-movers">${list.slice(0,5).map(sec=>`<div class="pulse-item"><span>${esc(sec.label)} <small>(${sec.count})</small></span><strong class="${tone(sec.change)}">${pct(sec.change)}</strong></div>`).join('')}</div>
+   <p>Cap-weighted 24h returns reveal where capital is rotating across L1s, L2s, DeFi, AI, memes and infrastructure.</p>${stateBadge('markets')}`;
+  return;
+ }
+ const sample=a.filter(x=>x.marketCap>0&&Number.isFinite(x.change)).slice(0,100);
+ const upCount=sample.filter(x=>x.change>0).length,downCount=sample.length-upCount;
+ const upPct=sample.length?upCount/sample.length*100:50;
+ const sortedChg=[...sample].sort((x,y)=>y.change-x.change);
+ const gainers=sortedChg.slice(0,3),losers=sortedChg.slice(-3).reverse();
+ const top10Share=totalCap?a.slice(0,10).reduce((s,x)=>s+(x.marketCap??0),0)/totalCap*100:0;
+ host.innerHTML=`<div class="insight-number">${sample.length?upCount+'/'+sample.length:'—'}<small>top-100 assets advancing (24h)</small></div>
+  <div class="studio-ratio-wrap"><div class="studio-ratio-labels"><span class="positive">Up ${upPct.toFixed(0)}%</span><span class="negative">Down ${(100-upPct).toFixed(0)}%</span></div><div class="studio-ratio-bar"><span class="ratio-up" style="width:${upPct.toFixed(1)}%"></span><span class="ratio-down" style="width:${(100-upPct).toFixed(1)}%"></span></div></div>
+  <div class="pulse-item"><span>Top 10 cap concentration</span><strong>${top10Share?top10Share.toFixed(1)+'%':'—'}</strong></div>
+  ${gainers.length?`<div class="studio-movers"><span class="eyebrow">Top movers (click to inspect)</span>${gainers.map(x=>`<button type="button" class="watch-row" data-action="asset-chart" data-id="${esc(x.id)}"><span><strong>${esc(x.symbol)}</strong></span><span class="positive">${pct(x.change)}</span></button>`).join('')}${losers.map(x=>`<button type="button" class="watch-row" data-action="asset-chart" data-id="${esc(x.id)}"><span><strong>${esc(x.symbol)}</strong></span><span class="negative">${pct(x.change)}</span></button>`).join('')}</div>`:''}
+  <div class="callout">${view==='map'?'Tile area reflects chosen metric; color tracks 24h momentum from −10% to +10%. Click any tile to inspect or chart it.':'Crosshairs mark 0% return and median 24h volume. Scroll or pinch inside the plot to zoom clusters.'}</div>${stateBadge('markets')}`;
+}
 
+async function studioView(view,gen=pageGeneration,updateOnly=false){
+ studioViewName=view;
+ if(updateOnly&&visuals.length&&view!=='depth'){
+  const rawPayload=view==='defi'?data.chains?.data:view==='sectors'?buildSectorSummary(data.markets?.data??[]):view==='map'?{rows:data.markets?.data??[],metric:studioMapMetric,limit:studioMapLimit}:data.markets?.data;
+  if(rawPayload){visuals[0].update(rawPayload);updateStudioInsights(view,rawPayload);if($('#studio-meta'))$('#studio-meta').innerHTML=stateBadge(view==='defi'?'chains':'markets');return;}
+ }
  const viewGen=++studioGeneration;const current=()=>gen===pageGeneration&&viewGen===studioGeneration;
+ for(const v of visuals)v.dispose();visuals=[];
+ document.querySelectorAll('[data-action="studio-tab"]').forEach(b=>b.classList.toggle('selected',b.dataset.view===view));
+ const el=$('#studio-content');if(!el)return;
+ const depthPair=studioDepthPair??selected;
+ const definitions={
+  map:['Market capitalization & volume heatmap',`Area = ${studioMapMetric==='volume'?'24h traded volume':'market cap'}. Color = 24h price change. Top ${studioMapLimit} assets. Click any tile to inspect or launch its chart.`],
+  momentum:['Liquidity vs momentum quadrants','24h price change vs 24h volume (log scale) with median-volume and 0% crosshairs. Bubble size = market cap. Scroll to zoom.'],
+  sectors:['Crypto sector rotation','Market-cap-weighted 24h performance across the 8 major crypto sectors. Hover any bar for leader & laggard details.'],
+  defi:['DeFi chain TVL landscape','Top 15 blockchains ranked by DeFiLlama reported Total Value Locked and overall chain share.'],
+  depth:[`${depthPair.base} / ${depthPair.quote} · live order book depth`,'Cumulative bid and ask curves across the top 50 levels with mid-price reference line.']
+ };
+ const subControls=view==='map'
+  ?`<div class="studio-subcontrols"><div class="news-sort-toggle" role="group" aria-label="Tile size metric"><button type="button" data-action="studio-map-metric" data-metric="marketCap" aria-pressed="${studioMapMetric==='marketCap'}">Market cap</button><button type="button" data-action="studio-map-metric" data-metric="volume" aria-pressed="${studioMapMetric==='volume'}">24h Volume</button></div><div class="news-sort-toggle" role="group" aria-label="Asset count"><button type="button" data-action="studio-map-limit" data-limit="45" aria-pressed="${studioMapLimit===45}">Top 45</button><button type="button" data-action="studio-map-limit" data-limit="100" aria-pressed="${studioMapLimit===100}">Top 100</button></div></div>`
+  :view==='depth'
+   ?`<div class="studio-subcontrols">${['BTC','ETH','SOL','BNB','XRP'].map(sym=>`<button type="button" class="chip ${depthPair.base===sym?'selected':''}" data-action="studio-depth-pair" data-base="${sym}">${sym}</button>`).join('')}</div>`
+   :'';
 
- for(const v of visuals)v.dispose();visuals=[];document.querySelectorAll('[data-action="studio-tab"]').forEach(b=>b.classList.toggle('selected',b.dataset.view===view));const el=$('#studio-content');if(!el)return;
+ el.innerHTML=`<div class="studio-grid"><section class="panel"><div class="panel-top"><div><h2>${esc(definitions[view][0])}</h2></div>${subControls||'<span class="small-tag">OBSERVED DATA</span>'}</div><p class="chart-description">${esc(definitions[view][1])}</p><div id="studio-chart" class="studio-chart"></div><div id="studio-meta" class="panel-bottom"></div></section><aside class="panel studio-insights"><div class="panel-top"><h2>Reading this view</h2>${icon('info')}</div><div id="studio-insights"></div><a href="#markets" class="button full">View prices ${icon('arrow-up-right')}</a></aside></div>`;hydrate();
 
- const definitions={map:['Market capitalization map','Area = market cap. Color = 24h price change. Top 45 directory assets. Click an asset to choose its exchange chart.'],momentum:['Liquidity meets momentum','24h change vs reported trading volume (log scale). Bubble size = market cap. First 100 qualifying ranked assets.'],defi:['Where DeFi capital sits','Chain TVL is sourced from DeFiLlama. TVL depends on the provider methodology and can include overlapping protocol exposures.'],depth:[`${selected.base} / ${selected.quote} · depth snapshot`,'Cumulative base-asset size within the first 50 bid/ask levels. A partial snapshot, not total market liquidity.']};
-
- el.innerHTML=`<div class="studio-grid"><section class="panel"><div class="panel-top"><div><h2>${esc(definitions[view][0])}</h2></div><span class="small-tag">OBSERVED DATA</span></div><p class="chart-description">${esc(definitions[view][1])}</p><div id="studio-chart" class="studio-chart"></div><div id="studio-meta" class="panel-bottom"></div></section><aside class="panel studio-insights"><div class="panel-top"><h2>Reading this view</h2>${icon('info')}</div><div id="studio-insights"></div><a href="#markets" class="button full">View prices ${icon('arrow-up-right')}</a></aside></div>`;hydrate();
-
- try{const {createVisual}=await import('./visuals.js');if(!current())return;let payload,kind,key;
-
+ try{
+  const {createVisual}=await import('./visuals.js');if(!current())return;let payload,kind,key;
   if(view==='defi'){if(!data.chains)data.chains=await api('chains');payload=data.chains.data;kind='chains';key='chains';}
-
-  else if(view==='depth'){const r=await api(`book?venue=${selected.venue}&symbol=${selected.symbol}`);if(!current())return;payload={...r.data,quote:selected.quote};kind='depth';key=null;$('#studio-meta').textContent=`${r.provider} · ${r.cache==='stale'?'STALE · ':''}${stamp(r.fetchedAt)}`;}
-
-  else {if(!data.markets)throw Error(errors.markets??'Market prices are loading. Use Refresh to retry.');payload=data.markets.data;kind=view==='map'?'treemap':'scatter';key='markets';}
-
-  if(!current()||!$('#studio-chart'))return;visuals.push(createVisual($('#studio-chart'),kind,payload,{onSelect:id=>chooseAsset(id)}));if(key)$('#studio-meta').innerHTML=stateBadge(key);
-
+  else if(view==='depth'){const r=await api(`book?venue=${depthPair.venue}&symbol=${depthPair.symbol}`);if(!current())return;payload={...r.data,quote:depthPair.quote};kind='depth';key=null;$('#studio-meta').textContent=`${r.provider} · ${r.cache==='stale'?'STALE · ':''}${stamp(r.fetchedAt)}`;}
+  else if(view==='sectors'){if(!data.markets)throw Error(errors.markets??'Market prices are loading. Use Refresh to retry.');payload=buildSectorSummary(data.markets.data);kind='sectors';key='markets';}
+  else {if(!data.markets)throw Error(errors.markets??'Market prices are loading. Use Refresh to retry.');payload=view==='map'?{rows:data.markets.data,metric:studioMapMetric,limit:studioMapLimit}:data.markets.data;kind=view==='map'?'treemap':'scatter';key='markets';}
+  if(!current()||!$('#studio-chart'))return;
+  visuals.push(createVisual($('#studio-chart'),kind,payload,{onSelect:id=>chooseAsset(id)}));
+  if(key)$('#studio-meta').innerHTML=stateBadge(key);
   updateStudioInsights(view,payload);
-
  }catch(e){if(current()&&$('#studio-chart'))$('#studio-chart').innerHTML=empty('Visualization unavailable',e.message);}
-
 }
 
 function renderWorkspace(){const list=(data.markets?.data??[]).filter(a=>workspace.watchlist.includes(a.id));$('#main').innerHTML=header('Workspace','Watchlist, alerts, notes and journal.',`<div class="inline-actions"><button class="button" data-action="export-workspace">${icon('download')} Backup</button><button class="button" data-action="import-workspace">${icon('upload')} Import</button><button class="button" data-action="restore-workspace">Recover import</button></div>`)+`<div class="callout workspace-callout">${icon('info')} Saved on this browser. Backups are unencrypted.</div><section class="panel" id="workspace-watchlist"><div class="panel-top"><h2>Watchlist <span class="count">${workspace.watchlist.length}</span></h2><a href="#markets" class="text-link">Add assets ${icon('plus')}</a></div><div id="workspace-watchlist-table">${data.markets?list.length?marketTable(list):empty('Watchlist empty','Star an asset in Markets to save it.'):errorOrLoading('markets')}</div></section><div class="workspace-grid"><section class="panel" id="workspace-alerts"><div class="panel-top"><div><h2>Price alerts</h2></div><button class="button" data-action="new-alert">${icon('plus')} Add alert</button></div><div id="alerts-list">${alertList()}</div><p class="data-note">Triggers once when a fresh price crosses the threshold. Keep this tab open.</p></section><section class="panel" id="workspace-journal"><div class="panel-top"><h2>Journal</h2>${icon('file-text')}</div><form id="journal-form"><label class="sr-only" for="journal-text">Research journal entry</label><textarea id="journal-text" maxlength="4000" placeholder="Add a journal entry…" required>${esc(drafts.journal)}</textarea><small id="journal-draft-status" class="source">Draft retained on this browser</small><button class="button primary" type="submit">Save entry ${icon('plus')}</button></form><div class="journal-list">${workspace.journal.slice().reverse().slice(0,15).map(j=>`<article><time>${esc(stamp(j.createdAt))}</time><button class="icon-button" data-action="delete-journal" data-id="${esc(j.id)}" aria-label="Delete journal entry">${icon('trash-2')}</button><p>${esc(j.text)}</p></article>`).join('')}</div></section></div><section class="panel saved-notes"><div class="panel-top"><h2>Saved instrument notes</h2></div>${Object.entries(workspace.notes).filter(([k,v])=>v.trim()).map(([k,v])=>`<article><span class="eyebrow">${esc(k)}</span><p>${esc(v)}</p></article>`).join('')||empty('No saved instrument notes','Previously saved instrument notes remain in backups.')}</section><input id="workspace-file" type="file" accept="application/json,.json" class="hidden">`;
@@ -849,15 +963,115 @@ async function chooseAsset(id){let a=(data.markets?.data??[]).find(a=>a.id===id)
 
 function selectInstrument(venue,symbol){const i=instruments[venue].find(x=>x.symbol===symbol);if(!i){toast('Instrument is unavailable. Refresh the directory.');return;}selected=i;closeModal();if(page==='terminal'){updateInstrumentOptions();$('#venue').value=venue;capturePreferences();terminal.load(selected,selectedInterval);}else{workspace.preferences.lastInstrument=selected;save();location.hash='terminal';}}
 
-function indicatorModal(){
+function indicatorModal({openCustom=false}={}){
  if(!terminal)return;const selectedIds=[...terminal.activeStudies()];
  const catalog=Object.values(STUDIES);const groups=[...new Set(catalog.map(s=>s.group))];
  const presets=Object.values(STUDY_PRESETS);
- const studyCards=groups.map(group=>`<section class="study-group" data-study-group="${esc(group)}"><h3>${esc(group)}</h3><div class="study-grid">${catalog.filter(s=>s.group===group).map(s=>`<label class="study-choice"><input type="checkbox" name="study" value="${s.id}" ${selectedIds.includes(s.id)?'checked':''}><span><strong>${esc(s.label)}</strong><small>${esc(s.meaning)}</small><small>${s.placement==='pane'?'Lower pane':'On price chart'} · ${esc(s.warmup)}</small>${s.id==='vwap'&&selectedInterval==='1d'?'<small>Choose an intraday interval to plot VWAP.</small>':''}</span></label>`).join('')}</div></section>`).join('');
+ const customList=workspace.customStudies??=[];
+ const studyCards=groups.map(group=>`<section class="study-group" data-study-group="${esc(group)}"><h3>${esc(group)}</h3><div class="study-grid">${catalog.filter(s=>s.group===group).map(s=>`<label class="study-choice"><input type="checkbox" name="study" value="${s.id}" ${selectedIds.includes(s.id)?'checked':''}><span><strong>${esc(s.label)}</strong><small>${esc(s.meaning)}</small><small>${s.placement==='pane'?'Lower pane':'On price chart'} · ${esc(s.warmup)}</small>${(s.id==='vwap'||s.id==='vwap-bands')&&selectedInterval==='1d'?'<small>Choose an intraday interval to plot VWAP.</small>':''}</span></label>`).join('')}</div></section>`).join('');
  const lengths=(terminal.smaPeriods.length?terminal.smaPeriods:[terminal.period]).join(', ');
- const settings=`<fieldset class="study-settings"><legend>Indicator lengths</legend><div class="study-lengths"><label class="sma-lengths">SMA lengths<input name="smaPeriods" type="text" value="${lengths}" aria-describedby="sma-length-help" required><small id="sma-length-help">Enter up to ${MAX_SMA_PERIODS} lengths from 2 to ${MAX_SMA_LENGTH}, separated by commas or spaces.</small></label><button type="button" class="button" id="sma-quick-set">Use 20, 40, 60, 80</button><label>EMA, WMA, HMA and band length<input name="period" type="number" min="2" max="200" value="${terminal.period}" required></label><label>RSI length<input name="rsiPeriod" type="number" min="2" max="100" value="${terminal.rsiPeriod}" required></label></div></fieldset>`;
- modal('Chart studies',`<div class="study-presets" aria-label="Study presets">${presets.map(p=>`<button type="button" class="button" data-preset="${p.id}" title="${esc(p.description)}">${esc(p.label)}</button>`).join('')}<button type="button" class="button" data-preset="clear">Clear studies</button></div><form id="study-form">${settings}<div class="era-study-filters"><input id="study-search" aria-label="Find an indicator" placeholder="Find an indicator"><select id="study-category" aria-label="Indicator category"><option value="">All categories</option>${groups.map(group=>`<option>${esc(group)}</option>`).join('')}</select></div><p id="study-no-results" hidden>No indicators match.</p>${studyCards}<footer class="study-actions"><div><p class="study-count" aria-live="polite"></p><p class="study-feedback" role="status"></p></div><button class="button primary" type="submit">Apply to chart</button></footer></form>`,true);
+ const settings=`<fieldset class="study-settings"><legend>Indicator lengths &amp; multi-SMA (up to ${MAX_SMA_PERIODS})</legend><div class="study-lengths"><label class="sma-lengths">SMA lengths<input name="smaPeriods" type="text" value="${lengths}" aria-describedby="sma-length-help" required><small id="sma-length-help">Enter up to ${MAX_SMA_PERIODS} SMA lengths (2–${MAX_SMA_LENGTH}), comma or space separated.</small></label><label>EMA, WMA, HMA &amp; band length<input name="period" type="number" min="2" max="200" value="${terminal.period}" required></label><label>RSI / StochRSI length<input name="rsiPeriod" type="number" min="2" max="100" value="${terminal.rsiPeriod}" required></label><div class="sma-quick-row"><button type="button" class="button" data-sma-preset="9, 20, 50, 100, 200">5 SMAs (9/20/50/100/200)</button><button type="button" class="button" data-sma-preset="10, 20, 40, 60, 100, 200">6 SMAs (10–200)</button><span class="sma-add-inline"><input id="sma-add-val" type="number" min="2" max="${MAX_SMA_LENGTH}" placeholder="e.g. 150" aria-label="Add another SMA period"><button type="button" class="button" id="sma-add-btn">+ Add SMA</button></span></div></div></fieldset>`;
+ const customSection=`<details class="custom-study-box" ${openCustom?'open':''}><summary>Custom formula indicators &amp; import tools (${customList.length}/${MAX_CUSTOM_STUDIES})</summary>
+  <p class="data-note">Write safe expressions using <code>open, high, low, close, volume, hl2, hlc3, ohlc4</code> and <code>sma, ema, wma, rsi, atr, stdev, highest, lowest, shift, abs, max, min</code>.</p>
+  <div class="custom-study-templates">${CUSTOM_STUDY_TEMPLATES.map((t,idx)=>`<button type="button" class="chip" data-custom-tpl="${idx}">${esc(t.name)}</button>`).join('')}</div>
+  <div class="custom-study-grid">
+   <label>Indicator name<input id="cs-name" maxlength="48" placeholder="e.g. Custom EMA Spread"></label>
+   <label>Formula<input id="cs-formula" maxlength="280" placeholder="ema(close, 12) - ema(close, 26)"></label>
+   <label>Placement<select id="cs-placement"><option value="overlay">On price chart</option><option value="pane">Lower pane</option></select></label>
+   <label>Line color<select id="cs-color">${CUSTOM_COLORS.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></label>
+   <label>Guide lines (optional)<input id="cs-guides" placeholder="e.g. 0 or -2, 0, 2"></label>
+  </div>
+  <div class="custom-study-import-actions" style="margin-top:8px"><button type="button" class="button" id="cs-add-btn">Add custom indicator</button><span id="cs-status" class="source" role="status"></span></div>
+  <div class="custom-study-list" id="cs-list"></div>
+  <div class="custom-study-import">
+   <strong style="font-size:12px">Import indicators, chart levels or assistance symbols (JSON / CSV)</strong>
+   <textarea id="cs-import-text" rows="3" placeholder='Paste JSON bundle or CSV lines like "95000, Key resistance" or "PEPEUSDT"'></textarea>
+   <div class="custom-study-import-actions">
+    <input type="file" id="cs-import-file" accept=".json,.csv,.txt" aria-label="Choose JSON or CSV file to import">
+    <button type="button" class="button" id="cs-import-btn">Import to chart</button>
+    <button type="button" class="button" id="cs-template-dl">Download template (.json)</button>
+    <button type="button" class="button" id="cs-export-btn">Export custom studies</button>
+   </div>
+   <p id="cs-import-status" class="source" role="status"></p>
+  </div>
+ </details>`;
+ modal('Chart studies',`<div class="study-presets" aria-label="Study presets">${presets.map(p=>`<button type="button" class="button" data-preset="${p.id}" title="${esc(p.description)}">${esc(p.label)}</button>`).join('')}<button type="button" class="button" data-preset="clear">Clear studies</button></div>${customSection}<form id="study-form">${settings}<div class="era-study-filters"><input id="study-search" aria-label="Find an indicator" placeholder="Find an indicator"><select id="study-category" aria-label="Indicator category"><option value="">All categories</option>${groups.map(group=>`<option>${esc(group)}</option>`).join('')}</select></div><p id="study-no-results" hidden>No indicators match.</p>${studyCards}<footer class="study-actions"><div><p class="study-count" aria-live="polite"></p><p class="study-feedback" role="status"></p></div><button class="button primary" type="submit">Apply to chart</button></footer></form>`,true);
  const dialog=$('#modal-root'),form=$('#study-form');
+ const renderCustomList=()=>{
+  const box=$('#cs-list');if(!box)return;
+  const rows=workspace.customStudies??[];
+  box.innerHTML=rows.length?rows.map(item=>`<div class="custom-study-row"><label><input type="checkbox" data-cs-toggle="${esc(item.id)}" ${item.enabled!==false?'checked':''}><span><strong>${esc(item.name)}</strong> <small>(${item.placement})</small><br><code>${esc(item.formula)}</code></span></label><button type="button" class="icon-button" data-cs-del="${esc(item.id)}" aria-label="Delete ${esc(item.name)}">${icon('trash-2')}</button></div>`).join(''):'<p class="data-note">No custom formula indicators yet. Pick a template above or import a JSON/CSV file.</p>';
+  hydrate();
+  for(const cb of box.querySelectorAll('[data-cs-toggle]'))cb.addEventListener('change',()=>{
+   const target=workspace.customStudies.find(x=>x.id===cb.dataset.csToggle);
+   if(target){target.enabled=cb.checked;save();if(terminal.bars.length)terminal.renderIndicators();refreshIndicatorStrip();}
+  });
+  for(const del of box.querySelectorAll('[data-cs-del]'))del.addEventListener('click',()=>{
+   workspace.customStudies=workspace.customStudies.filter(x=>x.id!==del.dataset.csDel);
+   save();renderCustomList();if(terminal.bars.length)terminal.renderIndicators();refreshIndicatorStrip();
+  });
+ };
+ renderCustomList();
+ for(const tplBtn of dialog.querySelectorAll('[data-custom-tpl]'))tplBtn.addEventListener('click',()=>{
+  const tpl=CUSTOM_STUDY_TEMPLATES[Number(tplBtn.dataset.customTpl)];if(!tpl)return;
+  $('#cs-name').value=tpl.name;$('#cs-formula').value=tpl.formula;$('#cs-placement').value=tpl.placement;$('#cs-color').value=tpl.color;$('#cs-guides').value=(tpl.guides??[]).join(', ');
+  $('#cs-status').textContent='Template loaded — click Add custom indicator.';
+ });
+ $('#cs-add-btn').addEventListener('click',()=>{
+  const st=$('#cs-status');
+  try{
+   if((workspace.customStudies?.length??0)>=MAX_CUSTOM_STUDIES)throw Error(`Maximum ${MAX_CUSTOM_STUDIES} custom indicators saved.`);
+   const guides=($('#cs-guides').value||'').split(/[,\s]+/).filter(Boolean).map(Number).filter(Number.isFinite);
+   const created=validateCustomStudy({name:$('#cs-name').value,formula:$('#cs-formula').value,placement:$('#cs-placement').value,color:$('#cs-color').value,guides,enabled:true});
+   workspace.customStudies=[...(workspace.customStudies??[]),created];
+   save();renderCustomList();if(terminal.bars.length)terminal.renderIndicators();refreshIndicatorStrip();
+   $('#cs-name').value='';$('#cs-formula').value='';$('#cs-guides').value='';
+   st.textContent=`Added "${created.name}" to chart.`;
+  }catch(err){st.textContent=err.message;}
+ });
+ $('#cs-template-dl').addEventListener('click',()=>download('cryptoz-custom-tools-template.json',JSON.stringify(CUSTOM_IMPORT_SAMPLE,null,2),'application/json'));
+ $('#cs-export-btn').addEventListener('click',()=>{
+  const payload={indicators:workspace.customStudies??[],levels:workspace.drawings[terminal.key]??[],symbols:workspace.customSymbols??[]};
+  download('cryptoz-custom-studies.json',JSON.stringify(payload,null,2),'application/json');
+ });
+ $('#cs-import-file').addEventListener('change',async e=>{
+  const file=e.target.files?.[0];if(!file)return;
+  try{$('#cs-import-text').value=await file.text();$('#cs-import-status').textContent=`Loaded ${file.name} — click Import to chart.`;}
+  catch{$('#cs-import-status').textContent='Could not read file.';}
+ });
+ $('#cs-import-btn').addEventListener('click',()=>{
+  const st=$('#cs-import-status');
+  try{
+   const fallbackTime=terminal.bars.at(-1)?.time??Math.floor(Date.now()/1000);
+   const imported=parseAssistanceImport($('#cs-import-text').value,fallbackTime);
+   let addedInd=0,addedLvl=0,addedSym=0;
+   if(imported.indicators.length){
+    workspace.customStudies=[...(workspace.customStudies??[]),...imported.indicators].slice(0,MAX_CUSTOM_STUDIES);
+    addedInd=imported.indicators.length;
+   }
+   if(imported.levels.length){
+    const current=workspace.drawings[terminal.key]??=[];
+    workspace.drawings[terminal.key]=[...current,...imported.levels].slice(0,40);
+    addedLvl=imported.levels.length;
+    terminal.onDrawings?.();
+   }
+   if(imported.symbols.length){
+    const existing=workspace.customSymbols??[];
+    const seen=new Set(existing.map(s=>s.venue+':'+s.symbol));
+    for(const sym of imported.symbols){
+     const k=sym.venue+':'+sym.symbol;
+     if(!seen.has(k)&&existing.length<MAX_CUSTOM_SYMBOLS){existing.push(sym);seen.add(k);addedSym++;}
+    }
+    workspace.customSymbols=existing;
+    updateInstrumentOptions();
+   }
+   save();renderCustomList();
+   if(terminal.bars.length){terminal.renderIndicators();terminal.draw();}
+   refreshIndicatorStrip();
+   st.textContent=`Imported ${addedInd} indicator(s), ${addedLvl} level/marker(s), ${addedSym} symbol(s).`;
+   $('#cs-import-text').value='';
+  }catch(err){st.textContent=err.message;}
+ });
  const filter=()=>{
   const query=$('#study-search').value.trim().toLowerCase(),category=$('#study-category').value;
   let count=0;
@@ -892,15 +1106,27 @@ function indicatorModal(){
   sync();
  });
  const smaField=form.elements.smaPeriods;
- smaField.addEventListener('input',()=>smaField.setCustomValidity(''));
- $('#sma-quick-set').addEventListener('click',()=>{
-  smaField.value='20, 40, 60, 80';
-  smaField.setCustomValidity('');
+ const ensureSmaChecked=()=>{
   if(!draft.includes('sma')){
    const checkbox=form.querySelector('[value="sma"]');
    checkbox.checked=true;
    checkbox.dispatchEvent(new Event('change',{bubbles:true}));
   }
+ };
+ smaField.addEventListener('input',()=>smaField.setCustomValidity(''));
+ for(const btn of form.querySelectorAll('[data-sma-preset]'))btn.addEventListener('click',()=>{
+  smaField.value=btn.dataset.smaPreset;
+  smaField.setCustomValidity('');
+  ensureSmaChecked();
+ });
+ $('#sma-add-btn').addEventListener('click',()=>{
+  const val=Number($('#sma-add-val').value);
+  if(!Number.isInteger(val)||val<2||val>MAX_SMA_LENGTH){$('#sma-add-val').focus();return;}
+  const current=smaField.value.trim().split(/[,\s]+/).map(Number).filter(n=>Number.isInteger(n)&&n>=2&&n<=MAX_SMA_LENGTH);
+  const next=normalizeSmaPeriods([...current,val]);
+  smaField.value=next.join(', ');
+  $('#sma-add-val').value='';
+  ensureSmaChecked();
  });
  form.addEventListener('submit',e=>{
   e.preventDefault();
@@ -1014,9 +1240,16 @@ document.addEventListener('click',e=>{
  if(a==='export-markets'){const list=filteredMarkets();download('cryptoz-markets.csv',serializeCSV(['id','symbol','name','price','quote','change24h','marketCap','volume','updatedAt'],list.map(x=>[x.id,x.symbol,x.name,x.price,marketUniverse==='exchange'?'USDT':'USD',x.change,x.marketCap,x.volume,x.updatedAt])),'text/csv');return;}
 
  if(a==='home-news-tab'){homeNewsTopic=b.dataset.topic;document.querySelectorAll('[data-action="home-news-tab"]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));renderNewsResults();reveal($('#news-results'),{offset:3,duration:200});return;}
- if(a==='news-more'){newsLimit+=20;renderNewsResults();reveal($('#news-results'),{offset:3,duration:200});return;}if(a==='news-topic'){newsTopic=b.dataset.topic;newsLimit=20;document.querySelectorAll('[data-action="news-topic"]').forEach(x=>{x.classList.toggle('active',x.dataset.topic===newsTopic);x.setAttribute('aria-pressed',x.dataset.topic===newsTopic);});renderNewsResults();reveal($('#news-results'),{offset:3,duration:200});return;}
+ if(a==='news-more'){newsLimit+=20;renderNewsResults();reveal($('#news-results'),{offset:3,duration:200});return;}
+ if(a==='news-topic'){newsTopic=b.dataset.topic;newsLimit=20;document.querySelectorAll('[data-action="news-topic"]').forEach(x=>{x.classList.toggle('active',x.dataset.topic===newsTopic);x.setAttribute('aria-pressed',x.dataset.topic===newsTopic);});renderNewsResults();reveal($('#news-results'),{offset:3,duration:200});return;}
+ if(a==='news-sort'){newsSort=b.dataset.sort==='latest'?'latest':'impact';newsLimit=20;document.querySelectorAll('[data-action="news-sort"]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.sort===newsSort)));renderNewsResults();reveal($('#news-results'),{offset:3,duration:200});return;}
+ if(a==='analyst-pick'){const sel=$('#analyst-asset');if(sel){sel.value=b.dataset.id;sel.dispatchEvent(new Event('change'));}return;}
+ if(a==='analyst-open-chart'){const sym=b.dataset.symbol;const found=instruments[selected.venue].find(x=>x.base===sym)||instruments.binance.find(x=>x.base===sym)||instruments.coinbase.find(x=>x.base===sym)||{venue:'binance',symbol:sym+'USDT',base:sym,quote:'USDT'};selected=found;capturePreferences();location.hash='terminal';return;}
 
  if(a==='studio-tab'){studioView(b.dataset.view);reveal($('#studio-content'),{offset:4});return;}
+ if(a==='studio-map-metric'){studioMapMetric=b.dataset.metric==='volume'?'volume':'marketCap';studioView('map');return;}
+ if(a==='studio-map-limit'){studioMapLimit=Number(b.dataset.limit)===100?100:45;studioView('map');return;}
+ if(a==='studio-depth-pair'){const sym=b.dataset.base;studioDepthPair=instruments.binance.find(x=>x.base===sym)||{venue:'binance',base:sym,quote:'USDT',symbol:sym+'USDT'};studioView('depth');return;}
 
  if(a==='timeframe'){selectedInterval=b.dataset.time;if($('#compact-interval'))$('#compact-interval').value=selectedInterval;capturePreferences();syncTimeframe();terminal?.load(selected,selectedInterval);return;}
 
@@ -1030,6 +1263,7 @@ document.addEventListener('click',e=>{
 
  if(a==='guide'){const help=helpFor(b.dataset.guide);if(help)modal(help.title,'<ol class="help-steps">'+help.items.map(([title,text])=>'<li><h3>'+esc(title)+'</h3><p>'+esc(text)+'</p></li>').join('')+'</ol>');return;}
  if(a==='indicators'){indicatorModal();return;}
+ if(a==='import-tools'){indicatorModal({openCustom:true});return;}
  if(a==='signal-settings'){signalSettingsModal();return;}
  if(a==='chart-panel'){activateChartPanel(b.dataset.pane);return;}
  if(a==='show-signals'){

@@ -271,14 +271,17 @@ test('the worker responds to a failed request and accepts the next valid analysi
   assert.ok(response.result.horizons[12].evidence.count >= 50);
 });
 
-test('adaptive-v4 exposes causal market regime, feature drivers, and Brier skill without future leakage', () => {
+test('adaptive-v5 exposes causal market regime, feature drivers, historical analogs, projection and Brier skill without future leakage', () => {
   const bars = series(1_062);
   const res = evaluate(bars, { singleHorizon: true });
-  assert.equal(res.version, 'adaptive-v4');
+  assert.equal(res.version, 'adaptive-v5');
   assert.ok(Number.isFinite(res.evidence.brierSkill) && res.evidence.brierSkill > 0);
   assert.ok(res.regime && ['Trending up', 'Trending down', 'Ranging / mixed'].includes(res.regime.structure));
   assert.ok(['Quiet', 'Normal', 'Elevated'].includes(res.regime.volatility));
   assert.ok(res.regime.supportLevel > 0 && res.regime.resistanceLevel >= res.regime.supportLevel);
-  assert.equal(res.drivers.length, 8);
+  assert.equal(res.drivers.length, 9);
   assert.ok(res.drivers.every((d, idx) => idx === 0 || Math.abs(res.drivers[idx - 1].contribution) >= Math.abs(d.contribution)));
+  assert.ok(res.analogs && res.analogs.count >= 8 && res.analogs.topMatches.length >= 1);
+  assert.ok(res.projection && res.projection.corridor && res.projection.reasons.length >= 3);
+  assert.equal(res.projection.expertWeights.length, 4);
 });

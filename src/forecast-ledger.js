@@ -6,7 +6,8 @@ export const FORECAST_STORAGE_KEY = 'cryptoz.forecasts.v1';
 const LEGACY_VERSION = 'adaptive-v1';
 const PRESET_VERSION = 'adaptive-v2';
 const PRIOR_VERSION = 'adaptive-v3';
-const MAX_RECORDS = { [LEGACY_VERSION]: 192, [PRESET_VERSION]: 384, [PRIOR_VERSION]: 384, [FORECAST_VERSION]: 384 };
+const V4_VERSION = 'adaptive-v4';
+const MAX_RECORDS = { [LEGACY_VERSION]: 192, [PRESET_VERSION]: 384, [PRIOR_VERSION]: 384, [V4_VERSION]: 384, [FORECAST_VERSION]: 384 };
 const MAX_PER_SCOPE = 32;
 const MAX_SERIALIZED_LENGTH = 512_000;
 const BENCHMARK_IDS = new Set(['historical', 'recent', 'momentum']);
@@ -48,7 +49,7 @@ function forecastFields(row) {
   const suffix = venue === 'binance' ? 'USDT' : '-USD';
   if (!validInstrument({ venue, symbol, base: symbol.slice(0, -suffix.length), quote })) return null;
   const step = stepFor(interval);
-  const windowedVersion = version === PRIOR_VERSION || version === FORECAST_VERSION;
+  const windowedVersion = version === PRIOR_VERSION || version === V4_VERSION || version === FORECAST_VERSION;
   const supported = version === LEGACY_VERSION && horizon === FORECAST_HORIZON
     || version === PRESET_VERSION && FORECAST_HORIZONS.includes(horizon)
     || windowedVersion && validForecastHorizon(horizon)

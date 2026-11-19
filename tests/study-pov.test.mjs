@@ -34,6 +34,9 @@ test('Study POV excludes the current candle and preserves its observed closing t
   assert.equal(result.trend, 'Rising');
   assert.deepEqual(result.range, { high: 150, low: 129, periods: 20 });
   assert.equal(result.metrics.volumeRatio, 1);
+  assert.ok(result.outlook && result.outlook.score > 0 && result.outlook.factors.length >= 4);
+  assert.ok(result.outlook.upsideTarget > result.outlook.upsideTrigger);
+  assert.ok(result.outlook.downsideTarget < result.outlook.downsideTrigger);
 });
 
 test('an elapsed provisional candle is excluded until a later snapshot or final stream event', () => {

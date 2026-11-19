@@ -163,6 +163,26 @@ test('automatic levels cannot paint on a window before their actual candle ancho
  assert.equal(chart.svg.innerHTML,'');
 });
 
+test('zone and pivot overlays render translucent SVG bands and non-overlapping label pills', () => {
+ const chart=make();
+ chart.autoGuide='fvg';
+ chart.autoSetup={guides:[
+  {id:'fvg-0',type:'zone',label:'Bullish FVG',shortLabel:'FVG+',color:'up',points:[{time:origin,price:105},{time:origin+step,price:100}]},
+  {id:'fvg-1',type:'zone',label:'Bearish FVG',shortLabel:'FVG-',color:'down',points:[{time:origin,price:106},{time:origin+step,price:101}]}
+ ]};
+ chart.chart={timeScale:()=>({width:()=>450,timeToCoordinate:()=>40}),panes:()=>[{getHeight:()=>350}]};
+ chart.series={priceToCoordinate:p=>200-(p-100)*5};
+ chart.svg={setAttribute(){},style:{}};
+ chart.draw();
+ assert.match(chart.svg.innerHTML,/data-auto-guide="fvg-0"/);
+ assert.match(chart.svg.innerHTML,/<rect[^>]*fill-opacity="0\.13"/);
+ assert.match(chart.svg.innerHTML,/>FVG\+</);
+ assert.match(chart.svg.innerHTML,/>FVG-</);
+ const ys=[...chart.svg.innerHTML.matchAll(/<text[^>]*y="([\d.]+)"/g)].map(m=>Number(m[1]));
+ assert.equal(ys.length,2);
+ assert.ok(Math.abs(ys[1]-ys[0])>=16,'closely stacked pills should separate vertically');
+});
+
 test('a range guide cannot measure an unconfirmed provisional wick', () => {
   const confirmed = Array.from({length:20}, (_, i) => candle(i));
   const bars = [...confirmed, candle(20, 130)];

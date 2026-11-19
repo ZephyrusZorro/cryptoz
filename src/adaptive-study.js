@@ -2,13 +2,13 @@ import { atr, normalizeCandles, sma } from './analytics.js';
 import { INTERVALS, validInstrument } from './preferences.js';
 import { FORECAST_MAX_CANDLES, validForecastHorizon } from './forecast-settings.js';
 
-export const FORECAST_VERSION = 'adaptive-v4';
+export const FORECAST_VERSION = 'adaptive-v5';
 export const FORECAST_HORIZON = 5;
 export const FORECAST_HORIZONS = Object.freeze([FORECAST_HORIZON, 12, 24]);
 export const MIN_HOLDOUT_ORIGINS = 50;
 
-const METHOD = 'Walk-forward horizon-regularized logistic regression with volatility regime & time-ordered calibration';
-const LOOKBACK = 12;
+const METHOD = 'Walk-forward 4-expert causal ensemble (adaptive & conservative L2 logistic, Gaussian historical analog matcher & base-rate prior) with time-ordered calibration';
+const LOOKBACK = 16;
 const EMBARGO = 1;
 const MIN_TRAINING = 160;
 const MAX_TRAINING = 780;
@@ -19,20 +19,24 @@ const MIN_DIRECTION_PROBABILITY = 0.60;
 const MIN_RELIABILITY_CASES = 12;
 const RECENT_TRAINING = 96;
 const BLOCKS = 4;
-const FIT_ITERATIONS = 58;
-const BASE_RIDGE = 0.045;
-const LEARNING_RATE = 0.75;
 const PRICE_FIELDS = ['open', 'high', 'low', 'close', 'volume'];
 const SCORE_BANDS = [[0, 0.4], [0.4, 0.6], [0.6, 1]];
 const FEATURE_META = Object.freeze([
-  { id: 'move1', label: '1-bar momentum' },
-  { id: 'move3', label: '3-bar momentum' },
-  { id: 'move6', label: '6-bar momentum' },
-  { id: 'move12', label: '12-bar trend' },
-  { id: 'rangePos', label: 'Close position in bar' },
-  { id: 'rangeExp', label: 'Bar range expansion' },
-  { id: 'volImpulse', label: 'Volume impulse' },
-  { id: 'gkRegime', label: 'Short-term volatility shift' },
+  { id: 'move1', label: '1-bar short-term return' },
+  { id: 'move3', label: '3-bar inflection momentum' },
+  { id: 'move12', label: '12-bar medium trend' },
+  { id: 'bbZ', label: 'Bollinger band stretch (16-bar)' },
+  { id: 'rangePos', label: 'Candle close location' },
+  { id: 'rangeExp', label: 'Range expansion vs 16-bar avg' },
+  { id: 'volImpulse', label: 'Volume surge vs prior avg' },
+  { id: 'flowSlope', label: '10-bar directional volume flow' },
+  { id: 'gkRegime', label: 'Garman-Klass volatility shift' },
+]);
+const EXPERT_LABELS = Object.freeze([
+  { id: 'fast', label: 'Adaptive trend / reversion model' },
+  { id: 'reg', label: 'Conservative ridge model' },
+  { id: 'analog', label: 'Historical pattern analogs' },
+  { id: 'base', label: 'Historical base-rate prior' },
 ]);
 const BENCHMARKS = [
   { id: 'historical', label: 'Historical up rate', field: 'baselineProbability' },
@@ -67,27 +71,42 @@ function studyFeatures(rows, i) {
   let priorVolume = 0;
   let gkEarly = 0;
   let gkRecent = 0;
-  const half = LOOKBACK >> 1;
+  let sumClose = 0;
+  let signedVol = 0;
+  let absVol = 0;
   for (let j = i - LOOKBACK + 1; j <= i; j++) {
-    squaredMoves += (rows[j].close - rows[j - 1].close) ** 2;
+    const dc = rows[j].close - rows[j - 1].close;
+    squaredMoves += dc * dc;
     const hl = rows[j].high - rows[j].low;
     totalRange += hl;
     priorVolume += rows[j - 1].volume / LOOKBACK;
+    sumClose += rows[j].close;
     const co = rows[j].close - rows[j].open;
     const gk = Math.max(0, 0.5 * hl * hl - (2 * Math.LN2 - 1) * co * co);
-    if (j <= i - half) gkEarly += gk;
-    else gkRecent += gk;
+    if (j <= i - 6) gkEarly += gk / (LOOKBACK - 6);
+    else gkRecent += gk / 6;
+    if (j > i - 10) {
+      const sign = co > 0 ? 1 : co < 0 ? -1 : 0;
+      signedVol += sign * rows[j].volume;
+      absVol += rows[j].volume;
+    }
   }
+  const meanClose = sumClose / LOOKBACK;
+  let varClose = 0;
+  for (let j = i - LOOKBACK + 1; j <= i; j++) varClose += (rows[j].close - meanClose) ** 2;
+  const stdClose = Math.sqrt(varClose / LOOKBACK);
   const scale = Math.max(Math.sqrt(squaredMoves / LOOKBACK), 1e-8);
   const scaledMove = n => Math.tanh((rows[i].close - rows[i - n].close) / (scale * Math.sqrt(n)));
+  const bbZ = stdClose > 1e-8 ? Math.tanh((rows[i].close - meanClose) / (2 * stdClose)) : 0;
   const range = rows[i].high - rows[i].low;
   const rangePosition = range > 1e-8 ? 2 * (rows[i].close - rows[i].low) / range - 1 : 0;
   const rangeExpansion = totalRange > 1e-8 ? Math.tanh(LOOKBACK * range / totalRange - 1) : 0;
   const volumeImpulse = priorVolume > 0 && rows[i].volume > 0
     ? Math.tanh(Math.log(rows[i].volume) - Math.log(priorVolume)) : 0;
+  const flowSlope = absVol > 0 ? Math.tanh((signedVol / absVol) * 1.4) : 0;
   const gkShift = gkEarly > 1e-14 && gkRecent > 1e-14
     ? Math.tanh(0.5 * Math.log(gkRecent / gkEarly)) : 0;
-  return [1, scaledMove(1), scaledMove(3), scaledMove(6), scaledMove(LOOKBACK), rangePosition, rangeExpansion, volumeImpulse, gkShift];
+  return new Float64Array([1, scaledMove(1), scaledMove(3), scaledMove(12), bbZ, rangePosition, rangeExpansion, volumeImpulse, flowSlope, gkShift]);
 }
 
 const sigmoid = value => 1 / (1 + Math.exp(-Math.max(-30, Math.min(30, value))));
@@ -98,8 +117,48 @@ function predict(coefficients, features) {
   return sigmoid(logOdds);
 }
 
+function fitLogistic(features, labels, first, last, ridge, passes = 38) {
+  const dim = features[first].length;
+  const count = last - first + 1;
+  const coefficients = new Float64Array(dim);
+  const gradient = new Float64Array(dim);
+  let ups = 0;
+  for (let i = first; i <= last; i++) ups += labels[i];
+  const base = (ups + 1) / (count + 2);
+  coefficients[0] = Math.log(base / (1 - base));
+  const lr = Math.min(0.8, 1.6 / (1 + ridge * 2));
+  for (let pass = 0; pass < passes; pass++) {
+    gradient.fill(0);
+    for (let i = first; i <= last; i++) {
+      const f = features[i];
+      const error = predict(coefficients, f) - labels[i];
+      for (let k = 0; k < dim; k++) gradient[k] += error * f[k];
+    }
+    coefficients[0] -= lr * gradient[0] / count;
+    for (let k = 1; k < dim; k++) {
+      coefficients[k] -= lr * (gradient[k] / count + ridge * coefficients[k]);
+    }
+  }
+  return { coefficients, base };
+}
+
+function kernelAnalogProbability(features, labels, first, last, queryFeat, baseline) {
+  const q1 = queryFeat[1], q2 = queryFeat[2], q3 = queryFeat[3], q4 = queryFeat[4], q9 = queryFeat[9];
+  const inv2s2 = 1 / 0.75;
+  let wSum = 0;
+  let wUp = 0;
+  for (let i = first; i <= last; i++) {
+    const f = features[i];
+    const d1 = q1 - f[1], d2 = q2 - f[2], d3 = q3 - f[3], d4 = q4 - f[4], d9 = q9 - f[9];
+    const wt = Math.exp(-(1.4 * d1 * d1 + 1.2 * d2 * d2 + d3 * d3 + d4 * d4 + d9 * d9) * inv2s2);
+    wSum += wt;
+    wUp += wt * labels[i];
+  }
+  return (wUp + 14 * baseline) / (wSum + 14);
+}
+
 function train(features, labels, rows, origin, horizon) {
-  // Both methods get exactly the same labels known at least one candle before the prediction.
+  // All experts use strictly embargoed past labels known before the prediction origin.
   const trainedThrough = origin - EMBARGO;
   const last = trainedThrough - horizon;
   const first = Math.max(LOOKBACK, last - MAX_TRAINING + 1);
@@ -112,27 +171,64 @@ function train(features, labels, rows, origin, horizon) {
     if (i >= recentStart) recentUps += labels[i];
   }
   const baseline = (ups + 1) / (count + 2);
-  const coefficients = new Float64Array(features[origin].length);
-  const gradient = new Float64Array(coefficients.length);
-  coefficients[0] = Math.log(baseline / (1 - baseline));
-  // Scale L2 penalty with horizon overlap because overlapping multi-bar targets reduce effective sample size.
-  const ridge = BASE_RIDGE * Math.sqrt(Math.max(1, horizon / FORECAST_HORIZON));
+  const hScale = Math.sqrt(Math.max(1, horizon / FORECAST_HORIZON));
 
-  for (let pass = 0; pass < FIT_ITERATIONS; pass++) {
-    gradient.fill(0);
-    for (let i = first; i <= last; i++) {
-      const error = predict(coefficients, features[i]) - labels[i];
-      for (let k = 0; k < coefficients.length; k++) gradient[k] += error * features[i][k];
+  // Internal chronological holdout inside [first, last] for 100% shift-invariant causal expert weighting.
+  const valSpan = Math.floor(count * 0.30);
+  const innerValStart = last - valSpan + 1;
+  const innerTrainEnd = innerValStart - horizon - EMBARGO;
+  let expertWeights = [0.22, 0.35, 0.23, 0.20];
+
+  if (innerTrainEnd - first >= 75) {
+    const innerFast = fitLogistic(features, labels, first, innerTrainEnd, 0.05 * hScale, 30);
+    const innerReg = fitLogistic(features, labels, first, innerTrainEnd, 1.8 * hScale, 26);
+    const losses = [0, 0, 0, 0];
+    let nVal = 0;
+    for (let v = innerValStart; v <= last; v += horizon) {
+      const y = labels[v];
+      const fv = features[v];
+      const pf = Math.max(0.01, Math.min(0.99, predict(innerFast.coefficients, fv)));
+      const pr = Math.max(0.01, Math.min(0.99, predict(innerReg.coefficients, fv)));
+      const pa = Math.max(0.01, Math.min(0.99, kernelAnalogProbability(features, labels, first, innerTrainEnd, fv, innerFast.base)));
+      const pb = innerFast.base;
+      losses[0] += (pf - y) ** 2;
+      losses[1] += (pr - y) ** 2;
+      losses[2] += (pa - y) ** 2;
+      losses[3] += (pb - y) ** 2;
+      nVal++;
     }
-    coefficients[0] -= LEARNING_RATE * gradient[0] / count;
-    for (let k = 1; k < coefficients.length; k++) {
-      coefficients[k] -= LEARNING_RATE * (gradient[k] / count + ridge * coefficients[k]);
+    if (nVal >= 6) {
+      const minLoss = Math.min(...losses);
+      const priors = [0.7, 1.4, 1.0, 1.5];
+      const rawW = losses.map((loss, idx) => priors[idx] * Math.exp(-6.0 * (loss - minLoss)));
+      const sumW = rawW.reduce((a, b) => a + b, 0);
+      expertWeights = rawW.map(w => w / sumW);
     }
   }
-  const probability = Math.max(0.01, Math.min(0.99, predict(coefficients, features[origin])));
+
+  const fastFit = fitLogistic(features, labels, first, last, 0.045 * hScale, 52);
+  const regFit = fitLogistic(features, labels, first, last, 1.8 * hScale, 30);
+  const fo = features[origin];
+  const pFast = Math.max(0.01, Math.min(0.99, predict(fastFit.coefficients, fo)));
+  const pReg = Math.max(0.01, Math.min(0.99, predict(regFit.coefficients, fo)));
+  const pAnalog = Math.max(0.01, Math.min(0.99, kernelAnalogProbability(features, labels, first, last, fo, baseline)));
+  const rawProbability = Math.max(0.01, Math.min(0.99,
+    expertWeights[0] * pFast + expertWeights[1] * pReg + expertWeights[2] * pAnalog + expertWeights[3] * baseline));
+
+  // Blended effective linear coefficients for transparent driver attribution
+  const linearShare = Math.max(1e-6, expertWeights[0] + expertWeights[1]);
+  const blendedCoeff = new Float64Array(fastFit.coefficients.length);
+  for (let k = 0; k < blendedCoeff.length; k++) {
+    blendedCoeff[k] = (expertWeights[0] * fastFit.coefficients[k] + expertWeights[1] * regFit.coefficients[k]) / linearShare;
+  }
+
   const move = Math.sign(rows[origin].close - rows[origin - 1].close);
   return {
-    count, trainedThrough, rawProbability: probability, coefficients,
+    count, trainedThrough, rawProbability,
+    coefficients: blendedCoeff,
+    expertWeights,
+    expertProbabilities: { fast: pFast, reg: pReg, analog: pAnalog, base: baseline },
+    first, last,
     baselineProbability: baseline,
     recentBaselineProbability: (recentUps + 1) / (last - recentStart + 3),
     momentumBaselineProbability: 0.5 + 0.25 * move,
@@ -216,7 +312,6 @@ function currentReliability(band, score) {
   let scoreLower = null;
   let scoreUpper = null;
   if (band.count >= MIN_RELIABILITY_CASES) {
-    // Wilson score bounds describe this sample. Serial market dependence precludes a coverage claim.
     const z = 1.6448536269514722;
     const rate = report.observedRate;
     const scale = 1 + z ** 2 / band.count;
@@ -229,14 +324,19 @@ function currentReliability(band, score) {
   return { ...report, scoreLower, scoreUpper, minimumCount: MIN_RELIABILITY_CASES, supported };
 }
 
+function quantile(sorted, p) {
+  if (!sorted.length) return null;
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil(p * sorted.length) - 1));
+  return sorted[idx];
+}
+
 function historicalScenarios(origins) {
   const returns = origins.map(row => row.actualReturn).filter(Number.isFinite).sort((a, b) => a - b);
   const count = returns.length;
   if (count < MIN_HOLDOUT_ORIGINS) return null;
-  const at = fraction => returns[Math.ceil(fraction * count) - 1];
   const up = returns.filter(value => value > 0).length;
   const down = returns.filter(value => value < 0).length;
-  return { count, lower: at(0.1), median: at(0.5), upper: at(0.9), up, down, flat: count - up - down };
+  return { count, lower: quantile(returns, 0.1), median: quantile(returns, 0.5), upper: quantile(returns, 0.9), up, down, flat: count - up - down };
 }
 
 function marketRegime(rows, horizon) {
@@ -282,13 +382,116 @@ function featureDrivers(coefficients, featureRow) {
   }).sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
 }
 
+function historicalAnalogs(features, rows, first, last, query, horizon, step) {
+  const q = features[query];
+  if (!q || last < first) return null;
+  const dims = [1, 2, 3, 4, 9];
+  const scored = [];
+  for (let i = first; i <= last; i++) {
+    const f = features[i];
+    if (!f) continue;
+    let d2 = 0;
+    for (const k of dims) { const diff = q[k] - f[k]; d2 += diff * diff; }
+    const fwd = rows[i + horizon].close / rows[i].close - 1;
+    if (!Number.isFinite(fwd)) continue;
+    scored.push({ index: i, d2, fwd, originClose: rows[i].close, targetClose: rows[i + horizon].close, asOf: rows[i].time + step });
+  }
+  scored.sort((a, b) => a.d2 - b.d2);
+  // Select up to 24 non-overlapping independent historical analog episodes
+  const selected = [];
+  const minSep = Math.max(3, Math.floor(horizon / 2));
+  for (const item of scored) {
+    if (selected.some(prev => Math.abs(prev.index - item.index) < minSep)) continue;
+    selected.push(item);
+    if (selected.length >= 24) break;
+  }
+  if (selected.length < 8) return null;
+  const returns = selected.map(s => s.fwd).sort((a, b) => a - b);
+  const upCount = selected.filter(s => s.fwd > 0).length;
+  return {
+    count: selected.length,
+    upRate: upCount / selected.length,
+    upCount,
+    downCount: selected.length - upCount,
+    p10Return: quantile(returns, 0.1),
+    p25Return: quantile(returns, 0.25),
+    medianReturn: quantile(returns, 0.5),
+    p75Return: quantile(returns, 0.75),
+    p90Return: quantile(returns, 0.9),
+    topMatches: selected.slice(0, 3).map(m => ({
+      asOf: m.asOf,
+      similarityPct: Math.round(Math.exp(-m.d2 / 2.2) * 100),
+      forwardReturn: m.fwd,
+      originClose: m.originClose,
+      targetClose: m.targetClose,
+    })),
+  };
+}
+
+function buildProjection({ currentClose, probabilityUp, verifiedCall, fitted, drivers, regime, analogs, scenarios, evidence, horizon, interval }) {
+  if (!Number.isFinite(currentClose) || currentClose <= 0) return null;
+  const lean = probabilityUp >= 0.54 ? 'Bullish lean' : probabilityUp <= 0.46 ? 'Bearish lean' : 'Balanced / neutral';
+  const leanTone = probabilityUp >= 0.54 ? 'up' : probabilityUp <= 0.46 ? 'down' : 'neutral';
+  const retDist = analogs ?? (scenarios ? {
+    p10Return: scenarios.lower, p25Return: scenarios.lower * 0.5, medianReturn: scenarios.median,
+    p75Return: scenarios.upper * 0.5, p90Return: scenarios.upper,
+  } : null);
+  const priceAt = r => Number.isFinite(r) ? Math.max(0, currentClose * (1 + r)) : null;
+  const corridor = retDist ? {
+    source: analogs ? `Based on ${analogs.count} closest historical coin setups` : `Based on ${scenarios.count} held-out walk-forward windows`,
+    bearPrice: priceAt(retDist.p25Return), bearPct: retDist.p25Return * 100,
+    basePrice: priceAt(retDist.medianReturn), basePct: retDist.medianReturn * 100,
+    bullPrice: priceAt(retDist.p75Return), bullPct: retDist.p75Return * 100,
+    wideLowPrice: priceAt(retDist.p10Return), wideHighPrice: priceAt(retDist.p90Return),
+  } : null;
+
+  const reasons = [];
+  const activeDrivers = drivers.filter(d => d.direction !== 'neutral').slice(0, 2);
+  if (activeDrivers.length) {
+    const desc = activeDrivers.map(d => `${d.label.toLowerCase()} (${d.direction === 'up' ? 'supports upside' : 'weighs on upside'})`).join(' and ');
+    reasons.push(`Primary learned signals from this coin’s history: ${desc}.`);
+  } else {
+    reasons.push('Short- and medium-term momentum, Bollinger stretch, and volume flow are currently balanced with no extreme skew.');
+  }
+  if (analogs) {
+    const medPct = (analogs.medianReturn * 100).toFixed(2);
+    reasons.push(`Across the ${analogs.count} closest past setups in this coin’s history, ${Math.round(analogs.upRate * 100)}% closed higher after ${horizon} ${interval} bars (median move ${analogs.medianReturn >= 0 ? '+' : ''}${medPct}%).`);
+  }
+  if (regime) {
+    reasons.push(`Market structure is ${regime.structure.toLowerCase()} with ${regime.volatility.toLowerCase()} volatility (ATR ${regime.atrPct.toFixed(2)}%/bar; typical ${horizon}-bar swing scale ±${regime.horizonMoveScalePct.toFixed(1)}%).`);
+  }
+  if (evidence) {
+    const skillPct = (evidence.brierSkill * 100).toFixed(1);
+    if (verifiedCall) {
+      reasons.push(`Walk-forward validation passed all 5 checks across ${evidence.count} non-overlapping tests (${evidence.brierSkill >= 0 ? '+' : ''}${skillPct}% Brier skill vs ${evidence.strongestBaseline.label.toLowerCase()}).`);
+    } else {
+      reasons.push(`Exploratory historical projection: walk-forward gates did not confirm a durable edge over ${evidence.strongestBaseline.label.toLowerCase()} on this sample, so treat the target range as historical context rather than a trade signal.`);
+    }
+  }
+  const expertWeights = EXPERT_LABELS.map((meta, idx) => ({
+    id: meta.id, label: meta.label,
+    weightPct: Math.round((fitted.expertWeights[idx] ?? 0) * 100),
+    probabilityUp: fitted.expertProbabilities[meta.id],
+  }));
+  return {
+    currentClose, lean, leanTone, verifiedCall, probabilityUp, corridor, reasons, expertWeights,
+    invalidation: regime ? {
+      supportLevel: regime.supportLevel,
+      resistanceLevel: regime.resistanceLevel,
+      atrSupport: regime.atrSupport,
+      atrResistance: regime.atrResistance,
+    } : null,
+  };
+}
+
 function evaluateHorizon({ rows, features, instrument, interval, step, nowSeconds, stale, validationReason, gap, incompleteHistory }, horizon) {
   const result = {
     version: FORECAST_VERSION, method: METHOD, horizon,
     venue: instrument?.venue ?? null, symbol: instrument?.symbol ?? null, interval,
     closedCount: rows.length, sampleStart: null, asOf: null, targetCloseAt: null,
     reason: null, evidence: null, forecast: null, reliability: null, scenarios: null,
-    regime: null, drivers: [], rawProbabilityUp: null, calibratedProbabilityUp: null,
+    regime: null, drivers: [], analogs: null, projection: null,
+    rawProbabilityUp: null, calibratedProbabilityUp: null,
     requiredCandles: forecastHistoryMinimum(horizon), gap, incompleteHistory,
   };
   const abstain = reason => ({ ...result, reason });
@@ -305,7 +508,6 @@ function evaluateHorizon({ rows, features, instrument, interval, step, nowSecond
   if (latestValidation < minOrigin) return abstain(moreHistory + (gap ? ' A gap limits the sample.' : ''));
 
   const labels = rows.map((row, i) => i <= latestValidation ? Number(rows[i + horizon].close > row.close) : null);
-  // Fixed UTC slots keep validation origins stable as candles arrive. Their outcome windows never overlap.
   const lastSlot = latestValidation - (closeAt(latestValidation) / step % horizon);
   const earliestSlot = lastSlot - Math.floor((lastSlot - minOrigin) / horizon) * horizon;
   const firstScoredSlot = lastSlot - (MAX_HOLDOUT - 1) * horizon;
@@ -330,13 +532,15 @@ function evaluateHorizon({ rows, features, instrument, interval, step, nowSecond
     return band;
   }
   for (let i = firstSlot; i <= lastSlot; i += horizon) {
-    const { count, trainedThrough, rawProbability, coefficients: _unused, ...baselines } = train(features, labels, rows, i, horizon);
+    const {
+      count, trainedThrough, rawProbability,
+      baselineProbability, recentBaselineProbability, momentumBaselineProbability,
+    } = train(features, labels, rows, i, horizon);
     const record = {
       horizon, asOf: closeAt(i), targetCloseAt: closeAt(i + horizon),
       actualUp: labels[i], rawProbability, trainedThrough: closeAt(trainedThrough),
     };
     if (i < firstScoredSlot) {
-      // Warm-up scores are useful for calibration, while the scored window always contains at most 120 cases.
       calibrationOrigins.push(record);
       cases.push(record);
       continue;
@@ -348,7 +552,8 @@ function evaluateHorizon({ rows, features, instrument, interval, step, nowSecond
     cases.push({
       ...record, trainingCount: count, calibrationCount: band.count,
       actualReturn: Number.isFinite(actualReturn) ? actualReturn : null,
-      modelProbability, calibrated: band.count >= MIN_RELIABILITY_CASES, ...baselines,
+      modelProbability, calibrated: band.count >= MIN_RELIABILITY_CASES,
+      baselineProbability, recentBaselineProbability, momentumBaselineProbability,
     });
   }
   const origins = cases.slice(calibrationOrigins.length);
@@ -359,6 +564,7 @@ function evaluateHorizon({ rows, features, instrument, interval, step, nowSecond
   result.scenarios = historicalScenarios(origins);
   result.regime = marketRegime(rows, horizon);
   result.drivers = featureDrivers(fitted.coefficients, features[query]);
+  result.analogs = historicalAnalogs(features, rows, fitted.first, fitted.last, query, horizon, step);
   const band = calibrationBand(query, fitted.rawProbability);
   const probabilityUp = calibratedScore(band, fitted.rawProbability);
   result.rawProbabilityUp = fitted.rawProbability;
@@ -367,15 +573,25 @@ function evaluateHorizon({ rows, features, instrument, interval, step, nowSecond
     bands: scoredBands.map(reportBand), current: currentReliability(band, probabilityUp),
     calibratedOrigins: origins.filter(row => row.calibrated).length,
   };
-  if (stale || nowSeconds - asOf >= step) return abstain('The latest expected close is unconfirmed or the candle feed is stale.');
-  if (incompleteHistory) return abstain('The requested history could not be loaded in full. The available sample is shown for review.');
-  if (origins.length < MIN_HOLDOUT_ORIGINS) return abstain('Load more closed history for at least 50 non-overlapping test forecasts.');
-  if (!result.evidence.checks.bothOutcomes) return abstain('The test needs more examples of both higher and non-higher closes.');
-  if (!result.evidence.passed) return abstain('Historical results did not consistently improve on the strongest baseline.');
+
+  const attachProjection = verifiedCall => {
+    result.projection = buildProjection({
+      currentClose: rows[query].close, probabilityUp, verifiedCall, fitted,
+      drivers: result.drivers, regime: result.regime, analogs: result.analogs,
+      scenarios: result.scenarios, evidence: result.evidence, horizon, interval,
+    });
+  };
+
+  if (stale || nowSeconds - asOf >= step) { attachProjection(false); return abstain('The latest expected close is unconfirmed or the candle feed is stale.'); }
+  if (incompleteHistory) { attachProjection(false); return abstain('The requested history could not be loaded in full. The available sample is shown for review.'); }
+  if (origins.length < MIN_HOLDOUT_ORIGINS) { attachProjection(false); return abstain('Load more closed history for at least 50 non-overlapping test forecasts.'); }
+  if (!result.evidence.checks.bothOutcomes) { attachProjection(false); return abstain('The test needs more examples of both higher and non-higher closes.'); }
+  if (!result.evidence.passed) { attachProjection(false); return abstain('Historical results did not consistently improve on the strongest baseline.'); }
   const direction = probabilityUp >= MIN_DIRECTION_PROBABILITY ? 'up'
     : probabilityUp <= 1 - MIN_DIRECTION_PROBABILITY ? 'not-higher' : null;
-  if (!direction) return abstain('The current estimate is too close to an even chance for a directional call.');
-  if (!result.reliability.current.supported) return abstain('The current score band has insufficient directional support in past test cases.');
+  if (!direction) { attachProjection(false); return abstain('The current estimate is too close to an even chance for a directional call.'); }
+  if (!result.reliability.current.supported) { attachProjection(false); return abstain('The current score band has insufficient directional support in past test cases.'); }
+  attachProjection(true);
   const benchmarkId = result.evidence.strongestBaseline.id;
   const benchmarkField = BENCHMARKS.find(item => item.id === benchmarkId).field;
   return {
@@ -409,7 +625,7 @@ export function evaluateAdaptiveStudy({
   }));
   const features = rows.map((_, index) => index >= LOOKBACK ? studyFeatures(logRows, index) : null);
   const context = { rows, features, instrument, interval, step, nowSeconds, stale, validationReason, gap,
-    incompleteHistory: incompleteHistory || Number.isSafeInteger(requiredWindowCount) && rows.length<requiredWindowCount };
+    incompleteHistory: incompleteHistory || Number.isSafeInteger(requiredWindowCount) && rows.length < requiredWindowCount };
   const selected = validForecastHorizon(horizon) ? horizon : FORECAST_HORIZON;
   const requested = singleHorizon ? [selected] : [...new Set([...FORECAST_HORIZONS, selected])];
   const horizons = Object.fromEntries(requested.map(length => [length, evaluateHorizon(context, length)]));

@@ -33,8 +33,13 @@ test('all covered assets have dated primary links and conditional or undated evi
       assert.ok(view.published <= cutoff);
     }
   }
-  assert.equal(getAnalystResearch('xrp-xrp', { asOf: '2025-11-05' }).views.length, 0);
-  assert.ok(getAnalystResearch('xrp-xrp', { asOf: cutoff }).views.length > 0);
+  assert.equal(getAnalystResearch('xrp-xrp', { asOf: '2025-05-06' }).views.length, 0);
+  assert.equal(getAnalystResearch('xrp-xrp', { asOf: '2025-11-05' }).views.length, 1);
+  assert.ok(getAnalystResearch('xrp-xrp', { asOf: cutoff }).views.length >= 2);
+  const btcHtml = analystPanel('btc-bitcoin', { price: 90000, change: 2.5, marketCap: 1.8e12 });
+  assert.match(btcHtml, /Live spot/);
+  assert.match(btcHtml, /Stated scenario level/);
+  assert.match(btcHtml, /Key drivers/);
 });
 
 test('unsupported coins carry their display identity and have an honest empty state', () => {

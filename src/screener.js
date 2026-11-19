@@ -3,7 +3,8 @@ import {asNumber} from './numbers.js';
 import {esc,pct,price,tone} from './ui.js';
 import {moneyMarkup} from './currency.js';
 
-const groups=[['layer-1','Layer 1'],['layer-2','Layer 2'],['defi','DeFi'],['stablecoins','Stablecoins'],['ai-compute','AI & compute'],['meme','Meme coins'],['tokenized-oracles','Tokenized assets & oracles'],['gaming','Gaming & virtual worlds']];
+export const SECTOR_GROUPS=[['layer-1','Layer 1'],['layer-2','Layer 2'],['defi','DeFi'],['stablecoins','Stablecoins'],['ai-compute','AI & compute'],['meme','Meme coins'],['tokenized-oracles','Tokenized assets & oracles'],['gaming','Gaming & virtual worlds']];
+const groups=SECTOR_GROUPS;
 const choices={volume:[0,1e6,1e7,1e8],size:['all','large','mid','small'],move:['all','up5','down5']};
 export const initialScreen=()=>({volume:0,size:'all',move:'all'});
 export function screenMarket(rows, filters=initialScreen(), universe='aggregate'){
