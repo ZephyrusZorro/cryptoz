@@ -11,17 +11,17 @@ import {buildAutoSetup,chartSignalEvents} from './auto-setup.js';
 import {previousPeriodLevels,structureTools} from './structure-tools.js';
 import {heikinAshi,technicalSummary,normalizeCandles} from './analytics.js';
 import {AUTO_GUIDES,normalizePreferences} from './preferences.js';
-import {api} from './api.js';import {esc,num,download,toast} from './ui.js';
+import {api} from './api.js';import {esc,download,toast} from './ui.js';
 const seconds={'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400};
 const HISTORY_LIMIT=4000;
 const HISTORY_EDGE=34;
 const HISTORY_GESTURE_MS=1800,HISTORY_RETRY_MS=3000,DAY=86400;
-const periodGuides=new Set(['prev-day','prev-week']);
+const periodGuides=new Set(['prev-day','prev-week','daily-pivots']);
 const sameBar=(a,b)=>a.time===b.time&&a.open===b.open&&a.high===b.high&&a.low===b.low&&a.close===b.close&&a.volume===b.volume;
 const types={candles:CandlestickSeries,bars:BarSeries,line:LineSeries,heikin:CandlestickSeries};
 export function parseStreamBar(d){const k=d?.k;if(!k)return null;return normalizeCandles([{time:Math.floor(+k.t/1000),open:+k.o,high:+k.h,low:+k.l,close:+k.c,volume:+k.v}])[0]??null;}
 export class TerminalChart {
- constructor({host,workspace,save,onQuote,onSummary,onBook,onStatus,onDrawings,onWindow,deskMode='pro'}){Object.assign(this,{host,workspace,save,onQuote,onSummary,onBook,onStatus,onDrawings,onWindow,deskMode});this.studyBars=[];this.bars=[];this.visibleSignals=[];this.confirmedThrough=0;this.latestSnapshotAt=0;this.confirmedStreamBars=new Set();this.analysisRevision=0;this.generation=0;this.drawMode='cursor';this.pendingPoint=null;this.disposed=false;this.historyStatus='idle';this.indicators={ema:true,sma:false,bb:false,vwap:false};this.period=20;this.rsiPeriod=14;this.oscillator='rsi';this.style='candles';this.interval='1h';this.instrument={venue:'binance',symbol:'BTCUSDT',base:'BTC',quote:'USDT'};this.streamState='connecting';this.lastStream=0;this.liveRevision=0;this.barRevisions=new Map();this.barEvents=new Map();const p=normalizePreferences(workspace.preferences);this.indicators=p.indicators;this.period=p.period;this.rsiPeriod=p.rsiPeriod;this.oscillator=p.oscillator;this.autoGuide=deskMode==='basic'&&['zones','profile'].includes(p.autoGuide)?'range':p.autoGuide;this.signalKinds=p.signalKinds;this.studyIds=normalizeStudyIds((deskMode==='basic'?p.basicStudyIds??p.studyIds:p.studyIds)??[...Object.keys(p.indicators).filter(x=>p.indicators[x]),p.oscillator]);this.style=p.style;this.markers=p.markers;this.viewPreset=p.view;}
+ constructor({host,workspace,save,onQuote,onSummary,onBook,onStatus,onDrawings,onWindow,deskMode='pro'}){Object.assign(this,{host,workspace,save,onQuote,onSummary,onBook,onStatus,onDrawings,onWindow,deskMode});this.studyBars=[];this.bars=[];this.visibleSignals=[];this.confirmedThrough=0;this.latestSnapshotAt=0;this.confirmedStreamBars=new Set();this.analysisRevision=0;this.generation=0;this.drawMode='cursor';this.pendingPoint=null;this.disposed=false;this.historyStatus='idle';this.indicators={ema:true,sma:false,bb:false,vwap:false};this.period=20;this.rsiPeriod=14;this.oscillator='rsi';this.style='candles';this.interval='1h';this.instrument={venue:'binance',symbol:'BTCUSDT',base:'BTC',quote:'USDT'};this.streamState='connecting';this.lastStream=0;this.liveRevision=0;this.barRevisions=new Map();this.barEvents=new Map();const p=normalizePreferences(workspace.preferences);this.indicators=p.indicators;this.period=p.period;this.smaPeriods=p.smaPeriods;this.rsiPeriod=p.rsiPeriod;this.oscillator=p.oscillator;this.autoGuide=deskMode==='basic'&&['zones','profile'].includes(p.autoGuide)?'range':p.autoGuide;this.signalKinds=p.signalKinds;this.studyIds=normalizeStudyIds((deskMode==='basic'?p.basicStudyIds??p.studyIds:p.studyIds)??[...Object.keys(p.indicators).filter(x=>p.indicators[x]),p.oscillator]);this.style=p.style;this.markers=p.markers;this.viewPreset=p.view;}
  activeStudies(){return this.studyIds.filter(id=>this.deskMode==='pro'||!STUDIES[id]?.proOnly);}
  get key(){return `${this.instrument.venue}:${this.instrument.symbol}:${this.interval}`;}
  status(s){if(this.streamState!==s){this.streamState=s;this.onStatus(s);}}
@@ -61,14 +61,19 @@ export class TerminalChart {
  }
  renderIndicators(incremental=false,{refreshAnalysis=true}={}){
   if(!this.chart)return;const p=palette(),cutoff=this.completedCutoff();
-  this.studyView=renderStudies(this.chart,this.series,this.studyView,this.bars,this.activeStudies(),{period:this.period,rsiPeriod:this.rsiPeriod,interval:this.interval,completedBefore:cutoff,palette:p,incremental,confirmed:this.studyBars,quote:this.instrument.quote});
+  this.studyView=renderStudies(this.chart,this.series,this.studyView,this.bars,this.activeStudies(),{period:this.period,smaPeriods:this.smaPeriods,rsiPeriod:this.rsiPeriod,interval:this.interval,completedBefore:cutoff,palette:p,incremental,confirmed:this.studyBars,quote:this.instrument.quote});
   if(refreshAnalysis)this.renderAnalysis(cutoff,p);
   else if(periodGuides.has(this.autoGuide)&&Math.floor(this.bars.at(-1)?.time/DAY)!==this.periodBeforeAt){
    this.syncPeriodGuide(cutoff);
    this.analysisRevision++;
    this.updateSummary();
   }
-  if(this.studyView.paneChanged&&this.studyView.hasPane&&this.chart.panes().length>1){this.chart.panes()[0].setHeight(Math.max(120,this.host.clientHeight-118));this.chart.panes()[1].setHeight(100);}
+  if(this.studyView.paneChanged){
+   const panes=this.chart.panes();
+   this.host.classList.toggle('stacked-study-panes',panes.length>2);
+   for(const pane of panes.slice(1))pane.setHeight(96);
+   if(panes.length>1)panes[0].setHeight(Math.max(140,this.host.clientHeight-22-96*(panes.length-1)));
+  }
   this.draw();
  }
  applyCurrency(){
@@ -411,7 +416,7 @@ export class TerminalChart {
  addDrawing(points){const a=this.workspace.drawings[this.key]??=[];if(a.length>=40){toast('Maximum 40 drawings per chart.');return;}a.push({id:crypto.randomUUID(),type:this.drawMode,points,label:this.drawLabel||''});this.save();this.draw();this.onDrawings();toast('Drawing saved. Edit its levels in Drawings.');}
  draw(){
   if(!this.chart||!this.svg)return;
-  const guidePrefix={range:'range-',trend:'swing-trend',fibonacci:'fibonacci-',zones:'zones-',profile:'profile-','prev-day':'prev-day-','prev-week':'prev-week-'}[this.autoGuide];
+  const guidePrefix={range:'range-',trend:'swing-trend',fibonacci:'fibonacci-',zones:'zones-',profile:'profile-','prev-day':'prev-day-','prev-week':'prev-week-','daily-pivots':'daily-pivots-'}[this.autoGuide];
   const automatic=!this.manualDrawing&&guidePrefix
    ? (this.autoSetup?.guides??[]).filter(({id})=>id.startsWith(guidePrefix))
    : [];
@@ -445,7 +450,7 @@ export class TerminalChart {
   const manualLine=drawing=>{
    const [first,second]=anchors(drawing),label=esc(drawing.label||drawing.type);
    if(first.y===null)return '';
-   if(drawing.type==='horizontal')return `<line x1="0" y1="${first.y}" x2="${plotWidth}" y2="${first.y}" stroke="${colors.gold}" stroke-dasharray="5 4"/><text x="12" y="${first.y-7}" fill="${colors.gold}">${label} · ${num(drawing.points[0].price,8)}</text>`;
+   if(drawing.type==='horizontal')return `<line x1="0" y1="${first.y}" x2="${plotWidth}" y2="${first.y}" stroke="${colors.gold}" stroke-dasharray="5 4"/><text x="12" y="${first.y-7}" fill="${colors.gold}">${label} · ${esc(displayPrice(drawing.points[0].price,this.instrument.quote))}</text>`;
    if(first.x===null)return '';
    if(drawing.type==='label')return `<circle cx="${first.x}" cy="${first.y}" r="4" fill="${colors.accent}"/><text x="${first.x+8}" y="${first.y-7}" fill="${colors.text}">${label}</text>`;
    if(!second||second.x===null||second.y===null)return '';
@@ -454,7 +459,7 @@ export class TerminalChart {
    const [from,to]=drawing.points;
    return [0,.236,.382,.5,.618,.786,1].map(ratio=>{
     const y=first.y+(second.y-first.y)*ratio,value=from.price+(to.price-from.price)*ratio;
-    return `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" stroke="${colors.violet}" opacity=".7"/><text x="${labelX(right+5)}" y="${y-4}" fill="${colors.violet}">${ratio} · ${num(value,4)}</text>`;
+    return `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" stroke="${colors.violet}" opacity=".7"/><text x="${labelX(right+5)}" y="${y-4}" fill="${colors.violet}">${ratio} · ${esc(displayPrice(value,this.instrument.quote))}</text>`;
    }).join('');
   };
   this.svg.setAttribute('viewBox',`0 0 ${width} ${height}`);

@@ -1,6 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createDisplayCurrency} from '../src/currency.js';
+import {axisPriceFormat,currency,createDisplayCurrency,displayCompact,displayPrice} from '../src/currency.js';
+import {price,compact} from '../src/ui.js';
+
+test('prices and compact amounts use the grouping of the displayed currency',()=>{
+  assert.equal(price(5892457.01,'₹'),'₹58,92,457.01');
+  assert.equal(price(5892457.01,'$'),'$5,892,457.01');
+  assert.equal(compact(500000,'INR'),'5L');
+});
+
+test('rupee labels match on converted charts, quotes and compact market totals',()=>{
+  currency.set('INR');
+  try{
+    assert.ok(currency.accept('USD-INR',{rate:100,observedAt:new Date().toISOString().slice(0,10)}));
+    assert.equal(axisPriceFormat(2,'USD').formatter(58924.5701),'₹58,92,457.01');
+    assert.equal(displayPrice(58924.5701),'₹58,92,457.01');
+    assert.equal(displayCompact(5000),'₹5L');
+  }finally{currency.set('USD');}
+});
 
 const NOW=Date.parse('2026-11-18T15:00:00Z');
 

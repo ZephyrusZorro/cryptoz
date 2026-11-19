@@ -5,7 +5,9 @@
  --era-floating:linear-gradient(145deg,#a5c8ff23,transparent 60%),rgba(17,26,51,.84);
  --era-outline:#d3e4ff33;
  --era-ease:cubic-bezier(.22,1,.36,1);
- --heading-glow:#6e7fed2b;
+ --heading-halo:#6689f83f;
+ --heading-trim:#96baff26;
+ --heading-surface:linear-gradient(104deg,#172543eb 7%,#182b506b 70%,#101b3640);
  --page-gutter:28px;
 }
 :root[data-theme=light]{
@@ -13,7 +15,9 @@
  --era-content:linear-gradient(149deg,#fff9,transparent 58%),rgba(245,250,255,.78);
  --era-floating:linear-gradient(145deg,#fff,transparent 70%),rgba(236,245,255,.91);
  --era-outline:#789bc452;
- --heading-glow:#6599ec30;
+ --heading-halo:#72a9f965;
+ --heading-trim:#4c83d034;
+ --heading-surface:linear-gradient(104deg,#f4f9ffeb 7%,#eaf3ffa8 68%,#d0e3fb73);
 }
 #app .topbar,#app #context-root .context-nav,.wb-toolbar,.wb-tabs,.chart-menu .chart-menu-body,#modal-root .modal{
  background:var(--era-control)!important;
@@ -64,19 +68,31 @@ body.chart-focus #app main{padding-inline:12px}
 :root[data-material=solid] .cryptoz-mark{background:var(--panel2)}
 .section-heading{
  min-width:0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
- gap:12px;padding:clamp(14px,2vw,24px);margin-bottom:15px;
- border:1px solid var(--era-outline);border-radius:16px;
- background:radial-gradient(ellipse at 92% 8%,var(--heading-glow),transparent 72%),var(--era-content);
- box-shadow:inset 0 1px 0 var(--glass-shine),var(--shadow);
+ position:relative;isolation:isolate;overflow:hidden;
+ gap:14px 22px;padding:clamp(17px,2.1vw,28px);margin:0 0 18px;
+ border:1px solid var(--era-outline);border-radius:18px;
+ background:var(--heading-surface),var(--era-content);
+ box-shadow:inset 0 1px 0 var(--glass-shine),0 9px 28px #0b19341a;
 }
-.section-heading h1,.terminal-heading.section-heading h1{
- font-size:clamp(26px,3vw,44px);letter-spacing:-.046em;line-height:1.1;margin:0;
+.section-heading::before{
+ content:"";position:absolute;z-index:-1;pointer-events:none;
+ inset:-65% -19% -95% 36%;
+ background:radial-gradient(ellipse at 59% 49%,var(--heading-halo),transparent 66%),repeating-radial-gradient(ellipse at 73% 72%,transparent 0 18px,var(--heading-trim) 19px,transparent 20px 30px);
+ mask-image:linear-gradient(95deg,transparent 1%,#000 61%);
+ transform:rotate(-11deg);
 }
-.section-heading p,.section-heading .terminal-description{
- margin:7px 0 0;color:var(--subtle-text);line-height:1.5;font-size:13px;
+.heading-identity{display:flex;align-items:center;gap:clamp(11px,1.5vw,20px);min-width:0}
+.heading-icon{
+ display:grid;place-items:center;flex:0 0 auto;width:clamp(40px,4.1vw,58px);aspect-ratio:1;
+ color:var(--lime);background:var(--era-control);border:1px solid var(--era-outline);border-radius:30%;
+ box-shadow:inset 0 1px 0 var(--glass-shine),0 5px 16px #07163615;
 }
-.section-heading>div{min-width:0}
-.section-heading>.hero-actions,.section-heading>.source{flex:none}
+.heading-icon svg{width:48%;height:48%}
+.heading-identity>div{min-width:0}
+.section-heading h1{font-size:clamp(25px,3.2vw,44px);letter-spacing:-.055em;line-height:1.08;margin:0;text-wrap:balance}
+.section-heading p{margin:6px 0 0;color:var(--subtle-text);line-height:1.5;font-size:clamp(13px,1.2vw,15px);max-width:60ch}
+.heading-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.heading-actions .button{font-size:13px;min-height:39px}
 #modal-root .modal,.chart-menu .chart-menu-body{background:var(--era-floating)!important;border:1px solid var(--era-outline)}
 #modal-root .modal .study-presets{padding:12px 18px 0}
 #modal-root .modal .study-choice,.wb-reader .chart-observations>div{background:var(--era-control);border-color:var(--era-outline)}
@@ -91,7 +107,7 @@ body.chart-focus #app main{padding-inline:12px}
 .chart-menu .chart-menu-body>select{width:100%;padding:8px;margin-bottom:4px}
 .chart-menu .chart-menu-body>a{display:flex;align-items:center;gap:8px;padding:9px;border-radius:8px;font-size:11px;color:var(--subtle-text)}
 .chart-menu .chart-menu-body>a:hover{background:var(--nav-highlight);color:var(--text)}
-.overlay-controls{display:flex;align-items:center;gap:7px 12px;flex-wrap:wrap;padding:7px 14px;border-block-start:1px solid var(--border);background:var(--era-content)}
+.overlay-controls{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:10px 14px;border-block:1px solid var(--border);background:var(--era-content)}
 .overlay-controls label{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:650;white-space:nowrap}
 .overlay-controls label svg{width:15px;color:var(--lime)}
 .overlay-controls select{min-width:0;max-width:100%;min-height:34px;margin:0;padding-block:5px;font-size:12px}
@@ -101,10 +117,9 @@ body.chart-focus #app main{padding-inline:12px}
 .analyst-picker label{display:grid;gap:4px;font-weight:600;font-size:12px}
 .analyst-picker select{margin:0}
 .era-dashboard{display:grid;gap:14px}
-.era-hero{position:relative;isolation:isolate;overflow:hidden;min-height:116px;margin:0}
-.era-hero:before{content:"";position:absolute;z-index:-1;inset:-38%;background:radial-gradient(ellipse at 64% 44%,var(--heading-glow),transparent 34%);pointer-events:none}
-.era-hero p{max-width:52ch}
-.era-hero .button{flex:none}
+.era-hero{min-height:124px;margin:0}
+.era-hero h1{font-size:clamp(28px,4vw,54px)}
+.era-hero::before{inset:-95% -11% -105% 32%;opacity:.95}
 .era-dashboard .live-strip{margin:0}
 .era-dashboard .stats-grid{margin-bottom:0}
 .era-market-grid{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(240px,1fr);align-items:start;gap:14px}
@@ -139,16 +154,31 @@ body.chart-focus #app main{padding-inline:12px}
 .mover-quote [data-mover-price]{color:var(--text);font-size:12px}
 .era-movers .watch-row b{font-variant-numeric:tabular-nums}
 .era-asset-research{padding:0 18px 8px}
-.era-study-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 18px 0}
+.era-study-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:15px 0 0}
 .era-study-filters input{width:min(100%,230px);margin:0}
+.era-study-filters select{margin:0}
+.study-settings{min-inline-size:0;margin:0;padding:12px;border:1px solid var(--era-outline);border-radius:13px;background:var(--era-content)}
+.study-settings legend{padding-inline:6px;font-weight:700}
+.study-lengths{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:12px 14px}
+.study-lengths label{display:grid;gap:5px;color:var(--subtle-text);font-size:13px}
+.study-lengths input{width:100%;min-width:0;margin:0}
+.study-lengths small{color:var(--muted);line-height:1.35}
+.study-lengths button{align-self:start;justify-self:start;margin-top:22px;white-space:normal;text-align:start}
+.study-actions{position:sticky;bottom:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:8px 14px;flex-wrap:wrap;margin-top:16px;padding:10px 12px;background:var(--panel);border:1px solid var(--era-outline);border-radius:12px}
+.study-actions p{color:var(--subtle-text);font-size:12px}
+.study-feedback:empty{display:none}
+.study-actions .button{margin:0}
 .study-group[hidden],.study-choice[hidden]{display:none!important}
 @media(prefers-reduced-motion:no-preference){
- :root:not([data-motion=reduced]) .era-hero:before{animation:era-light 14s ease-in-out infinite alternate}
- :root:not([data-motion=reduced]) .era-shortcuts a,:root:not([data-motion=reduced]) .era-segment button,:root:not([data-motion=reduced]) .wb-tabs button{transition:transform .2s var(--era-ease),background .2s,color .2s}
- :root:not([data-motion=reduced]) .wb-pane:not([hidden]){animation:era-in .21s var(--era-ease) both}
+ .era-hero::before{animation:era-light 16s ease-in-out infinite alternate}
+ .era-shortcuts a,.era-segment button,.wb-tabs button,.home-news-tabs button,.context-nav a,#app .sidebar nav a,.heading-actions .button,.study-choice{transition:transform .19s var(--era-ease),background-color .19s,color .19s,border-color .19s,box-shadow .19s}
+ .wb-pane:not([hidden]),.learning-room [role=tabpanel]:not([hidden]),.chart-menu[open] .chart-menu-body,.wb-study-legend[open] .wb-study-lines{animation:era-in .21s var(--era-ease) both}
+}
+@media(hover:hover) and (prefers-reduced-motion:no-preference){
+ :root:not([data-motion=reduced]) :is(.heading-actions .button,.era-shortcuts a,.study-choice):hover{transform:translateY(-1px)}
 }
 .era-shortcuts a:hover,.era-market-links a:hover{background:var(--era-control);border-color:var(--lime)}
-@keyframes era-light{to{transform:translate(-5%,3%) scale(1.07)}}
+@keyframes era-light{to{transform:translate(-4%,3%) rotate(-8deg) scale(1.06)}}
 @keyframes era-in{from{opacity:.5;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:940px){.era-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:1000px){:root{--page-gutter:22px}}
@@ -163,8 +193,9 @@ body.chart-focus #app main{padding-inline:12px}
 @media(max-width:650px){
  #app .topbar{padding-inline:7px;height:52px;gap:3px}
  .cryptoz-mark{height:30px;width:30px;padding:5px;border-radius:9px}
- .section-heading{align-items:flex-start}
- .section-heading p,.section-heading .terminal-description{font-size:12px}
+ .section-heading{align-items:center;gap:11px;padding:14px}
+ .section-heading p{font-size:13px}
+ .heading-actions .button{font-size:12px;min-height:36px}
  .wb-toolbar .chart-menu{position:static}
  .wb-toolbar .chart-menu .chart-menu-body{top:calc(100% + 4px);right:7px;left:auto;min-width:0;width:min(230px,calc(100% - 14px))}
  .overlay-controls{padding:7px 8px}
@@ -175,14 +206,16 @@ body.chart-focus #app main{padding-inline:12px}
  .mover-quote [data-mover-price]{font-size:11px}
 }
 @media(max-width:525px){
+ .study-lengths{grid-template-columns:1fr;gap:9px}
+ .study-lengths button{margin-top:0}
+ .study-actions{bottom:-8px}
  .era-market-side,.era-market-movers{grid-template-columns:1fr}
  .era-shortcuts{gap:6px}
  .era-shortcuts a{align-items:flex-start;flex-direction:column;padding:8px;gap:5px}
  .era-shortcuts a>svg{display:none}
- .era-hero p{font-size:12px}
  .era-benchmark .benchmark-quote{padding:0}
  .era-benchmark .benchmark-chart{height:225px}
 }
 :root[data-material=solid] #app .topbar,:root[data-material=solid] #app #context-root .context-nav,:root[data-material=solid] .wb-toolbar,:root[data-material=solid] .wb-tabs,:root[data-material=solid] #modal-root .modal,:root[data-material=solid] .chart-menu .chart-menu-body{background:var(--panel)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-:root[data-material=solid] .section-heading,:root[data-material=solid] .overlay-controls{background:var(--panel)}
-:root[data-material=solid] .era-hero:before{display:none}
+:root[data-material=solid] .section-heading,:root[data-material=solid] .heading-icon,:root[data-material=solid] .overlay-controls{background:var(--panel)}
+:root[data-material=solid] .section-heading::before{display:none}

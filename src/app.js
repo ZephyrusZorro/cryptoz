@@ -7,7 +7,7 @@ import './workspace.css';
 import './beginner.css';
 import './guided.css';
 import {riskSection} from './guided-ui.js';
-import {STUDIES,STUDY_PRESETS,normalizeStudyIds} from './studies.js';
+import {STUDIES,STUDY_PRESETS,normalizeStudyIds,normalizeSmaPeriods,MAX_STUDY_OVERLAYS,MAX_STUDY_PANES,MAX_SMA_PERIODS,MAX_SMA_LENGTH} from './studies.js';
 import {ANALYST_ASSETS,analystAssetKey} from './analyst-research.js';
 import {buildStudyPov} from './study-pov.js';
 import './paper.css';
@@ -63,7 +63,7 @@ import {AUTO_GUIDES,normalizePreferences,selectVenueInstrument,drawingValid} fro
 
 import {mountRiskCalculator} from './risk-calculator.js';import {readState,writeState,validateWorkspace,crossed,freshObservation,RECOVERY_KEY,replaceWorkspace} from './state.js';
 
-import {esc,num,compact,price,pct,tone,ago,stamp,icon,download,toast,safeStorage} from './ui.js';
+import {esc,num,compact,pct,tone,ago,stamp,icon,sectionHeading,download,toast,safeStorage} from './ui.js';
 
 
 
@@ -101,7 +101,16 @@ function errorOrLoading(key){return errors[key]?empty('Data unavailable',errors[
 
 function coinMark(symbol){return `<span class="coin-mark" aria-hidden="true">${esc(symbol.slice(0,2))}</span>`;}
 
-function header(title,description,extra=''){return `<header class="page-heading section-heading"><div><h1>${title}</h1><p>${description}</p></div>${extra}</header>`;}
+const headingIcons={overview:'layout-dashboard',markets:'globe',screener:'sliders-horizontal',compare:'layers',studio:'grid-2x2',learn:'book-open',news:'newspaper',analysts:'file-text',practice:'layers',replay:'clock',backtest:'activity',risk:'target','market-insights':'activity',workspace:'bookmark'};
+function header(title,description,extra=''){return sectionHeading(title,description,{glyph:headingIcons[page],action:extra,className:'page-heading'});}
+
+function navigationMotion(){return document.documentElement.dataset.motion!=='reduced'&&!matchMedia('(prefers-reduced-motion: reduce)').matches;}
+function reveal(element,{offset=5,duration=240}={}){
+ if(!element?.animate||!navigationMotion())return;
+ element.getAnimations().filter(animation=>animation.id==='section-entry').forEach(animation=>animation.cancel());
+ const motion=element.animate([{opacity:.62,transform:`translateY(${offset}px)`},{opacity:1,transform:'translateY(0)'}],{duration,easing:'cubic-bezier(.22,1,.36,1)'});
+ motion.id='section-entry';
+}
 
 function syncDockAccess(){const dock=$('.sidebar');if(dock)dock.inert=dockMode==='hidden';}
 function setDock(mode){dockMode=normalizeDock(mode);document.body.dataset.dock=dockMode;syncDockAccess();saveDock(storage,dockMode);for(const toggle of document.querySelectorAll('[data-action="dock-toggle"]')){toggle.setAttribute('aria-label',dockMode==='hidden'?'Show navigation':'Hide navigation');toggle.setAttribute('aria-expanded',dockMode!=='hidden');}}
@@ -191,6 +200,7 @@ async function loadVenueInstruments(venue){
 function cleanPage(){benchmarkObserver?.disconnect();benchmarkObserver=null;benchmarkTask?.controller.abort();benchmarkTask=null;calculatorRequest?.abort();calculatorRequest=null;practice?.dispose();practice=null;insightsView?.dispose();insightsView=null;resetForecast();riskCalculator?.dispose();riskCalculator=null;clearTimeout(marketSearchTimer);marketCatalogSearch.cancel();document.body.classList.remove('chart-focus');learning?.dispose();learning=null;miniSeries=null;comparison?.dispose();comparison=null;terminal?.dispose();terminal=null;mini?.remove();mini=null;for(const v of visuals)v.dispose();visuals=[];}
 
 function route(){
+ const animate=pageGeneration>0;
  closeModal({restoreFocus:false});
  operationError='';
  const next=resolveNavigation(location.hash);
@@ -209,6 +219,12 @@ function route(){
   target.focus({preventScroll:true});
   target.scrollIntoView({block:'start',behavior:'instant'});
  }else $('#main').focus({preventScroll:true});
+ if(animate){
+  const heading=$('#main .section-heading');
+  reveal(heading);
+  reveal(heading?.nextElementSibling,{offset:4,duration:260});
+  reveal($('#context-root .context-nav'),{offset:3,duration:200});
+ }
 }
 function renderPage(){
  cleanPage();
@@ -349,7 +365,7 @@ function renderOverview(){
  const benchmark=`<section class="panel feature-chart era-benchmark"><div class="panel-top"><h2>${coinMark('BTC')} Bitcoin <span>BTC / USDT</span></h2><a href="#terminal" data-action="default-chart" class="text-link">Full chart ${icon('arrow-up-right')}</a></div><div class="era-benchmark-tools"><div class="benchmark-quote"><strong id="benchmark-price">—</strong><span id="benchmark-change"></span></div>${ranges}</div><div id="benchmark-chart" class="benchmark-chart" aria-label="Bitcoin price history"></div><div class="panel-bottom" id="benchmark-source" role="status">Waiting for exchange candles…</div></section>`;
  const tools=`<div class="era-market-links" aria-label="More research"><a href="#market-insights">${icon('globe')} Market insights</a><a href="#screener">${icon('sliders-horizontal')} Asset screener</a><a href="#learn">${icon('book-open')} Learn crypto</a></div>`;
  benchmarkDisplayed=null;
- $('#main').innerHTML=`<div class="era-dashboard"><header class="era-hero section-heading"><div class="era-hero-copy"><h1>Market overview</h1><p>Live prices, market movers, and the tools behind the data.</p></div><a href="#markets" class="button primary">Explore markets ${icon('arrow-right')}</a></header>${liveStrip()}<div id="home-totals">${marketStats()}</div><div class="era-market-grid">${benchmark}<div class="era-market-side"><section class="panel home-breadth" id="home-breadth">${breadthContent()}</section><section id="home-brief" class="panel market-feature">${marketBrief(data.markets?.data??[],workspace.watchlist)}</section></div></div>${dashboardShortcuts()}${news}${tools}</div>`;
+ $('#main').innerHTML=`<div class="era-dashboard">${sectionHeading('Market overview','Follow live prices, market movers and the headlines behind them.',{glyph:headingIcons.overview,className:'era-hero',action:'<a href="#markets" class="button primary">Explore markets</a>'})}${liveStrip()}<div id="home-totals">${marketStats()}</div><div class="era-market-grid">${benchmark}<div class="era-market-side"><section class="panel home-breadth" id="home-breadth">${breadthContent()}</section><section id="home-brief" class="panel market-feature">${marketBrief(data.markets?.data??[],workspace.watchlist)}</section></div></div>${dashboardShortcuts()}${news}${tools}</div>`;
  renderNewsResults();observeBenchmark(pageGeneration);
 }
 
@@ -422,21 +438,25 @@ function renderMarketResults(){const key=marketUniverse==='exchange'?'exchange':
 function queueMarketSearch(){clearTimeout(marketSearchTimer);marketCatalogSearch.cancel();marketRemoteAssets=[];marketRemoteError='';marketRemoteLoading=!onlyWatch&&marketGroup==='all'&&marketUniverse==='aggregate'&&normalizeSearch(marketQuery).length>=2;if(marketRemoteLoading)marketSearchTimer=setTimeout(()=>marketCatalogSearch.run(marketQuery),350);}
 function renderMarketCatalog(){const host=$('#market-catalog');if(!host)return;if(onlyWatch||marketGroup!=='all'||marketUniverse!=='aggregate'||normalizeSearch(marketQuery).length<2){host.innerHTML='';return;}const shown=new Set(filteredMarkets().map(assetIdentity)),items=rankAssets(marketRemoteAssets.filter(a=>!shown.has(assetIdentity(a))),marketQuery,12);host.innerHTML=`<div class="catalog-results"><h3>Broader asset catalog</h3><p class="source">${marketRemoteLoading?'Searching…':marketRemoteError?'Catalog unavailable. Loaded prices remain above.':'Catalog identities beyond the current price list. Open an asset to check available prices and charts.'}</p>${items.map(a=>`<button class="command-row" data-action="asset-chart" data-id="${esc(a.id)}">${coinMark(a.symbol)}<span><strong>${esc(a.name)} <small>${esc(a.symbol)}</small></strong><small>${esc(a.id)}</small></span>${icon('arrow-up-right')}</button>`).join('')}</div>`;}
 
-function capturePreferences(){if(!terminal)return;workspace.preferences=normalizePreferences({...workspace.preferences,lastInstrument:selected,interval:selectedInterval,view:terminal.viewPreset,style:terminal.style,period:terminal.period,rsiPeriod:terminal.rsiPeriod,oscillator:terminal.oscillator,indicators:terminal.indicators,studyIds:terminal.studyIds,autoGuide:terminal.autoGuide,signalKinds:terminal.signalKinds,markers:terminal.markers});save();}
+function capturePreferences(){if(!terminal)return;workspace.preferences=normalizePreferences({...workspace.preferences,lastInstrument:selected,interval:selectedInterval,view:terminal.viewPreset,style:terminal.style,period:terminal.period,smaPeriods:terminal.smaPeriods,rsiPeriod:terminal.rsiPeriod,oscillator:terminal.oscillator,indicators:terminal.indicators,studyIds:terminal.studyIds,autoGuide:terminal.autoGuide,signalKinds:terminal.signalKinds,markers:terminal.markers});save();}
 
 function refreshIndicatorStrip(){
  const legend=$('#indicator-strip .active-chain');if(!terminal||!legend)return;
  const active=terminal.activeStudies(),results=(terminal.chart?terminal.studyView?.results:null)??[];
- const name=id=>{
-  const result=results.find(item=>item.id===id),study=STUDIES[id];
-  if(result&&!result.ready)return study.label+' (awaiting data)';
-  return result?.series.length&&id==='ema'?result.series.map(line=>line.title).join(' / '):study.label;
- };
- const overlays=active.filter(id=>STUDIES[id]?.placement==='overlay').map(name);
- const lower=active.find(id=>STUDIES[id]?.placement==='pane');
- const label=[overlays.length?'On price: '+overlays.join(', '):'',lower?'Lower pane: '+name(lower):''].filter(Boolean).join(' · ')||'Price only';
+ const colors=palette();
+ const groups=[['overlay','On price'],['pane','Below price']].map(([placement,title])=>({title,ids:active.filter(id=>STUDIES[id].placement===placement)}));
+ const label=groups.filter(group=>group.ids.length).map(group=>`${group.ids.length} ${group.title.toLowerCase()}`).join(' · ')||'Price only';
  if(legend.textContent!==label)legend.textContent=label;
- legend.title=label;
+ const wrap=$('.wb-study-legend');
+ wrap.hidden=!active.length;
+ const lines=wrap.querySelector('.wb-study-lines');
+ const content=groups.filter(group=>group.ids.length).map(({title,ids})=>`<div><strong>${title}</strong><ul>${ids.flatMap(id=>{
+  const result=results.find(item=>item.id===id);
+  const plots=result?.series??[];
+  if(['ema','sma'].includes(id)&&plots.length)return plots.map(plot=>`<li><span class="study-swatch" style="--swatch:${colors[plot.color]}"></span>${esc(plot.title)}${Number.isFinite(plot.values.at(-1))?'':' · Awaiting history'}</li>`);
+  return [`<li>${esc(STUDIES[id].label)}${result&&!result.ready?' · Awaiting data':''}</li>`];
+ }).join('')}</ul></div>`).join('');
+ if(lines.dataset.content!==content){lines.dataset.content=content;lines.innerHTML=content;}
 }
 function updateChartWindow(info){
  const el=$('#chart-window-info'),status=$('#history-status');
@@ -461,7 +481,7 @@ function layoutModal(){if(!terminal)return;modal('Saved chart layouts',`<p class
 
 const guideOptions=[
  ['none','None'],['range','Recent high and low'],['trend','Swing trend'],['fibonacci','Fibonacci levels'],
- ['zones','Support and resistance'],['profile','Volume by price'],['prev-day','Previous day'],['prev-week','Previous week']
+ ['zones','Support and resistance'],['profile','Volume by price'],['prev-day','Previous day'],['prev-week','Previous week'],['daily-pivots','Daily pivot levels']
 ];
 function autoControls(){
  const guide=normalizePreferences(workspace.preferences).autoGuide;
@@ -771,7 +791,7 @@ function closeModal(options){dialogController?.close(options);}
 
 function openSearch(){remoteAssets=[];remoteError='';remoteLoading=false;modal('Find an asset',`<label class="command-search">${icon('search')}<input id="command-input" maxlength="80" placeholder="Name, ticker or trading pair" autocomplete="off" aria-label="Search coins and instruments"></label><div id="command-results" class="command-results"></div><div class="modal-footer">Search catalog identities and supported exchange pairs. <kbd>ESC</kbd> to close.</div>`,true);$('#command-input').addEventListener('input',e=>{const q=e.target.value;clearTimeout(searchTimer);catalogSearch.cancel();remoteAssets=[];remoteError='';remoteLoading=normalizeSearch(q).length>=2;searchResults(q);if(remoteLoading)searchTimer=setTimeout(()=>catalogSearch.run(q),300);});searchResults('');}
 
-function searchResults(q){if(!$('#command-results'))return;const combined=mergeAssets(data.markets?.data??[],remoteAssets);const assets=rankAssets(combined,q,8),pairs=rankAssets([...instruments.binance,...instruments.coinbase],q,8);$('#command-results').innerHTML=`<div class="eyebrow">Crypto assets</div>${assets.map(a=>`<button class="command-row" data-action="asset-chart" data-id="${esc(a.id)}">${coinMark(a.symbol)}<span><strong>${esc(a.name)} <small>${esc(a.symbol)}</small></strong><small>${isFetchAsset(a)?'Fetch.ai · ':''}${esc(a.id)}</small></span><b>${a.price?price(a.price):'View asset'}</b>${icon('chevron-right')}</button>`).join('')||'<p class="search-note">No matching priced asset in the loaded directory.</p>'}<div class="search-note" role="status">${remoteLoading?'Searching the broader asset catalog…':remoteError?'Catalog temporarily unavailable; loaded results remain available.':q.trim().length>=2?'Catalog results show available identities. Price and chart coverage varies.':''}</div><div class="eyebrow">Exchange charts</div>${pairs.map(a=>`<button class="command-row" data-action="select-instrument" data-venue="${a.venue}" data-symbol="${esc(a.symbol)}">${coinMark(a.base)}<span><strong>${esc(a.base)}/${esc(a.quote)}</strong><small>${a.venue.toUpperCase()} spot · ${esc(a.symbol)}</small></span>${icon('arrow-up-right')}</button>`).join('')||'<p class="search-note">No matching chart pair in the connected venues.</p>'}`;hydrate();}
+function searchResults(q){if(!$('#command-results'))return;const combined=mergeAssets(data.markets?.data??[],remoteAssets);const assets=rankAssets(combined,q,8),pairs=rankAssets([...instruments.binance,...instruments.coinbase],q,8);$('#command-results').innerHTML=`<div class="eyebrow">Crypto assets</div>${assets.map(a=>`<button class="command-row" data-action="asset-chart" data-id="${esc(a.id)}">${coinMark(a.symbol)}<span><strong>${esc(a.name)} <small>${esc(a.symbol)}</small></strong><small>${isFetchAsset(a)?'Fetch.ai · ':''}${esc(a.id)}</small></span><b>${a.price?moneyMarkup(a.price):'View asset'}</b>${icon('chevron-right')}</button>`).join('')||'<p class="search-note">No matching priced asset in the loaded directory.</p>'}<div class="search-note" role="status">${remoteLoading?'Searching the broader asset catalog…':remoteError?'Catalog temporarily unavailable; loaded results remain available.':q.trim().length>=2?'Catalog results show available identities. Price and chart coverage varies.':''}</div><div class="eyebrow">Exchange charts</div>${pairs.map(a=>`<button class="command-row" data-action="select-instrument" data-venue="${a.venue}" data-symbol="${esc(a.symbol)}">${coinMark(a.base)}<span><strong>${esc(a.base)}/${esc(a.quote)}</strong><small>${a.venue.toUpperCase()} spot · ${esc(a.symbol)}</small></span>${icon('arrow-up-right')}</button>`).join('')||'<p class="search-note">No matching chart pair in the connected venues.</p>'}`;hydrate();}
 
 async function chooseAsset(id){let a=(data.markets?.data??[]).find(a=>a.id===id)??assetLookup.get(id);if(!a)return;const show=notice=>{const matches=[...instruments.binance,...instruments.coinbase].filter(x=>x.base===a.symbol);modal(`${esc(a.name)} <span class="muted">${esc(a.symbol)}</span>`,`<div class="asset-detail"><div><small>Aggregate price</small><strong>${moneyMarkup(a.price)}</strong><span class="${tone(a.change)}">${pct(a.change)} / 24h</span></div><p>${isFetchAsset(a)?'Also known as Fetch.ai.<br>':''}Asset ID: <code>${esc(a.id)}</code><br>${a.updatedAt?'Updated '+esc(stamp(a.updatedAt)):esc(notice)}</p></div><div class="callout">${matches.length?'Choose an exchange chart. Verify the listed token identity before acting.':'No Binance USDT or Coinbase USD chart is currently connected for this asset. Price and history depend on provider coverage.'}</div><div class="era-asset-research"><a class="text-link" href="#analysts?asset=${encodeURIComponent(analystAssetKey(a))}">Analyst research ${icon('arrow-up-right')}</a></div><div class="instrument-choices">${matches.map(x=>`<button class="command-row" data-action="select-instrument" data-venue="${x.venue}" data-symbol="${esc(x.symbol)}">${coinMark(x.base)}<span><strong>${esc(x.base)}/${esc(x.quote)}</strong><small>${x.venue.toUpperCase()} spot</small></span>${icon('arrow-up-right')}</button>`).join('')}</div>`);};show('Loading current price…');if(!a.price){const gen=modalGeneration;try{const r=await api('asset?id='+encodeURIComponent(id),{signal:dialogController.signal});if(gen!==modalGeneration)return;a=r.data;assetLookup.set(id,a);show('');}catch{if(gen===modalGeneration)show('Current price unavailable from the provider.');}}}
 
@@ -782,8 +802,9 @@ function indicatorModal(){
  const catalog=Object.values(STUDIES);const groups=[...new Set(catalog.map(s=>s.group))];
  const presets=Object.values(STUDY_PRESETS);
  const studyCards=groups.map(group=>`<section class="study-group" data-study-group="${esc(group)}"><h3>${esc(group)}</h3><div class="study-grid">${catalog.filter(s=>s.group===group).map(s=>`<label class="study-choice"><input type="checkbox" name="study" value="${s.id}" ${selectedIds.includes(s.id)?'checked':''}><span><strong>${esc(s.label)}</strong><small>${esc(s.meaning)}</small><small>${s.placement==='pane'?'Lower pane':'On price chart'} · ${esc(s.warmup)}</small>${s.id==='vwap'&&selectedInterval==='1d'?'<small>Choose an intraday interval to plot VWAP.</small>':''}</span></label>`).join('')}</div></section>`).join('');
- const settings=`<div class="form-grid"><label>Moving-average and band length<input name="period" type="number" min="2" max="200" value="${terminal.period}" required></label><label>RSI length<input name="rsiPeriod" type="number" min="2" max="100" value="${terminal.rsiPeriod}" required></label></div>`;
- modal('Chart studies',`<div class="study-presets" aria-label="Study presets">${presets.map(p=>`<button type="button" class="button" data-preset="${p.id}" title="${esc(p.description)}">${esc(p.label)}</button>`).join('')}<button type="button" class="button" data-preset="clear">Clear studies</button></div><p class="data-note">Presets plot immediately. Choose up to four overlays and one lower pane.</p><div class="era-study-filters"><input id="study-search" aria-label="Find an indicator" placeholder="Find an indicator"><select id="study-category" aria-label="Indicator category"><option value="">All categories</option>${groups.map(group=>`<option>${esc(group)}</option>`).join('')}</select></div><form id="study-form"><p id="study-no-results" hidden>No indicators match.</p>${studyCards}${settings}<p class="study-feedback" role="status"></p><button class="button primary" type="submit">Apply to chart</button></form>`,true);
+ const lengths=(terminal.smaPeriods.length?terminal.smaPeriods:[terminal.period]).join(', ');
+ const settings=`<fieldset class="study-settings"><legend>Indicator lengths</legend><div class="study-lengths"><label class="sma-lengths">SMA lengths<input name="smaPeriods" type="text" value="${lengths}" aria-describedby="sma-length-help" required><small id="sma-length-help">Enter up to ${MAX_SMA_PERIODS} lengths from 2 to ${MAX_SMA_LENGTH}, separated by commas or spaces.</small></label><button type="button" class="button" id="sma-quick-set">Use 20, 40, 60, 80</button><label>EMA, WMA, HMA and band length<input name="period" type="number" min="2" max="200" value="${terminal.period}" required></label><label>RSI length<input name="rsiPeriod" type="number" min="2" max="100" value="${terminal.rsiPeriod}" required></label></div></fieldset>`;
+ modal('Chart studies',`<div class="study-presets" aria-label="Study presets">${presets.map(p=>`<button type="button" class="button" data-preset="${p.id}" title="${esc(p.description)}">${esc(p.label)}</button>`).join('')}<button type="button" class="button" data-preset="clear">Clear studies</button></div><form id="study-form">${settings}<div class="era-study-filters"><input id="study-search" aria-label="Find an indicator" placeholder="Find an indicator"><select id="study-category" aria-label="Indicator category"><option value="">All categories</option>${groups.map(group=>`<option>${esc(group)}</option>`).join('')}</select></div><p id="study-no-results" hidden>No indicators match.</p>${studyCards}<footer class="study-actions"><div><p class="study-count" aria-live="polite"></p><p class="study-feedback" role="status"></p></div><button class="button primary" type="submit">Apply to chart</button></footer></form>`,true);
  const dialog=$('#modal-root'),form=$('#study-form');
  const filter=()=>{
   const query=$('#study-search').value.trim().toLowerCase(),category=$('#study-category').value;
@@ -800,17 +821,49 @@ function indicatorModal(){
  };
  $('#study-search').addEventListener('input',filter);$('#study-category').addEventListener('change',filter);
  let draft=selectedIds;
- const sync=()=>{for(const field of form.querySelectorAll('input[name="study"]'))field.checked=draft.includes(field.value);};
+ const sync=()=>{
+  for(const field of form.querySelectorAll('input[name="study"]'))field.checked=draft.includes(field.value);
+  const count=draft.filter(id=>STUDIES[id].placement==='pane').length;
+  form.querySelector('.study-count').textContent=`${draft.length-count} / ${MAX_STUDY_OVERLAYS} overlays · ${count} / ${MAX_STUDY_PANES} lower panes`;
+ };
+ sync();
  const apply=()=>{terminal.studyIds=draft;capturePreferences();if(terminal.bars.length)terminal.renderIndicators();refreshIndicatorStrip();updateSummary();};
  for(const button of dialog.querySelectorAll('[data-preset]'))button.addEventListener('click',()=>{
   const p=STUDY_PRESETS[button.dataset.preset];draft=normalizeStudyIds(p?.studies??[]);sync();apply();closeModal();toast(p?p.label+' applied':'Studies cleared');
  });
  form.addEventListener('change',e=>{
   if(e.target.name!=='study')return;
-  const id=e.target.value,original=draft;draft=normalizeStudyIds(e.target.checked?[...draft,id]:draft.filter(x=>x!==id));sync();
-  const replaced=original.find(x=>x!==id&&!draft.includes(x));form.querySelector('.study-feedback').textContent=replaced?'Replaced '+STUDIES[replaced].label+'.':'';
+  const id=e.target.value,next=e.target.checked?[...draft,id]:draft.filter(x=>x!==id);
+  const capped=normalizeStudyIds(next).length<next.length;
+  form.querySelector('.study-feedback').textContent=capped?`Clear a ${STUDIES[id].placement==='pane'?'lower-pane study':'price overlay'} to add this one.`:'';
+  if(!capped)draft=next;
+  sync();
  });
- form.addEventListener('submit',e=>{e.preventDefault();terminal.period=+form.elements.period.value;terminal.rsiPeriod=+form.elements.rsiPeriod.value;apply();closeModal();});
+ const smaField=form.elements.smaPeriods;
+ smaField.addEventListener('input',()=>smaField.setCustomValidity(''));
+ $('#sma-quick-set').addEventListener('click',()=>{
+  smaField.value='20, 40, 60, 80';
+  smaField.setCustomValidity('');
+  if(!draft.includes('sma')){
+   const checkbox=form.querySelector('[value="sma"]');
+   checkbox.checked=true;
+   checkbox.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+ });
+ form.addEventListener('submit',e=>{
+  e.preventDefault();
+  const raw=smaField.value.trim().split(/[,\s]+/);
+  const numbers=raw.map(Number);
+  const periods=normalizeSmaPeriods(numbers);
+  if(raw.some((value,i)=>!/^\d+$/.test(value)||numbers[i]<2||numbers[i]>MAX_SMA_LENGTH)||new Set(numbers).size>MAX_SMA_PERIODS){
+   smaField.setCustomValidity(`Use up to ${MAX_SMA_PERIODS} whole numbers from 2 to ${MAX_SMA_LENGTH}.`);
+   smaField.reportValidity();return;
+  }
+  terminal.smaPeriods=periods;
+  terminal.period=+form.elements.period.value;
+  terminal.rsiPeriod=+form.elements.rsiPeriod.value;
+  apply();closeModal();
+ });
 }
 function signalSettingsModal(){
  if(!terminal)return;
@@ -893,10 +946,10 @@ document.addEventListener('click',e=>{
 
  if(a==='export-markets'){const list=filteredMarkets();download('cryptoz-markets.csv',serializeCSV(['id','symbol','name','price','quote','change24h','marketCap','volume','updatedAt'],list.map(x=>[x.id,x.symbol,x.name,x.price,marketUniverse==='exchange'?'USDT':'USD',x.change,x.marketCap,x.volume,x.updatedAt])),'text/csv');return;}
 
- if(a==='home-news-tab'){homeNewsTopic=b.dataset.topic;document.querySelectorAll('[data-action="home-news-tab"]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));renderNewsResults();return;}
- if(a==='news-more'){newsLimit+=20;renderNewsResults();return;}if(a==='news-topic'){newsTopic=b.dataset.topic;newsLimit=20;document.querySelectorAll('[data-action="news-topic"]').forEach(x=>{x.classList.toggle('active',x.dataset.topic===newsTopic);x.setAttribute('aria-pressed',x.dataset.topic===newsTopic);});renderNewsResults();return;}
+ if(a==='home-news-tab'){homeNewsTopic=b.dataset.topic;document.querySelectorAll('[data-action="home-news-tab"]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));renderNewsResults();reveal($('#news-results'),{offset:3,duration:200});return;}
+ if(a==='news-more'){newsLimit+=20;renderNewsResults();reveal($('#news-results'),{offset:3,duration:200});return;}if(a==='news-topic'){newsTopic=b.dataset.topic;newsLimit=20;document.querySelectorAll('[data-action="news-topic"]').forEach(x=>{x.classList.toggle('active',x.dataset.topic===newsTopic);x.setAttribute('aria-pressed',x.dataset.topic===newsTopic);});renderNewsResults();reveal($('#news-results'),{offset:3,duration:200});return;}
 
- if(a==='studio-tab'){studioView(b.dataset.view);return;}
+ if(a==='studio-tab'){studioView(b.dataset.view);reveal($('#studio-content'),{offset:4});return;}
 
  if(a==='timeframe'){selectedInterval=b.dataset.time;if($('#compact-interval'))$('#compact-interval').value=selectedInterval;capturePreferences();syncTimeframe();terminal?.load(selected,selectedInterval);return;}
 
@@ -915,7 +968,7 @@ document.addEventListener('click',e=>{
  if(a==='show-signals'){
   if(document.body.classList.contains('chart-focus'))setChartFocus(false);
   activateChartPanel('signals');
-  const tab=$('#wb-tab-signals');tab?.focus({preventScroll:true});tab?.scrollIntoView({block:'center'});
+  const tab=$('#wb-tab-signals');tab?.focus({preventScroll:true});tab?.scrollIntoView({block:'center',behavior:navigationMotion()?'smooth':'instant'});
   return;
  }
  if(a==='focus-signal'&&terminal){
@@ -927,7 +980,7 @@ document.addEventListener('click',e=>{
  if(a==='forecast-csv'){exportForecastCases();return;}
  if(a==='suggest-studies'&&terminal){const state=buildStudyPov({bars:terminal.studyBars,instrument:selected,interval:selectedInterval,nowSeconds:terminal.historyAnchor??Date.now()/1000,candleMeta:terminal.candleMeta,confirmedThrough:terminal.confirmedThrough});if(!state.ready){toast('Wait for enough closed candles.');return;}const preset=STUDY_PRESETS[state.trend==='Mixed'?'range':'trend'];terminal.studyIds=normalizeStudyIds(preset.studies);terminal.renderIndicators();refreshIndicatorStrip();updateSummary();capturePreferences();toast(preset.label+' studies applied');return;}
  if(a==='inspect-overlay'){
-  activateChartPanel('levels');const tab=$('#wb-tab-levels');tab?.focus({preventScroll:true});tab?.scrollIntoView({block:'center'});return;
+  activateChartPanel('levels');const tab=$('#wb-tab-levels');tab?.focus({preventScroll:true});tab?.scrollIntoView({block:'center',behavior:navigationMotion()?'smooth':'instant'});return;
  }
  if(a==='manual-guide'&&terminal){terminal.manualDrawing=!terminal.manualDrawing;b.setAttribute('aria-pressed',String(terminal.manualDrawing));$('.drawing-tools').hidden=!terminal.manualDrawing;$('#auto-overlay').value=terminal.manualDrawing?'none':terminal.autoGuide;terminal.setTool('cursor');terminal.draw();updateSummary();return;}
  if(a==='chart-history-date'){historyDateModal();return;}

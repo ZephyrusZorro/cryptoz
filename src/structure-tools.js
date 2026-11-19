@@ -36,7 +36,8 @@ function priceProfile(rows){
 
 export function previousPeriodLevels(bars,step,visibleTime,cutoff,key){
  const weekly=key==='prev-week';
- if(!weekly&&key!=='prev-day'||!Number.isSafeInteger(step)||step<=0||DAY%step||
+ const pivots=key==='daily-pivots';
+ if(!weekly&&!pivots&&key!=='prev-day'||!Number.isSafeInteger(step)||step<=0||DAY%step||
   !Number.isFinite(visibleTime)||!Number.isFinite(cutoff))return null;
  const period=weekly?WEEK:DAY,offset=weekly?MONDAY_OFFSET:0;
  const end=Math.floor((visibleTime-offset)/period)*period+offset;
@@ -47,6 +48,12 @@ export function previousPeriodLevels(bars,step,visibleTime,cutoff,key){
  const high=rows.reduce((best,bar)=>bar.high>best.high?bar:best);
  const low=rows.reduce((best,bar)=>bar.low<best.low?bar:best);
  const last=rows.at(-1),word=weekly?'week':'day';
+ if(pivots){
+  const pivot=(high.high+low.low+last.close)/3;
+  const levels=[{name:'Pivot',price:pivot},{name:'Resistance 1',price:2*pivot-low.low},{name:'Support 1',price:2*pivot-high.high}];
+  return {label:'Daily pivot levels',detail:'Uses the previous complete UTC day. The pivot averages its high, low and close. R1 and S1 mark the first resistance and support references.',startTime:begin,endTime:end,levels,
+   guides:levels.map(({name,price},i)=>pin(`${key}-${i}`,name,['violet','gold','cyan'][i],price,end,visibleTime))};
+ }
  const levels=[
   {name:'High',price:high.high,time:high.time},
   {name:'Low',price:low.low,time:low.time},

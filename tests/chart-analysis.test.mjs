@@ -7,7 +7,7 @@ const step = 3600;
 const origin = 1763510400;
 const candle = (i, close = 100) => ({time: origin + i * step, open: close, close, low: close - 1, high: close + 1, volume: 2});
 const make = extra => new TerminalChart({
-  host: {clientHeight: 480, clientWidth: 640}, workspace: {drawings: {}}, save() {}, onQuote() {},
+  host: {clientHeight: 480, clientWidth: 640, classList:{toggle(){}}}, workspace: {drawings: {}}, save() {}, onQuote() {},
   onBook() {}, onSummary() {}, onStatus() {}, onDrawings() {}, ...extra
 });
 const snapshot = (bars, time, cache = 'miss') => ({data: {bars}, fetchedAt: new Date(time * 1000).toISOString(), cache});
@@ -178,7 +178,7 @@ test('a warmup-only oscillator does not reserve an empty lower pane', () => {
   markerFixture(chart);
   chart.renderIndicators();
   assert.equal(chart.studyView.results[0].ready, false);
-  assert.equal(chart.studyView.hasPane, false);
+  assert.equal(chart.studyView.paneNumbers.size, 0);
   assert.equal(chart.studyView.series.size, 0);
 });
 

@@ -8,7 +8,9 @@ const catalog = [
   {id: 'ema', label: 'EMA pair', group: 'Trend', placement: 'overlay',
     meaning: 'Two averages that give more weight to recent closes.', check: 'Compare price with both averages. Crossovers can lag or reverse quickly in a range.', warmup: 'The chosen lookback and 50 candles, one line at a time.'},
   {id: 'sma', label: 'Simple moving average', group: 'Trend', placement: 'overlay',
-    meaning: 'The average close over the chosen number of candles.', check: 'Look at the slope and where price sits relative to the line.', warmup: 'One full lookback of closes.'},
+    meaning: 'Plot several averages of the closing price, each with its own length.', check: 'Compare the slopes and see where price sits relative to the faster and slower averages.', warmup: 'Each line needs its own full lookback.'},
+  {id: 'vwma', label: 'Volume-weighted moving average', group: 'Trend', placement: 'overlay',
+    meaning: 'A 20-candle average of closes that gives busier candles more weight.', check: 'Compare it with SMA 20 to see how volume shifts the average.', warmup: '20 candles with some traded volume.'},
   {id: 'wma', label: 'Weighted moving average', group: 'Trend', placement: 'overlay', proOnly: true,
     meaning: 'An average of closes with linearly increasing weights for recent candles.', check: 'Compare the slope with price and a simple average of the same length.', warmup: 'One full lookback of closes.'},
   {id: 'hma', label: 'Hull moving average', group: 'Trend', placement: 'overlay',
@@ -27,6 +29,8 @@ const catalog = [
     meaning: 'Shows where the close sits in the 14-candle high–low range, on a −100 to 0 scale.', check: 'Read −20 and −80 as reference levels. Near 0 means the close is near the high.', warmup: '14 candles with a nonzero range.'},
   {id: 'roc', label: 'Rate of change', group: 'Momentum', placement: 'pane',
     meaning: 'The percent change from the close 12 candles ago.', check: 'Compare the sign and size with the current move in price.', warmup: '13 closes.'},
+  {id: 'ppo', label: 'Percentage price oscillator', group: 'Momentum', placement: 'pane',
+    meaning: 'Shows the gap between EMA 12 and EMA 26 as a percentage of EMA 26.', check: 'Compare the oscillator with its 9-candle signal line and the zero level.', warmup: '26 candles for the oscillator and 34 for the signal and bars.'},
   {id: 'cci', label: 'Commodity Channel Index', group: 'Momentum', placement: 'pane', proOnly: true,
     meaning: 'Expresses typical price’s distance from its 20-candle average using mean absolute deviation.', check: 'Read ±100 as reference levels. The index can extend in either direction.', warmup: '20 candles with variation in typical price.'},
   {id: 'bb', label: 'Bollinger Bands', group: 'Volatility', placement: 'overlay',
@@ -37,6 +41,8 @@ const catalog = [
     meaning: 'The smoothed size of candle ranges, including gaps, in quote currency.', check: 'Compare the current 14-candle range measure with its earlier values.', warmup: '14 candles.'},
   {id: 'bbw', label: 'Bollinger Bandwidth', group: 'Volatility', placement: 'pane', proOnly: true,
     meaning: 'The width of the Bollinger Bands as a percentage of their middle band.', check: 'Compare recent widths to see whether volatility is expanding or contracting.', warmup: 'One full lookback of closes.'},
+  {id: 'chop', label: 'Choppiness index', group: 'Volatility', placement: 'pane',
+    meaning: 'Compares total movement with the high–low span over 14 candles.', check: 'Higher readings indicate back-and-forth trading. Lower readings indicate a more directional move.', warmup: '14 candles with a nonzero price span.'},
   {id: 'vwap', label: 'VWAP (UTC)', group: 'Volume', placement: 'overlay',
     meaning: 'An intraday, volume-weighted average of candle prices that resets at midnight UTC.', check: 'Compare price with the weighted average. The first loaded session may be partial.', warmup: 'At least one candle with volume in the UTC session. Use an intraday interval.'},
   {id: 'volume', label: 'Volume', group: 'Volume', placement: 'pane',
@@ -60,19 +66,27 @@ const presets = [
 ];
 
 export const STUDY_PRESETS = Object.freeze(Object.fromEntries(presets.map(preset => [preset.id, Object.freeze({...preset, studies: Object.freeze(preset.studies)})])));
-export const MAX_STUDY_OVERLAYS = 4;
+export const MAX_STUDY_OVERLAYS = 8;
+export const MAX_STUDY_PANES = 2;
+export const MAX_SMA_PERIODS = 6;
+export const MAX_SMA_LENGTH = 400;
+
+export function normalizeSmaPeriods(values) {
+  if(!Array.isArray(values))return [];
+  return [...new Set(values.filter(n=>Number.isInteger(n)&&n>=2&&n<=MAX_SMA_LENGTH))].slice(0,MAX_SMA_PERIODS);
+}
 
 export function normalizeStudyIds(ids) {
   if (!Array.isArray(ids)) return [];
   const active = [];
   let overlays = 0;
-  let pane = false;
+  let panes = 0;
   for (let i = ids.length - 1; i >= 0; i--) {
     const id = ids[i];
     if (typeof id !== 'string' || !Object.hasOwn(STUDIES, id) || active.includes(id)) continue;
     if (STUDIES[id].placement === 'pane') {
-      if (pane) continue;
-      pane = true;
+      if (panes >= MAX_STUDY_PANES) continue;
+      panes++;
     } else {
       if (overlays >= MAX_STUDY_OVERLAYS) continue;
       overlays++;
@@ -197,6 +211,16 @@ function chaikinFlow(bars) {
   });
 }
 
+function choppiness(bars) {
+  const period=14;
+  const ranges=atr(bars,1), mean=sma(ranges,period);
+  const {upper,lower}=channel(bars,period);
+  return mean.map((value,i)=>{
+    const span=upper[i]-lower[i];
+    return value>0&&span>0?100*Math.log10(value*period/span)/Math.log10(period):null;
+  });
+}
+
 const line = (key, title, values, color, options = {}) => ({key, title, values, color, kind: 'line', ...options});
 const histogram = (key, title, values, coloring, format) => ({key, title, values, coloring, format, kind: 'histogram'});
 const bands = (title, values, color) => [
@@ -210,7 +234,14 @@ const calculate = {
     line('main', `EMA ${period}`, ema(closes, period), 'gold'),
     ...(period === 50 ? [] : [line('slow', 'EMA 50', ema(closes, 50), 'violet')])
   ]}),
-  sma: ({closes, period}) => ({series: [line('main', `SMA ${period}`, sma(closes, period), 'accent')]}),
+  sma: ({closes, smaPeriods}) => ({series: smaPeriods.map((length,index)=>
+    line(index?`sma-${length}`:'main',`SMA ${length}`,sma(closes,length),['accent','gold','cyan','violet','up','down'][index])
+  )}),
+  vwma: ({bars}) => {
+    const meanVolume=sma(bars.map(bar=>bar.volume),20);
+    const weighted=sma(bars.map(bar=>bar.close*bar.volume),20);
+    return {series:[line('main','VWMA 20',weighted.map((value,i)=>meanVolume[i]>0?value/meanVolume[i]:null),'up',{dashed:true})]};
+  },
   wma: ({closes, period}) => ({series: [line('main', `WMA ${period}`, weightedAverage(closes, period), 'gold', {dashed: true})]}),
   hma: ({closes, period}) => ({series: [line('main', `HMA ${period}`, hullAverage(closes, period), 'violet')]}),
   bb: ({closes, period}) => ({series: bands('BB', bollinger(closes, period), 'cyan')}),
@@ -257,6 +288,14 @@ const calculate = {
     return {series:[line('main','Williams %R 14',values,'violet')],guides:[-80,-20],bounds:[-100,0]};
   },
   roc: ({closes}) => ({series: [line('main', 'ROC 12', closes.map((value, i) => i >= 12 ? (value / closes[i - 12] - 1) * 100 : null), 'gold', {format: 'percent'})], guides: [0]}),
+  ppo: ({closes}) => {
+    const fast=ema(closes,12),slow=ema(closes,26);
+    const values=slow.map((value,i)=>value>0?(fast[i]-value)/value*100:null);
+    const signal=ema(values,9);
+    const difference=values.map((value,i)=>signal[i]===null?null:value-signal[i]);
+    return {series:[line('main','PPO',values,'gold',{format:'percent'}),line('signal','Signal',signal,'violet',{format:'percent'}),histogram('histogram','PPO histogram',difference,'sign','percent')],guides:[0]};
+  },
+  chop: ({bars}) => ({series:[line('main','Choppiness 14',choppiness(bars),'cyan')],guides:[38.2,61.8]}),
   obv: ({bars}) => {
     let total = 0;
     return {series: [line('main', 'OBV', bars.map((bar, i) => {
@@ -270,12 +309,15 @@ const calculate = {
   cmf: ({bars}) => ({series: [line('main', 'CMF 20', chaikinFlow(bars), 'up')], guides: [0], bounds: [-1, 1]})
 };
 
-export function calculateStudies(bars, ids, {period = 20, rsiPeriod = 14, interval, completedBefore = Infinity, confirmed = bars} = {}) {
+export function calculateStudies(bars, ids, {period = 20, smaPeriods, rsiPeriod = 14, interval, completedBefore = Infinity, confirmed = bars} = {}) {
   const selected = normalizeStudyIds(ids);
   if (!selected.length) return [];
+  const defaultLength = Number.isInteger(period) && period >= 2 && period <= 200 ? period : 20;
+  const lengths = normalizeSmaPeriods(smaPeriods);
   const context = {
     bars, closes: bars.map(bar => bar.close), interval, completedBefore, confirmed,
-    period: Number.isInteger(period) && period >= 2 && period <= 200 ? period : 20,
+    period: defaultLength,
+    smaPeriods: lengths.length ? lengths : [defaultLength],
     rsiPeriod: Number.isInteger(rsiPeriod) && rsiPeriod >= 2 && rsiPeriod <= 100 ? rsiPeriod : 14
   };
   return selected.map(id => {
@@ -331,8 +373,21 @@ export function renderStudies(chart, priceSeries, previousView, bars, ids, optio
   const results = calculateStudies(bars, ids, options);
   const series = new Map();
   const levels = new Map();
-  const hasPane = results.some(result => result.placement === 'pane' &&
+  const lower = results.filter(result => result.placement === 'pane' &&
     result.series.some(plot => plot.values.some(Number.isFinite)));
+  const paneNumbers = new Map();
+  const usedPanes = new Set();
+  for(const {id} of lower){
+    const old = previousView?.paneNumbers.get(id);
+    if(old){paneNumbers.set(id,old);usedPanes.add(old);}
+  }
+  for(const {id} of lower){
+    if(paneNumbers.has(id))continue;
+    let index=1;
+    while(usedPanes.has(index))index++;
+    paneNumbers.set(id,index);
+    usedPanes.add(index);
+  }
   const tail = bars.at(-1);
   const beforeTail = bars.at(-2);
   const firstTime = bars[0]?.time;
@@ -344,8 +399,8 @@ export function renderStudies(chart, priceSeries, previousView, bars, ids, optio
   const priceFormat = axisPriceFormat(precision,options.quote);
 
   for (const result of results) {
-    if (result.placement === 'pane' && !hasPane) continue;
-    const pane = result.placement === 'pane' ? 1 : 0;
+    const pane = result.placement === 'pane' ? paneNumbers.get(result.id) : 0;
+    if (pane === undefined) continue;
     for (const [index, plot] of result.series.entries()) {
       const key = `${result.id}:${plot.key}`;
       const old = previousView?.series.get(key);
@@ -370,6 +425,9 @@ export function renderStudies(chart, priceSeries, previousView, bars, ids, optio
   for (const [key, entry] of previousView?.series ?? []) {
     if (!series.has(key)) chart.removeSeries(entry.series);
   }
+  // The chart removes empty panes and shifts subsequent indexes down.
+  const orderedPanes = [...paneNumbers.entries()].sort(([,a],[,b])=>a-b);
+  orderedPanes.forEach(([id],i)=>paneNumbers.set(id,i+1));
 
   for (const level of results.flatMap(result => result.levels)) {
     const old = previousView?.levels.get(level.key);
@@ -383,5 +441,5 @@ export function renderStudies(chart, priceSeries, previousView, bars, ids, optio
     if (!levels.has(key)) priceSeries.removePriceLine(entry.priceLine);
   }
 
-  return {results, series, levels, hasPane, paneChanged: hasPane !== Boolean(previousView?.hasPane), firstTime, lastBar: tail && {...tail}, length: bars.length};
+  return {results, series, levels, paneNumbers, paneChanged: paneNumbers.size !== (previousView?.paneNumbers.size??0), firstTime, lastBar: tail && {...tail}, length: bars.length};
 }

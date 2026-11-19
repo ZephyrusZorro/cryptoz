@@ -38,7 +38,7 @@ export const currency=createDisplayCurrency();
 const unit = code => code==='USD'?'$':code==='INR'?'₹':'';
 function format(value, code, render) {
   if(value===null)return '—';
-  if(render===compact)return unit(code)+render(value)+(unit(code)?'':' '+code);
+  if(render===compact)return (value<0?'-':'')+unit(code)+render(Math.abs(value),code)+(unit(code)?'':' '+code);
   return render(value,unit(code))+(unit(code)?'':' '+code);
 }
 

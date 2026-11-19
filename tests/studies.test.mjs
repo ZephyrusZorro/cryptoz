@@ -17,6 +17,34 @@ test('Hull moving average and Williams range preserve warmup and scale',()=>{
  assert.ok(range[13]<0&&range[13]>-20);
 });
 const study = (id, candles = rising, options) => studies.calculateStudies(candles, [id], options)[0];
+
+test('SMA renders independent, deduplicated lengths and preserves legacy settings', () => {
+  const sample=bars(Array.from({length:100},(_,i)=>i+10));
+  const series=study('sma',sample,{period:12,smaPeriods:[20,40,60,80,40]}).series;
+  assert.deepEqual(series.map(s=>s.title),['SMA 20','SMA 40','SMA 60','SMA 80']);
+  assert.deepEqual(series.map(s=>s.values.at(-1)),[99.5,89.5,79.5,69.5]);
+  assert.equal(study('sma',sample,{period:12}).series[0].title,'SMA 12');
+});
+
+test('VWMA weights closes and Choppiness compares true range with the price envelope', () => {
+  const sample=bars([...Array(19).fill(10),30]);
+  const vwma=study('vwma',sample).series[0].values;
+  assert.equal(vwma[18],null);
+  near(vwma[19],(190*10+20*30)/210);
+  assert.equal(study('vwma',sample.map(bar=>({...bar,volume:0}))).ready,false);
+  const chop=study('chop',bars(Array(14).fill(10))).series[0].values;
+  assert.equal(chop[12],null);
+  near(chop[13],100);
+});
+
+test('PPO uses percentage distance from EMA 26 and is invariant to price scale',()=>{
+  const result=study('ppo');
+  const scaled=study('ppo',bars(rising.map(bar=>bar.close*100)));
+  assert.equal(result.series[0].values[24],null);
+  near(result.series[0].values[25],700/22.5);
+  assert.equal(result.series[1].values[32],null);
+  near(result.series[2].values.at(-1),scaled.series[2].values.at(-1));
+});
 const values = (id, key, candles, options) => study(id, candles, options).series.find(s => s.key === key).values;
 const near = (value, expected) => assert.ok(Number.isFinite(value) && Math.abs(value - expected) < 1e-9, `${value} != ${expected}`);
 
@@ -25,7 +53,7 @@ test('Pro studies retain explicit pane and overlay placements', () => {
   assert.ok(pro.every(id => studies.STUDIES[id]?.proOnly));
   assert.equal(study('wma').placement, 'overlay');
   assert.ok(pro.slice(1).every(id => study(id).placement === 'pane'));
-  assert.deepEqual(studies.normalizeStudyIds(['wma', 'rvol', 'cci']), ['wma', 'cci']);
+  assert.deepEqual(studies.normalizeStudyIds(['wma', 'rvol', 'cci']), ['wma', 'rvol', 'cci']);
 });
 
 test('weighted averages emphasize recent closes and wait for a full lookback', () => {
@@ -73,7 +101,8 @@ test('Chaikin Money Flow weights closes by location and counts flat bars as neut
 });
 
 test('chart selections cap active overlays and prefer the latest selected pane', () => {
-  assert.deepEqual(studies.normalizeStudyIds(['rsi', 'ema', 'sma', 'bb', 'vwap', 'levels', 'macd', 'levels', 'constructor']), ['sma', 'bb', 'vwap', 'macd', 'levels']);
+  assert.deepEqual(studies.normalizeStudyIds(['rsi', 'ema', 'sma', 'bb', 'vwap', 'levels', 'macd', 'levels', 'constructor']), ['rsi','ema','sma','bb','vwap','macd','levels']);
+  assert.equal(studies.normalizeStudyIds(Object.keys(studies.STUDIES)).length,10);
   assert.deepEqual(studies.normalizeStudyIds(undefined), []);
   for (const preset of Object.values(studies.STUDY_PRESETS)) {
     assert.deepEqual(studies.normalizeStudyIds(preset.studies), preset.studies);
@@ -218,6 +247,9 @@ test('study rendering updates the last point and keeps the resized pane when cha
   view = studies.renderStudies(chart, price, view, next, ['ema','macd']);
   assert.equal(panes.get(1), pane);
   assert.equal(view.paneChanged, false);
+  view = studies.renderStudies(chart, price, view, next, ['ema','macd','rsi']);
+  assert.deepEqual([...view.paneNumbers],[['macd',1],['rsi',2]]);
+  assert.equal(panes.get(1),pane);
   view = studies.renderStudies(chart, price, view, revised, ['ema']);
   assert.equal(panes.has(1), false);
   assert.equal(view.paneChanged, true);

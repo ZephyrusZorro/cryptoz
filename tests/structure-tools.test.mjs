@@ -26,6 +26,11 @@ test('previous day levels use the complete UTC day and begin with the next sessi
  assert.deepEqual(result.levels.map(level=>[level.name,level.price]),[['High',112],['Low',84],['Close',101]]);
  assert.ok(result.guides.every(guide=>guide.points[0].time===start+day));
  assert.equal(previousPeriodLevels(bars.filter((_,i)=>i!==3),hour,visible,visible,'prev-day'),null);
+ const pivots=previousPeriodLevels(bars,hour,visible,visible,'daily-pivots');
+ assert.deepEqual(pivots.levels.map(level=>level.name),['Pivot','Resistance 1','Support 1']);
+ const pivot=(112+84+101)/3;
+ assert.deepEqual(pivots.levels.map(level=>level.price),[pivot,2*pivot-84,2*pivot-112]);
+ assert.ok(pivots.guides.every(guide=>guide.points[0].time===start+day));
 });
 
 test('weekly levels need a complete Monday-to-Sunday UTC week',()=>{
