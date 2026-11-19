@@ -51,3 +51,13 @@ test('weekly levels need a complete Monday-to-Sunday UTC week',()=>{
  assert.equal(previousPeriodLevels(bars,day,visible,visible-1,'prev-week'),null);
  assert.equal(previousPeriodLevels(bars.slice(1),day,visible,visible,'prev-week'),null);
 });
+
+test('ATR-scaled swing clustering attaches percent distance from latest close and volume-profile distances',()=>{
+ const sample=structureTools(feed,step,feed.at(-1).time+step);
+ assert.ok(sample.zones?.levels?.length>0);
+ for(const level of sample.zones.levels){
+  assert.ok(Number.isFinite(level.distancePct));
+  assert.ok(['support','resistance'].includes(level.role));
+ }
+ assert.ok(sample.profile.levels.every(level=>Number.isFinite(level.distancePct)));
+});

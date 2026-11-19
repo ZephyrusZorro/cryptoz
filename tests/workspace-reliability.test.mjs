@@ -26,3 +26,11 @@ test('missing values and tiny prices are represented truthfully',()=>{
 test('small nonzero values stay visible in alerts, studies and drawing labels',()=>{
  assert.match(num(1e-10,8),/1E-10|0\.0000000001/);assert.notEqual(num(-1e-10,8),'-0');assert.equal(num(0,8),'0');assert.equal(num(42.125,2),'42.13');
 });
+
+test('small percentage changes format cleanly without scientific notation',()=>{
+ assert.equal(pct(0.00406467),'+0.0041%');
+ assert.equal(pct(-0.00121437),'-0.0012%');
+ assert.equal(pct(0.00001),'<0.0001%');
+ assert.equal(pct(-0.00001),'>-0.0001%');
+ assert.equal(pct(1.41),'+1.41%');
+});

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chartPanelFor, chartWorkbench } from '../src/workbench.js';
 import { forecastPanel } from '../src/decision-views.js';
+import { deskSwitch, readDesk } from '../src/guided-ui.js';
 
 test('the unified chart exposes all analysis panels and one reset action', () => {
   assert.equal(chartPanelFor('signals'), 'signals');
@@ -20,4 +21,14 @@ test('an archived or superseded forecast cannot show a cached directional call',
   assert.match(forecastPanel(previous, { archive: true }), /Historical test only/);
   assert.match(forecastPanel(previous, { superseded: true }), /New candle available/);
   assert.doesNotMatch(forecastPanel(previous, { archive: true }), /Study leans/);
+});
+
+test('homepage desk mode switch and Basic-mode forecast guidance render cleanly', () => {
+  const html = deskSwitch('basic');
+  assert.match(html, /data-action="desk" data-mode="basic" aria-pressed="true"/);
+  assert.match(html, /data-action="desk" data-mode="pro" aria-pressed="false"/);
+  assert.equal(readDesk({ getItem: () => 'pro' }), 'pro');
+  assert.equal(readDesk({ getItem: () => null }), 'basic');
+  const abstained = forecastPanel({ reason: 'Insufficient edge.' }, { mode: 'basic' });
+  assert.match(abstained, /Why no call\?/);
 });

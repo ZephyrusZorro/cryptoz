@@ -241,7 +241,7 @@ export class TerminalChart {
   const token=this.pollToken=Symbol();this.polling=true;this.pollingGeneration=gen;const {venue,symbol}=this.instrument,revision=this.liveRevision,requestedAt=Date.now();
   const current=()=>gen===this.generation&&!this.disposed;
   this.pollingPromise=Promise.allSettled([
-   this.deskMode==='pro'?this.fetch(`book?venue=${venue}&symbol=${symbol}`).then(r=>{if(current()&&Date.now()-(this.lastBookAt??0)>5000)this.onBook(r);}).catch(()=>{if(current()&&Date.now()-(this.lastBookAt??0)>5000)this.onBook(null);}):Promise.resolve(),
+   this.fetch(`book?venue=${venue}&symbol=${symbol}`).then(r=>{if(current()&&Date.now()-(this.lastBookAt??0)>5000)this.onBook(r);}).catch(()=>{if(current()&&Date.now()-(this.lastBookAt??0)>5000)this.onBook(null);}),
    this.fetch(`ticker?venue=${venue}&symbol=${symbol}`).then(r=>{if(!current()||this.freshStream())return;const d=r.data,value=+(d.lastPrice??d.last),open=+(d.openPrice??d.open),time=Date.parse(d.observedAt??r.fetchedAt),previous=Date.parse(this.quote?.updatedAt);if(!Number.isFinite(value)||value<=0||!Number.isFinite(time)||Number.isFinite(previous)&&time<=previous)return;this.quote={venue,symbol,price:value,change:d.priceChangePercent!==null&&d.priceChangePercent!==''&&Number.isFinite(+d.priceChangePercent)?+d.priceChangePercent:open>0?(value/open-1)*100:null,high:+(d.highPrice??d.high)||null,low:+(d.lowPrice??d.low)||null,updatedAt:new Date(time).toISOString(),stale:r.cache==='stale',source:'REST'};this.onQuote(this.quote);}),
    (!this.freshStream()||venue==='coinbase'||Date.now()-(this.lastKlineReceived??0)>15000)?this.fetch(`candles?venue=${venue}&symbol=${symbol}&interval=${this.interval}`).then(r=>{if(current())this.applyHistory(r,revision,requestedAt);}).catch(()=>{if(current()&&!this.freshStream())this.status('delayed');}):Promise.resolve()
   ]).finally(()=>{if(this.pollToken===token){this.polling=false;this.pollingPromise=null;}});
@@ -252,7 +252,7 @@ export class TerminalChart {
   try{const r=await this.fetch(`candles?venue=${instrument.venue}&symbol=${instrument.symbol}&interval=${interval}`);if(this.disposed||gen!==this.generation)return;this.applyHistory(r,revision,requestedAt);}catch{if(!this.disposed&&gen===this.generation&&!this.freshStream())this.status('delayed');}
  }
  connect(gen){
-  if(this.disposed||gen!==this.generation)return;const {venue,symbol}=this.instrument;const endpoint=venue==='binance'?`wss://data-stream.binance.vision/stream?streams=${symbol.toLowerCase()}@kline_${this.interval}/${symbol.toLowerCase()}@ticker${this.deskMode==='pro'?'/'+symbol.toLowerCase()+'@depth20':''}`:'wss://ws-feed.exchange.coinbase.com';
+  if(this.disposed||gen!==this.generation)return;const {venue,symbol}=this.instrument;const endpoint=venue==='binance'?`wss://data-stream.binance.vision/stream?streams=${symbol.toLowerCase()}@kline_${this.interval}/${symbol.toLowerCase()}@ticker/${symbol.toLowerCase()}@depth20`:'wss://ws-feed.exchange.coinbase.com';
   if(this.socket)return;
   clearTimeout(this.reconnectTimer);
   let socket;
