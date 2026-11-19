@@ -26,3 +26,10 @@ test('aborting the last subscriber aborts upstream without poisoning later retri
 test('invalid upstream order books are rejected before reaching a chart',async()=>{
  const g=createGateway({fetcher:async()=>Response.json({bids:[[99,-5]],asks:[[101,1]]})});assert.equal((await g(new Request('http://test/api/book?venue=binance&symbol=BTCUSDT'))).status,502);
 });
+test('transient server outage on non-direct routes recovers automatically via retry',async()=>{
+ let calls=0;
+ const client=createApiClient({fetcher:async()=>{calls++;if(calls===1)return Response.json({error:'Temporary 503'},{status:503});return Response.json({provider:'Publisher RSS',data:{items:[]},fetchedAt:'2026-11-19T00:00:00Z'});}});
+ const res=await client.api('news');
+ assert.equal(calls,2);
+ assert.equal(res.provider,'Publisher RSS');
+});

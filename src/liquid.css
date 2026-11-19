@@ -1,7 +1,7 @@
 
 :root{--header-glass:rgba(13,20,43,.57);--glass:rgba(20,29,56,.6);--panel:#11192f;--panel2:#202c4c;--border:#829ac22b;--text:#f0f5ff;--muted:#a7b8d4;--subtle-text:#c4d4ec;--lime:#a6c6ff;--primary-bg:#b3ceff;--primary-text:#102246;--nav-edge:#d6e8ff40;--nav-glass:rgba(24,32,57,.33);--nav-highlight:#d4e8ff20;--shadow:0 14px 38px #04091f26;--surface-deep:#0e172c;--focus:#a6c6ff;--glass-shine:#ffffff20}
 :root[data-theme=light]{--bg:#e4efff;--panel:#f8fbff;--panel2:#e1ebfa;--surface-deep:#f3f8ff;--text:#182e48;--muted:#536d88;--subtle-text:#3d5877;--border:#6288bb35;--lime:#215ed0;--positive:#087b60;--negative:#c53250;--gold:#92540d;--primary-bg:#2863da;--primary-text:#fff;--glass:rgba(255,255,255,.6);--header-glass:rgba(247,252,255,.66);--nav-glass:rgba(255,255,255,.42);--nav-edge:#ffffffdc;--nav-highlight:#ffffffa3;--shadow:0 14px 35px #3d6b9b17;--tint:#2c67d50b;--scrim:#29406355;--bid-fill:#087b6010;--ask-fill:#c5325011;--focus:#215ed0;--glass-shine:#ffffff9e}
-[data-theme=light] body::before{background:#e4efff url('/media/glass-light.webp') center/cover no-repeat}
+[data-theme=light] body::before{background:#d9e7fb url('/media/wallpaper-light-desktop.jpg') center/cover no-repeat}
 .panel,.stat-card,.news-reading-panel,.modal{border-color:var(--nav-edge);box-shadow:var(--shadow),inset 0 1px 0 #ffffff2b,inset 0 -1px 0 #ffffff07;background:var(--glass)}
 .panel,.stat-card,.news-reading-panel{backdrop-filter:blur(10px) saturate(135%);-webkit-backdrop-filter:blur(10px) saturate(135%)}
 .terminal-main,.comparison-chart,.learning-chart,.benchmark-chart{backdrop-filter:none;-webkit-backdrop-filter:none}.chart-canvas,.price-chart,.chart-workspace{background:var(--panel)}

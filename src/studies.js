@@ -562,8 +562,10 @@ function pointAt(plot, bars, i, colors) {
   return point;
 }
 
-function seriesOptions(plot, result, colors, priceFormat, compact = false) {
-  const hideOverlayTitle = compact && result.placement === 'overlay';
+function seriesOptions(plot, result, colors, priceFormat) {
+  // Overlay names and swatches are shown cleanly in the Active indicators legend; keeping overlay
+  // canvas titles empty prevents right-edge collisions with active candles and Auto Overlay pills.
+  const hideOverlayTitle = result.placement === 'overlay';
   const options = {title: hideOverlayTitle ? '' : plot.title, priceLineVisible: false, lastValueVisible: false};
   if (plot.kind === 'line') Object.assign(options, {
     color: colors[plot.color] ?? colors.cyan, lineWidth: 1,

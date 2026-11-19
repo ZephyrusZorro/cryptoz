@@ -102,7 +102,28 @@ export function createGateway({fetcher=fetch,now=Date.now}={}) {
   }finally{timing.dispose();}
  },parseNews,now});
  async function upstream(url,xml=false,signal,timeoutMs=12000){
-  const timing=deadline(signal,timeoutMs);try{const response=await abortable(fetcher(url,{headers,signal:timing.signal}),timing.signal);if(!response.ok)throw Error(`Upstream HTTP ${response.status}`);return await abortable(xml?response.text():response.json(),timing.signal);}finally{timing.dispose();}
+  const maxAttempts=timeoutMs>=8000?2:1;
+  let lastError;
+  for(let attempt=0;attempt<maxAttempts;attempt++){
+   throwIfAborted(signal);
+   const timing=deadline(signal,attempt===0?Math.min(timeoutMs,9000):timeoutMs);
+   try{
+    const response=await abortable(fetcher(url,{headers,signal:timing.signal}),timing.signal);
+    if(!response.ok){
+     const err=Error(`Upstream HTTP ${response.status}`);
+     err.status=response.status;
+     if(response.status>=400&&response.status<500&&response.status!==429)throw err;
+     throw err;
+    }
+    return await abortable(xml?response.text():response.json(),timing.signal);
+   }catch(err){
+    throwIfAborted(signal);
+    lastError=err;
+    if(err.status&&err.status>=400&&err.status<500&&err.status!==429)throw err;
+    if(attempt+1<maxAttempts)await new Promise(r=>setTimeout(r,220));
+   }finally{timing.dispose();}
+  }
+  throw lastError;
  }
  async function loadInstruments(venue,requestSignal){return runCached(`instruments:${venue}`,venue==='binance'?'Binance':'Coinbase',3600000,async signal=>{const d=await upstream(venue==='binance'?`${B}/exchangeInfo`:`${C}/products`,false,signal);if(venue==='binance'){if(!Array.isArray(d.symbols))throw Error('Invalid instruments');return d.symbols.filter(x=>x.status==='TRADING'&&x.quoteAsset==='USDT'&&!fiat.has(x.baseAsset)&&x.isSpotTradingAllowed!==false).map(x=>({symbol:x.symbol,base:x.baseAsset,quote:x.quoteAsset,venue}));}if(!Array.isArray(d))throw Error('Invalid instruments');return d.filter(x=>x.quote_currency==='USD'&&!fiat.has(x.base_currency)&&x.status==='online').map(x=>({symbol:x.id,base:x.base_currency,quote:'USD',venue}));},requestSignal);}
  return async function handle(request) {

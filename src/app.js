@@ -38,6 +38,7 @@ import './desktop-polish.css';
 import './phone-layout.css';
 import './atmosphere.css';
 import {dismissSurface,motionEnabled as navigationMotion,moveSelection,reveal,staggerReveal,mountAtmosphere} from './motion.js';
+import {mountParticles} from './particles.js';
 import {PHONE_LAYOUT,chartScrollOptions} from './phone-layout.js';
 import {BENCHMARK_RANGES,benchmarkWindow,dashboardShortcuts} from './dashboard.js';
 import {createMarketMovers,marketMoversPanel} from './market-movers.js';
@@ -522,7 +523,8 @@ function refreshIndicatorStrip(){
  const content=groups.filter(g=>g.ids.length+g.custom.length).map(({title,ids,custom})=>`<div><strong>${title}</strong><ul>${ids.flatMap(id=>{
   const result=results.find(item=>item.id===id);
   const plots=result?.series??[];
-  if(['ema','sma','ema-ribbon','supertrend'].includes(id)&&plots.length)return plots.map(plot=>`<li><span class="study-swatch" style="--swatch:${colors[plot.color]??colors.cyan}"></span>${esc(plot.title)}${Number.isFinite(plot.values.at(-1))?'':' · Awaiting history'}</li>`);
+  if(id==='supertrend'&&plots.length){const anyLive=plots.some(p=>Number.isFinite(p.values.at(-1)));return plots.map(plot=>`<li><span class="study-swatch" style="--swatch:${colors[plot.color]??colors.cyan}"></span>${esc(plot.title)}${Number.isFinite(plot.values.at(-1))?' · Active':anyLive?'':' · Awaiting history'}</li>`);}
+  if(['ema','sma','ema-ribbon'].includes(id)&&plots.length)return plots.map(plot=>`<li><span class="study-swatch" style="--swatch:${colors[plot.color]??colors.cyan}"></span>${esc(plot.title)}${Number.isFinite(plot.values.at(-1))?'':' · Awaiting history'}</li>`);
   return [`<li>${esc(STUDIES[id].label)}${result&&!result.ready?' · Awaiting data':''}</li>`];
  }).join('')}${custom.map(c=>`<li><span class="study-swatch" style="--swatch:${colors[c.color]??colors.cyan}"></span>${esc(c.name)} <small>(custom)</small></li>`).join('')}</ul></div>`).join('');
  if(lines.dataset.content!==content){lines.dataset.content=content;lines.innerHTML=content;}
@@ -537,7 +539,58 @@ function updateChartWindow(info){
  const label=info.total?`${info.visible} / ${info.total} candles${info.start&&info.end?` · ${short(info.start)}–${short(info.end)} UTC`:''}`:state==='unavailable'?'History unavailable':'Loading history…';
  if(el.textContent!==label)el.textContent=label;
 }
-function setChartFocus(value){document.body.classList.toggle('chart-focus',value);const b=$('#focus-chart');if(b){b.innerHTML=icon(value?'minimize-2':'maximize-2')+(value?'<span class="phone-focus-caption">Done</span>':'');b.setAttribute('aria-label',value?'Exit chart focus':'Focus chart');b.setAttribute('aria-pressed',value);}hydrate();requestAnimationFrame(()=>terminal?.draw());}
+function setChartWide(value){
+ const main=$('.wb-main');if(!main)return;
+ main.classList.toggle('chart-wide',value);
+ const btn=$('#phone-wide-btn');
+ if(btn){
+  btn.classList.toggle('selected',value);
+  btn.setAttribute('aria-pressed',String(value));
+  btn.innerHTML=icon(value?'minimize-2':'move-up-right')+`<span>${value?'Fit':'Wide 2×'}</span>`;
+ }
+ const hint=$('#phone-wide-hint');
+ if(hint)hint.hidden=!value;
+ hydrate();
+ requestAnimationFrame(()=>{
+  terminal?.renderIndicators?.();
+  terminal?.resizeView?.();
+  terminal?.draw?.();
+  const ws=$('.chart-workspace');
+  if(value&&ws)ws.scrollTo({left:ws.scrollWidth,behavior:navigationMotion()?'smooth':'instant'});
+ });
+}
+async function toggleLandscapeChart(){
+ const active=document.body.classList.contains('chart-focus');
+ if(active){
+  setChartFocus(false);
+  try{if(document.fullscreenElement)await document.exitFullscreen();}catch{}
+  try{screen.orientation?.unlock?.();}catch{}
+  return;
+ }
+ setChartFocus(true);
+ let locked=false;
+ try{
+  const target=$('.wb-main')??document.documentElement;
+  if(!document.fullscreenElement&&target.requestFullscreen)await target.requestFullscreen();
+  if(screen.orientation?.lock){await screen.orientation.lock('landscape');locked=true;}
+ }catch{}
+ if(!locked){
+  setChartWide(true);
+  toast('Full-screen Wide 2× mode active — swipe sideways or rotate your phone for native landscape.');
+ }
+}
+function setChartFocus(value){
+ document.body.classList.toggle('chart-focus',value);
+ if(!value){
+  try{if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});}catch{}
+  try{screen.orientation?.unlock?.();}catch{}
+ }
+ const b=$('#focus-chart');
+ if(b){b.innerHTML=icon(value?'minimize-2':'maximize-2')+(value?'<span class="phone-focus-caption">Done</span>':'');b.setAttribute('aria-label',value?'Exit chart focus':'Focus chart');b.setAttribute('aria-pressed',value);}
+ const lb=$('#phone-landscape-btn');
+ if(lb){lb.classList.toggle('selected',value);lb.setAttribute('aria-pressed',String(value));lb.innerHTML=icon(value?'minimize-2':'maximize-2')+`<span>${value?'Done':'Full'}</span>`;}
+ hydrate();requestAnimationFrame(()=>{terminal?.resizeView?.();terminal?.draw();});
+}
 
 function riskInstrument(){return ['practice','risk','replay','backtest'].includes(page)?(practiceSelected??selected):selected;}
 function riskKey(){const i=riskInstrument();return i.venue+':'+i.symbol;}
@@ -1205,6 +1258,8 @@ document.addEventListener('click',e=>{
  if(b.closest('.chart-menu'))closeToolMenus(document,null,{returnFocus:true});
  if(a==='reset-chart'){terminal?.resetView();capturePreferences();return;}
  if(a==='phone-chart-zoom'){terminal?.zoom(b.dataset.zoom==='out'?1.5:2/3);return;}
+ if(a==='wide-chart'){setChartWide(!$('.wb-main')?.classList.contains('chart-wide'));return;}
+ if(a==='landscape-chart'){toggleLandscapeChart();return;}
  if(a==='focus-chart'){setChartFocus(!document.body.classList.contains('chart-focus'));return;}
  if(a==='benchmark-range'&&Object.hasOwn(BENCHMARK_RANGES,b.dataset.range)){
   benchmarkRange=b.dataset.range;
@@ -1362,13 +1417,19 @@ window.visualViewport?.addEventListener('scroll',syncSheetViewport);
 window.addEventListener('hashchange',route);window.addEventListener('error',()=>{operationError='This view could not update. Retry the view.';syncNetworkState();});window.addEventListener('unhandledrejection',event=>{if(event.reason?.name==='AbortError')return;operationError='An operation could not finish. Retry the view.';syncNetworkState();});window.addEventListener('online',()=>{operationError='';syncNetworkState();refreshCurrent();});window.addEventListener('offline',syncNetworkState);
 
 mountAtmosphere(document);
+mountParticles(document);
 marketStream=new MarketStream({onBatch:patchLiveQuotes,onStatus:patchLiveStatus});liveMarketView=createLiveMarketView(document,marketStream);marketMoversView=createMarketMovers(document,marketStream,value=>moverDisplayPrice(value,'USDT'));shell();dialogController=createDialogController({root:$('#modal-root'),background:$('#app'),hydrate,animateExit:dismissSurface,fallbackFocus:()=>$('#main'),onClose:()=>{modalGeneration++;clearTimeout(searchTimer);catalogSearch.cancel();}});route();
 marketStream.setRegistry(BENCHMARK_ASSETS.map(base=>({symbol:base+'USDT',venue:'binance',quote:'USDT'})));
-fetchData();loadInstruments();
+fetchData(['markets','global','sentiment','news','exchange']);loadInstruments();
 try{currency.set(storage.getItem(DISPLAY_CURRENCY_KEY));}catch{}
 refreshFx();
 setInterval(refreshFx,15_000);
-document.addEventListener('visibilitychange',refreshFx);
+document.addEventListener('visibilitychange',()=>{
+ if(document.hidden)return;
+ refreshFx();
+ refreshSpotSnapshot();
+ if(page==='terminal'&&terminal&&!terminal.freshStream())terminal.refresh();
+});
 window.addEventListener('online',refreshFx);
 
 setInterval(()=>{if(!document.hidden&&!loading)fetchData(['markets','global','sentiment','news']);},120000);
@@ -1376,14 +1437,16 @@ function refreshSpotSnapshot(){
  if(document.hidden||navigator.onLine===false)return;
  const visibleSpotTable=page==='markets'||isMarketPage()&&marketUniverse==='exchange';
  const missingBenchmarks=page==='overview'&&BENCHMARK_ASSETS.some(base=>!marketStream.fresh(base+'USDT'));
- if((visibleSpotTable||missingBenchmarks)&&Date.now()-lastSpotAttempt>=30000){
+ const wsLive=marketStream.status().state==='streaming';
+ const minGap=wsLive?30000:10000;
+ if((visibleSpotTable||missingBenchmarks)&&Date.now()-lastSpotAttempt>=minGap){
   lastSpotAttempt=Date.now();
   if(!instruments.binance.length)loadInstruments(['binance']);
   fetchData(['exchange']);
  }
 }
 window.addEventListener('online',()=>loadInstruments(['binance','coinbase'].filter(venue=>!instruments[venue].length)));
-setInterval(refreshSpotSnapshot,35000);
+setInterval(refreshSpotSnapshot,12000);
 
 setInterval(pollAlerts,15000);
 

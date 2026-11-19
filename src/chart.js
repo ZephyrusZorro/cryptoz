@@ -36,13 +36,23 @@ export class TerminalChart {
   this.lastRangeGesture=null;this.historyRetryAt=0;
   this.referenceDays=[];this.referenceRequest=null;this.referenceCursor=null;this.referenceRetryAt=0;this.periodBeforeAt=null;
   this.instrument=instrument;this.interval=interval;this.historyAnchor=before;this.generation++;const gen=this.generation;this.stopNetwork();this.networkController=new AbortController();this.gestureController?.abort();this.liveRevision=0;this.confirmedThrough=0;this.latestSnapshotAt=0;this.confirmedStreamBars.clear();this.studyBars=[];this.visibleSignals=[];this.markerDescriptions=null;this.autoSetup=null;this.barRevisions=new Map();this.barEvents=new Map();this.observer?.disconnect();this.chart?.remove();this.chart=null;this.series=null;this.svg=null;this.bars=[];this.historyStatus='idle';this.historyNotice='';this.quote=null;this.candleMeta=null;this.lastStream=0;this.lastSocketFrame=0;this.reconnectAttempt=0;this.lastKlineReceived=0;this.lastBookAt=0;this.bookSequence=0;this.pendingPoint=null;this.status('loading');this.onWindow?.({visible:0,total:0,start:null,end:null});this.onQuote(null);this.onBook(null);this.onSummary({ready:false});this.host.innerHTML='<div class="chart-loading"><span class="loader"></span> Connecting to '+esc(instrument.venue)+' market data…</div>';this.onDrawings();
-  try{const requestedAt=Date.now();const response=await this.fetch(`candles?venue=${instrument.venue}&symbol=${instrument.symbol}&interval=${interval}${before?'&before='+before:''}`);if(gen!==this.generation||this.disposed)return;this.bars=normalizeCandles(response.data?.bars??[]).filter(bar=>!before||bar.time<before);if(!this.bars.length)throw Error(before?'No provider candles before that date for this pair and interval.':'No valid candles available');this.candleMeta=response;this.latestSnapshotAt=this.snapshotCutoff(response,requestedAt);this.observeStudyBars(this.bars,Math.min(before??Infinity,this.latestSnapshotAt));this.build();this.updateSummary();this.status(before?'archive':response.cache==='stale'?'stale':'snapshot');if(before)return;this.onQuote({price:this.bars.at(-1).close,source:'candle',updatedAt:response.fetchedAt,stale:response.cache==='stale'});this.connect(gen);this.poll(gen);this.pollTimer=setInterval(()=>{if(!document.hidden)this.poll(gen);},15000);this.healthTimer=setInterval(()=>this.checkConnection(gen),5000);
+  try{
+   const requestedAt=Date.now();
+   let response;
+   try{response=await this.fetch(`candles?venue=${instrument.venue}&symbol=${instrument.symbol}&interval=${interval}${before?'&before='+before:''}`);}
+   catch(firstErr){
+    if(gen!==this.generation||this.disposed||firstErr?.name==='AbortError'||(firstErr?.status&&firstErr.status<500))throw firstErr;
+    await new Promise(r=>setTimeout(r,400));
+    if(gen!==this.generation||this.disposed)return;
+    response=await this.fetch(`candles?venue=${instrument.venue}&symbol=${instrument.symbol}&interval=${interval}${before?'&before='+before:''}`);
+   }
+   if(gen!==this.generation||this.disposed)return;this.bars=normalizeCandles(response.data?.bars??[]).filter(bar=>!before||bar.time<before);if(!this.bars.length)throw Error(before?'No provider candles before that date for this pair and interval.':'No valid candles available');this.candleMeta=response;this.latestSnapshotAt=this.snapshotCutoff(response,requestedAt);this.observeStudyBars(this.bars,Math.min(before??Infinity,this.latestSnapshotAt));this.build();this.updateSummary();this.status(before?'archive':response.cache==='stale'?'stale':'snapshot');if(before)return;this.onQuote({price:this.bars.at(-1).close,source:'candle',updatedAt:response.fetchedAt,stale:response.cache==='stale'});this.connect(gen);this.poll(gen);this.pollTimer=setInterval(()=>{if(!document.hidden)this.poll(gen);},10000);this.healthTimer=setInterval(()=>this.checkConnection(gen),5000);
   }catch(e){if(gen!==this.generation||this.disposed)return;this.host.innerHTML=`<div class="chart-loading error-state"><strong>Chart unavailable</strong><p>${esc(e.message)}</p><button data-action="retry-chart" class="button">Retry connection</button><small>Select another venue or instrument. No synthetic candles are shown.</small></div>`;this.status('unavailable');this.historyStatus='unavailable';this.onWindow?.({visible:0,total:0,historyStatus:'unavailable'});}
  }
  build(){
   if(this.rangeFrame){cancelAnimationFrame(this.rangeFrame);this.rangeFrame=0;}this.lastRangeGesture=null;
   const p=palette();const range=this.chart?.timeScale().getVisibleLogicalRange();this.observer?.disconnect();this.chart?.remove();this.host.innerHTML='<div class="chart-canvas"></div><svg class="drawing-layer" aria-hidden="true"></svg><div class="crosshair-hud"></div>';const el=this.host.querySelector('.chart-canvas');this.svg=this.host.querySelector('svg');
-  this.chart=createChart(el,{autoSize:true,layout:{background:{type:ColorType.Solid,color:p.panel},textColor:p.text,fontSize:11,fontFamily:'ui-monospace, monospace',attributionLogo:true,panes:{separatorColor:p.border,separatorHoverColor:p.accent,enableResize:true}},grid:{vertLines:{color:p.grid},horzLines:{color:p.grid}},crosshair:{mode:CrosshairMode.Normal,vertLine:{color:p.text,labelBackgroundColor:p.border},horzLine:{color:p.text,labelBackgroundColor:p.border}},rightPriceScale:{borderColor:p.border,scaleMargins:{top:.08,bottom:.14}},timeScale:{borderColor:p.border,timeVisible:true,secondsVisible:false,rightOffset:3,minBarSpacing:.2,fixLeftEdge:true},handleScroll:chartScrollOptions(this.drawMode,this.phoneView?.matches),handleScale:true});
+  this.chart=createChart(el,{autoSize:true,layout:{background:{type:ColorType.Solid,color:p.panel},textColor:p.text,fontSize:11,fontFamily:'ui-monospace, monospace',attributionLogo:true,panes:{separatorColor:p.border,separatorHoverColor:p.accent,enableResize:true}},grid:{vertLines:{color:p.grid},horzLines:{color:p.grid}},crosshair:{mode:CrosshairMode.Normal,vertLine:{color:p.text,labelBackgroundColor:p.border},horzLine:{color:p.text,labelBackgroundColor:p.border}},rightPriceScale:{borderColor:p.border,scaleMargins:{top:.08,bottom:.14}},timeScale:{borderColor:p.border,timeVisible:true,secondsVisible:false,rightOffset:9,minBarSpacing:.2,fixLeftEdge:true},handleScroll:chartScrollOptions(this.drawMode,this.phoneView?.matches),handleScale:true});
   const options={upColor:p.up,downColor:p.down,borderVisible:false,wickUpColor:p.up,wickDownColor:p.down,color:p.accent,lineWidth:2,priceFormat:axisPriceFormat(pricePrecision(this.bars.at(-1)?.close),this.instrument.quote)};
   this.series=this.chart.addSeries(types[this.style],options);const display=this.style==='heikin'?heikinAshi(this.bars):this.bars;this.series.setData(this.style==='line'?display.map(b=>({time:b.time,value:b.close})):display);this.seriesFirstTime=this.bars[0]?.time;this.seriesLastTime=this.bars.at(-1)?.time;
   this.studyView=null;this.anchoredVwapSeries=null;this.host.classList.remove('stacked-study-panes');this.markerApi=createSeriesMarkers(this.series,[]);this.renderIndicators();
@@ -70,7 +80,7 @@ export class TerminalChart {
  }
  renderIndicators(incremental=false,{refreshAnalysis=true}={}){
   if(!this.chart)return;const p=palette(),cutoff=this.completedCutoff();
-  const compact=Boolean(this.phoneView?.matches)||(this.host?.clientWidth>0&&this.host.clientWidth<520);
+  const compact=this.host?.clientWidth>0?this.host.clientWidth<520:Boolean(this.phoneView?.matches);
   this.studyView=renderStudies(this.chart,this.series,this.studyView,this.bars,this.activeStudies(),{period:this.period,smaPeriods:this.smaPeriods,rsiPeriod:this.rsiPeriod,interval:this.interval,completedBefore:cutoff,palette:p,incremental,confirmed:this.studyBars,quote:this.instrument.quote,customStudies:this.workspace?.customStudies??[],compact});
   if(refreshAnalysis)this.renderAnalysis(cutoff,p);
   else if(periodGuides.has(this.autoGuide)&&Math.floor(this.bars.at(-1)?.time/DAY)!==this.periodBeforeAt){
@@ -342,18 +352,18 @@ export class TerminalChart {
   if(this.disposed||generation!==this.generation||socket&&socket!==this.socket)return;
   this.closeSocket();
   this.lastStream=0;
-  if(this.lastBookAt){this.lastBookAt=0;this.onBook(null);}
   this.status('polling');
+  if(socket)this.poll(generation);
   clearTimeout(this.reconnectTimer);
-  const wait=Math.min(30000,1500*2**Math.min(this.reconnectAttempt??0,4));
+  const wait=Math.min(20000,800*2**Math.min(this.reconnectAttempt??0,4));
   this.reconnectAttempt=(this.reconnectAttempt??0)+1;
   this.reconnectTimer=setTimeout(()=>this.connect(generation),wait);
  }
  checkConnection(generation,now=Date.now()){
   if(this.disposed||generation!==this.generation)return;
-  if(this.socket&&now-this.lastSocketFrame>30000)this.retrySocket(generation,this.socket);
+  if(this.socket&&now-this.lastSocketFrame>25000)this.retrySocket(generation,this.socket);
   if(this.lastStream&&now-this.lastStream>20000&&this.streamState==='streaming')this.status('delayed');
-  if(this.lastBookAt&&now-this.lastBookAt>5000){this.lastBookAt=0;this.onBook(null);}
+  if(this.lastBookAt&&now-this.lastBookAt>12000){this.lastBookAt=0;this.poll(generation);}
   this.onStatus(this.streamState);
  }
  closeSocket(){
@@ -549,9 +559,10 @@ export class TerminalChart {
     if(botY<0||topY>paneHeight)return '';
     const clippedTop=Math.max(0,topY),clippedBot=Math.min(paneHeight,botY);
     const rectH=Math.max(3,clippedBot-clippedTop);
-    const lx=Math.max(8,Math.min(clampedX1+6,plotWidth-130));
-    const midY=placeY((clippedTop+clippedBot)/2+4,lx,18);
-    return `<rect data-auto-guide="${drawing.id}" x="${clampedX1.toFixed(1)}" y="${clippedTop.toFixed(1)}" width="${rectW.toFixed(1)}" height="${rectH.toFixed(1)}" fill="${color}" fill-opacity="0.13" stroke="${color}" stroke-opacity="0.55" stroke-width="1" stroke-dasharray="4 3"/>`+pill(shortTitle(drawing),lx,midY,color,'start');
+    const onRightSide=clampedX1>plotWidth*0.62;
+    const lx=onRightSide?Math.max(8,clampedX1-6):Math.max(8,Math.min(clampedX1+6,plotWidth-130));
+    const midY=placeY((clippedTop+clippedBot)/2+4,lx,compactPlot?16:18);
+    return `<rect data-auto-guide="${drawing.id}" x="${clampedX1.toFixed(1)}" y="${clippedTop.toFixed(1)}" width="${rectW.toFixed(1)}" height="${rectH.toFixed(1)}" fill="${color}" fill-opacity="0.13" stroke="${color}" stroke-opacity="0.55" stroke-width="1" stroke-dasharray="4 3"/>`+pill(shortTitle(drawing),lx,midY,color,onRightSide?'end':'start');
    }
    const trend=drawing.type==='trend';
    if(!Number.isFinite(first?.y)||trend&&(!second||![first.x,second.x,second.y].every(Number.isFinite)))return '';
@@ -564,19 +575,31 @@ export class TerminalChart {
    const dash=trend?'stroke-width="1.6"':'stroke-dasharray="5 4" stroke-width="1.15"';
    const line=`<line data-auto-guide="${drawing.id}" x1="${clampedX1}" y1="${first.y}" x2="${x2}" y2="${y2}" stroke="${color}" ${dash}/>`;
    const tag=shortTitle(drawing);
+   const isFib=drawing.id.startsWith('fibonacci-')&&drawing.id!=='fibonacci-leg';
    let text='';
    if(trend){
     const midX=Math.max(42,Math.min(plotWidth-120,(clampedX1+x2)/2));
-    const midY=placeY((first.y+y2)/2-6,midX,18);
+    const midY=placeY((first.y+y2)/2-6,midX,compactPlot?16:18);
     text=drawing.id==='fibonacci-leg'?'':pill(tag,midX,midY,color,'middle');
+   }else if(isFib){
+    // Stack all 5 Fibonacci ratio pills cleanly inside the right breathing margin (Desktop & Phone).
+    const fx=Math.max(44,plotWidth-4);
+    const fy=placeY(first.y+3,fx,compactPlot?12.5:14.5);
+    const clean=esc(tag);
+    const fs=compactPlot?8.5:9.5;
+    const h=compactPlot?11.5:13;
+    const w=Math.max(24,clean.length*(compactPlot?5.2:5.8)+8);
+    const rx=Math.max(4,fx-w);
+    text=`<g class="auto-pill"><rect x="${rx.toFixed(1)}" y="${(fy-h+3).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="${colors.panel}" fill-opacity="0.92" stroke="${color}" stroke-opacity="0.48" stroke-width="0.8"/><text x="${(rx+4).toFixed(1)}" y="${fy.toFixed(1)}" fill="${color}" font-size="${fs}" font-weight="600" text-anchor="start">${clean}</text></g>`;
    }else if(drawing.bounded){
     const bx=Math.max(40,Math.min(plotWidth-95,x2));
-    const by=placeY(first.y-5,bx,18);
+    const by=placeY(first.y-5,bx,compactPlot?16:18);
     text=pill(tag,bx,by,color,'end');
    }else{
-    const lx=Math.max(8,Math.min(clampedX1+6,plotWidth-130));
-    const ly=placeY(first.y-4,lx,18);
-    text=pill(tag,lx,ly,color,'start');
+    const onRightSide=clampedX1>plotWidth*0.62;
+    const lx=onRightSide?Math.max(8,clampedX1-6):Math.max(8,Math.min(clampedX1+6,plotWidth-130));
+    const ly=placeY(first.y-4,lx,compactPlot?16:18);
+    text=pill(tag,lx,ly,color,onRightSide?'end':'start');
    }
    return line+text+(trend?`<circle cx="${x1}" cy="${first.y}" r="3.2" fill="${color}"/><circle cx="${x2}" cy="${y2}" r="3.2" fill="${color}"/>`:'');
   };

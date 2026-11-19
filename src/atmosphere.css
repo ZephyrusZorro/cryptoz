@@ -1,9 +1,71 @@
-/* Living liquid-glass atmosphere, floating ambient wallpaper (dark & light),
-   tactile tab selections, and silky-smooth GPU-composited micro-interactions. */
+/* CRYPTOZ Living Liquid-Glass Atmosphere, 4 Responsive Wallpapers (Dark/Light × Desktop/Phone),
+   Middle-Canvas Particle Field, True Glassmorphism & Solid Mode, Scrollbar Polish & Mobile Wide Chart. */
 
-/* 1. Living Floating Wallpaper Stage (Dark & Light) */
+/* 0. Theme Color Cohesion with the 4 Sapphire & Amethyst Glass Wallpapers */
+:root {
+ --bg: #05081d;
+ --panel: #0d1530;
+ --panel2: #172348;
+ --surface-deep: #0a1127;
+ --border: rgba(140, 170, 232, 0.2);
+ --lime: #9bc0ff;
+ --primary-bg: #a8c7ff;
+ --primary-text: #0b193d;
+ --glass: rgba(12, 20, 48, 0.56);
+ --header-glass: rgba(10, 17, 42, 0.54);
+ --nav-glass: rgba(14, 22, 52, 0.44);
+ --nav-edge: rgba(196, 218, 255, 0.28);
+ --nav-highlight: rgba(178, 206, 255, 0.16);
+ --chrome-rim: rgba(186, 214, 255, 0.34);
+ --selected-glass: rgba(164, 198, 255, 0.22);
+ --era-control: linear-gradient(155deg, rgba(182, 210, 255, 0.14), transparent 64%), rgba(12, 21, 50, 0.56);
+ --era-content: linear-gradient(149deg, rgba(148, 176, 255, 0.09), transparent 58%), rgba(10, 17, 42, 0.62);
+ --era-floating: linear-gradient(145deg, rgba(172, 200, 255, 0.18), transparent 60%), rgba(13, 21, 49, 0.84);
+ --era-outline: rgba(188, 212, 255, 0.24);
+ --heading-halo: rgba(114, 134, 255, 0.32);
+ --heading-trim: rgba(154, 184, 255, 0.18);
+ --heading-surface: linear-gradient(104deg, rgba(16, 26, 62, 0.82) 7%, rgba(22, 34, 76, 0.42) 68%, rgba(12, 19, 46, 0.28));
+ --shadow: 0 14px 40px rgba(3, 6, 22, 0.34);
+}
+
+:root[data-theme="light"] {
+ --bg: #d9e7fb;
+ --panel: #f6faff;
+ --panel2: #e3eefc;
+ --surface-deep: #eef5ff;
+ --border: rgba(94, 128, 188, 0.24);
+ --lime: #245cd4;
+ --primary-bg: #2660d8;
+ --primary-text: #ffffff;
+ --glass: rgba(255, 255, 255, 0.58);
+ --header-glass: rgba(246, 251, 255, 0.64);
+ --nav-glass: rgba(255, 255, 255, 0.48);
+ --nav-edge: rgba(255, 255, 255, 0.9);
+ --nav-highlight: rgba(255, 255, 255, 0.72);
+ --chrome-rim: rgba(255, 255, 255, 0.92);
+ --selected-glass: rgba(255, 255, 255, 0.8);
+ --era-control: linear-gradient(152deg, rgba(255, 255, 255, 0.82), transparent 62%), rgba(236, 245, 255, 0.64);
+ --era-content: linear-gradient(149deg, rgba(255, 255, 255, 0.74), transparent 58%), rgba(243, 249, 255, 0.68);
+ --era-floating: linear-gradient(145deg, rgba(255, 255, 255, 0.94), transparent 70%), rgba(238, 246, 255, 0.9);
+ --era-outline: rgba(128, 158, 212, 0.34);
+ --heading-halo: rgba(132, 168, 252, 0.42);
+ --heading-trim: rgba(114, 146, 224, 0.22);
+ --heading-surface: linear-gradient(104deg, rgba(248, 252, 255, 0.86) 7%, rgba(238, 246, 255, 0.62) 68%, rgba(220, 234, 254, 0.48));
+ --shadow: 0 14px 36px rgba(46, 82, 146, 0.12);
+}
+
+/* 1. Living 4-Variant Wallpaper Stage + Middle Particle Canvas */
 body::before {
  z-index: -2;
+}
+
+@media (max-width: 700px), (orientation: portrait) and (max-width: 900px) {
+ body::before {
+  background: var(--bg) url('/media/wallpaper-dark-phone.jpg') center / cover no-repeat;
+ }
+ :root[data-theme="light"] body::before {
+  background: #d9e7fb url('/media/wallpaper-light-phone.jpg') center / cover no-repeat;
+ }
 }
 
 .ambient-stage {
@@ -17,20 +79,40 @@ body::before {
 
 .ambient-wallpaper {
  position: absolute;
- inset: -7%;
- background: var(--bg) url('/media/glass-wallpaper.webp') center / cover no-repeat;
+ inset: -5%;
+ background: var(--bg) url('/media/wallpaper-dark-desktop.jpg') center / cover no-repeat;
  will-change: transform;
- transform: translate3d(0, 0, 0) scale(1.04);
+ transform: translate3d(0, 0, 0) scale(1.035);
 }
 
 :root[data-theme="light"] .ambient-wallpaper {
- background: #e4efff url('/media/glass-light.webp') center / cover no-repeat;
+ background: #d9e7fb url('/media/wallpaper-light-desktop.jpg') center / cover no-repeat;
+}
+
+@media (max-width: 700px), (orientation: portrait) and (max-width: 900px) {
+ .ambient-wallpaper {
+  background-image: url('/media/wallpaper-dark-phone.jpg');
+  background-position: center center;
+ }
+ :root[data-theme="light"] .ambient-wallpaper {
+  background-image: url('/media/wallpaper-light-phone.jpg');
+  background-position: center center;
+ }
 }
 
 .ambient-parallax {
  position: absolute;
- inset: -5%;
+ inset: -4%;
  will-change: transform;
+}
+
+.ambient-particles {
+ position: absolute;
+ inset: 0;
+ width: 100%;
+ height: 100%;
+ display: block;
+ pointer-events: none;
 }
 
 .ambient-orb,
@@ -42,153 +124,200 @@ body::before {
 
 .ambient-orb {
  border-radius: 50%;
- filter: blur(64px);
+ filter: blur(68px);
 }
 
-/* Dark theme orbs — faithful to glass-wallpaper.webp sapphire & amethyst palette */
+/* Corner-harmonized living glows matching the sapphire bottom-left & amethyst top-right glass ribbons */
 .ambient-orb-1 {
- width: clamp(320px, 46vw, 720px);
- height: clamp(320px, 46vw, 720px);
+ width: clamp(280px, 42vw, 640px);
+ height: clamp(280px, 42vw, 640px);
  left: -12%;
- bottom: -18%;
- background: radial-gradient(circle at 42% 45%, rgba(56, 163, 255, 0.34), rgba(37, 99, 235, 0.14) 52%, transparent 74%);
- opacity: 0.78;
+ bottom: -16%;
+ background: radial-gradient(circle at 44% 46%, rgba(44, 148, 255, 0.28), rgba(37, 99, 235, 0.11) 54%, transparent 76%);
+ opacity: 0.72;
 }
 
 .ambient-orb-2 {
- width: clamp(300px, 44vw, 680px);
- height: clamp(300px, 44vw, 680px);
+ width: clamp(270px, 40vw, 600px);
+ height: clamp(270px, 40vw, 600px);
  right: -10%;
- top: -16%;
- background: radial-gradient(circle at 55% 45%, rgba(155, 114, 255, 0.30), rgba(124, 58, 237, 0.12) 54%, transparent 74%);
- opacity: 0.74;
+ top: -15%;
+ background: radial-gradient(circle at 56% 45%, rgba(162, 108, 255, 0.26), rgba(124, 58, 237, 0.10) 54%, transparent 76%);
+ opacity: 0.7;
 }
 
 .ambient-orb-3 {
- width: clamp(240px, 34vw, 520px);
- height: clamp(240px, 34vw, 520px);
- left: 36%;
+ width: clamp(220px, 32vw, 460px);
+ height: clamp(220px, 32vw, 460px);
+ left: 38%;
  top: 38%;
- background: radial-gradient(circle at 50% 50%, rgba(81, 217, 176, 0.15), rgba(56, 189, 248, 0.08) 54%, transparent 74%);
- opacity: 0.65;
+ background: radial-gradient(circle at 50% 50%, rgba(100, 168, 255, 0.11), rgba(154, 120, 255, 0.06) 54%, transparent 75%);
+ opacity: 0.62;
 }
 
-/* Gossamer drifting liquid-glass caustic ribbons */
 .ambient-ribbon-1 {
- width: 135vw;
- height: clamp(190px, 28vh, 340px);
- left: -18vw;
- bottom: 8vh;
+ width: 130vw;
+ height: clamp(160px, 24vh, 290px);
+ left: -16vw;
+ bottom: 4vh;
  border-radius: 48%;
- background: linear-gradient(112deg, transparent 14%, rgba(92, 178, 255, 0.14) 44%, rgba(162, 126, 255, 0.12) 64%, transparent 86%);
- filter: blur(34px);
- transform: rotate(-11deg);
- opacity: 0.75;
+ background: linear-gradient(112deg, transparent 14%, rgba(62, 162, 255, 0.12) 44%, rgba(154, 114, 255, 0.1) 66%, transparent 86%);
+ filter: blur(36px);
+ transform: rotate(-9deg);
+ opacity: 0.7;
 }
 
 .ambient-ribbon-2 {
- width: 120vw;
- height: clamp(150px, 22vh, 270px);
- right: -14vw;
- top: 6vh;
+ width: 115vw;
+ height: clamp(140px, 20vh, 240px);
+ right: -12vw;
+ top: 4vh;
  border-radius: 50%;
- background: linear-gradient(124deg, transparent 16%, rgba(156, 122, 255, 0.13) 48%, rgba(96, 196, 255, 0.09) 68%, transparent 88%);
- filter: blur(32px);
- transform: rotate(9deg);
- opacity: 0.68;
+ background: linear-gradient(124deg, transparent 16%, rgba(166, 118, 255, 0.12) 48%, rgba(86, 184, 255, 0.08) 68%, transparent 88%);
+ filter: blur(34px);
+ transform: rotate(8deg);
+ opacity: 0.66;
 }
 
-/* Light theme orbs & ribbons — faithful to glass-light.webp porcelain sky & iridescent violet */
 :root[data-theme="light"] .ambient-orb-1 {
- background: radial-gradient(circle at 42% 45%, rgba(56, 189, 248, 0.36), rgba(59, 130, 246, 0.16) 54%, transparent 75%);
- opacity: 0.85;
-}
-
-:root[data-theme="light"] .ambient-orb-2 {
- background: radial-gradient(circle at 55% 45%, rgba(139, 92, 246, 0.24), rgba(99, 102, 241, 0.11) 54%, transparent 75%);
+ background: radial-gradient(circle at 44% 46%, rgba(56, 189, 248, 0.26), rgba(59, 130, 246, 0.12) 54%, transparent 75%);
  opacity: 0.78;
 }
 
+:root[data-theme="light"] .ambient-orb-2 {
+ background: radial-gradient(circle at 56% 45%, rgba(154, 108, 246, 0.22), rgba(124, 58, 237, 0.09) 54%, transparent 75%);
+ opacity: 0.74;
+}
+
 :root[data-theme="light"] .ambient-orb-3 {
- background: radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.18), rgba(255, 255, 255, 0.45) 52%, transparent 76%);
- opacity: 0.82;
+ background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.45), rgba(147, 197, 253, 0.14) 55%, transparent 76%);
+ opacity: 0.75;
 }
 
 :root[data-theme="light"] .ambient-ribbon-1 {
- background: linear-gradient(112deg, transparent 14%, rgba(255, 255, 255, 0.62) 42%, rgba(56, 189, 248, 0.24) 62%, transparent 86%);
- opacity: 0.85;
+ background: linear-gradient(112deg, transparent 14%, rgba(255, 255, 255, 0.5) 42%, rgba(56, 189, 248, 0.18) 62%, transparent 86%);
+ opacity: 0.76;
 }
 
 :root[data-theme="light"] .ambient-ribbon-2 {
- background: linear-gradient(124deg, transparent 16%, rgba(139, 92, 246, 0.18) 48%, rgba(255, 255, 255, 0.56) 66%, transparent 88%);
- opacity: 0.8;
-}
-
-:root[data-material="solid"] .ambient-stage {
- display: none;
+ background: linear-gradient(124deg, transparent 16%, rgba(154, 108, 246, 0.16) 48%, rgba(255, 255, 255, 0.46) 66%, transparent 88%);
+ opacity: 0.72;
 }
 
 @media (prefers-reduced-motion: no-preference) {
  :root:not([data-motion="reduced"]) .ambient-wallpaper {
-  animation: ambient-wallpaper-float 38s ease-in-out infinite alternate;
+  animation: ambient-wallpaper-float 34s ease-in-out infinite alternate;
  }
  :root:not([data-motion="reduced"]) .ambient-orb-1 {
   animation: ambient-orb-drift-a 24s ease-in-out infinite alternate;
  }
  :root:not([data-motion="reduced"]) .ambient-orb-2 {
-  animation: ambient-orb-drift-b 31s ease-in-out infinite alternate;
+  animation: ambient-orb-drift-b 30s ease-in-out infinite alternate;
  }
  :root:not([data-motion="reduced"]) .ambient-orb-3 {
-  animation: ambient-orb-drift-c 37s ease-in-out infinite alternate;
+  animation: ambient-orb-drift-c 36s ease-in-out infinite alternate;
  }
  :root:not([data-motion="reduced"]) .ambient-ribbon-1 {
-  animation: ambient-ribbon-float-a 28s ease-in-out infinite alternate;
+  animation: ambient-ribbon-float-a 27s ease-in-out infinite alternate;
  }
  :root:not([data-motion="reduced"]) .ambient-ribbon-2 {
-  animation: ambient-ribbon-float-b 34s ease-in-out infinite alternate;
+  animation: ambient-ribbon-float-b 33s ease-in-out infinite alternate;
  }
 }
 
 @keyframes ambient-wallpaper-float {
- 0% { transform: translate3d(-1.4%, -1.1%, 0) scale(1.04) rotate(-0.45deg); }
- 50% { transform: translate3d(1.2%, 0.9%, 0) scale(1.075) rotate(0.4deg); }
- 100% { transform: translate3d(-0.6%, 1.6%, 0) scale(1.055) rotate(-0.25deg); }
+ 0% { transform: translate3d(-1.2%, -0.9%, 0) scale(1.035) rotate(-0.35deg); }
+ 50% { transform: translate3d(1.1%, 0.8%, 0) scale(1.065) rotate(0.35deg); }
+ 100% { transform: translate3d(-0.5%, 1.3%, 0) scale(1.05) rotate(-0.2deg); }
 }
 
 @keyframes ambient-orb-drift-a {
  0% { transform: translate3d(0, 0, 0) scale(1); }
- 50% { transform: translate3d(8vw, -6vh, 0) scale(1.12); }
- 100% { transform: translate3d(3vw, -11vh, 0) scale(0.95); }
+ 50% { transform: translate3d(7vw, -5vh, 0) scale(1.12); }
+ 100% { transform: translate3d(2vw, -9vh, 0) scale(0.95); }
 }
 
 @keyframes ambient-orb-drift-b {
  0% { transform: translate3d(0, 0, 0) scale(1); }
- 50% { transform: translate3d(-7vw, 7vh, 0) scale(1.14); }
- 100% { transform: translate3d(-11vw, 2vh, 0) scale(0.96); }
+ 50% { transform: translate3d(-6vw, 6vh, 0) scale(1.12); }
+ 100% { transform: translate3d(-9vw, 2vh, 0) scale(0.96); }
 }
 
 @keyframes ambient-orb-drift-c {
- 0% { transform: translate3d(-4vw, -3vh, 0) scale(0.94); opacity: 0.55; }
- 50% { transform: translate3d(6vw, 4vh, 0) scale(1.16); opacity: 0.85; }
- 100% { transform: translate3d(-2vw, 7vh, 0) scale(1.02); opacity: 0.65; }
+ 0% { transform: translate3d(-3vw, -2vh, 0) scale(0.94); opacity: 0.45; }
+ 50% { transform: translate3d(5vw, 3vh, 0) scale(1.14); opacity: 0.78; }
+ 100% { transform: translate3d(-2vw, 5vh, 0) scale(1.02); opacity: 0.56; }
 }
 
 @keyframes ambient-ribbon-float-a {
- 0% { transform: translate3d(-3vw, 1vh, 0) rotate(-12deg) scaleY(1); }
- 50% { transform: translate3d(4vw, -3.5vh, 0) rotate(-8.5deg) scaleY(1.12); }
- 100% { transform: translate3d(1vw, 2vh, 0) rotate(-11deg) scaleY(0.96); }
+ 0% { transform: translate3d(-2.5vw, 1vh, 0) rotate(-10deg) scaleY(1); }
+ 50% { transform: translate3d(3.5vw, -3vh, 0) rotate(-7deg) scaleY(1.12); }
+ 100% { transform: translate3d(1vw, 1.5vh, 0) rotate(-9.5deg) scaleY(0.96); }
 }
 
 @keyframes ambient-ribbon-float-b {
- 0% { transform: translate3d(2vw, -1vh, 0) rotate(9.5deg) scaleY(1); }
- 50% { transform: translate3d(-4.5vw, 3.5vh, 0) rotate(6.5deg) scaleY(1.14); }
- 100% { transform: translate3d(-1.5vw, -2vh, 0) rotate(10.5deg) scaleY(0.95); }
+ 0% { transform: translate3d(2vw, -1vh, 0) rotate(8.5deg) scaleY(1); }
+ 50% { transform: translate3d(-4vw, 3vh, 0) rotate(6deg) scaleY(1.12); }
+ 100% { transform: translate3d(-1.5vw, -1.5vh, 0) rotate(9deg) scaleY(0.95); }
 }
 
-/* Mobile battery-friendly ambient stage (still genuinely alive & floating!) */
 @media (max-width: 700px), (hover: none) {
- .ambient-orb { filter: blur(46px); }
+ .ambient-orb { filter: blur(44px); }
  .ambient-orb-3, .ambient-ribbon-2 { display: none; }
+}
+
+/* 2. Complete Glassmorphism & Solid Surface Parity across ALL Components */
+.panel,
+.stat-card,
+.news-reading-panel,
+.market-insight-card,
+.bt-studio > .panel,
+.section-heading {
+ backdrop-filter: blur(14px) saturate(145%);
+ -webkit-backdrop-filter: blur(14px) saturate(145%);
+}
+
+.terminal-main,
+.wb-main,
+.comparison-chart,
+.learning-chart,
+.benchmark-chart {
+ backdrop-filter: none;
+ -webkit-backdrop-filter: none;
+}
+
+.wb-main {
+ background: var(--era-content);
+}
+
+:root[data-material="solid"] body::before {
+ background: var(--bg) !important;
+}
+
+:root[data-material="solid"] .ambient-stage {
+ display: none !important;
+}
+
+:root[data-material="solid"] :is(
+ .panel, .stat-card, .news-reading-panel, .market-insight-card,
+ .bt-studio > .panel, .section-heading, .heading-icon,
+ .sidebar::before, .phone-dock, .topbar, .context-nav,
+ .wb-toolbar, .wb-tabs, .wb-main, .wb-inspector,
+ .overlay-controls, .learning-shelf, .era-shortcuts a,
+ #modal-root .modal, .chart-menu .chart-menu-body, .live-strip
+) {
+ background: var(--panel) !important;
+ backdrop-filter: none !important;
+ -webkit-backdrop-filter: none !important;
+ box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14) !important;
+}
+
+:root[data-material="solid"] :is(.era-segment, .bt-rule-row, .forecast-corridor > div, .chart-path-grid > div, .wb-reader .chart-observations > div, #modal-root .modal .study-choice) {
+ background: var(--surface-deep) !important;
+}
+
+:root[data-material="solid"] .section-heading::before {
+ display: none !important;
 }
 
 /* Smooth Dark <-> Light Theme Cross-Fade */
@@ -203,7 +332,400 @@ body::before {
  transition: background-color 280ms ease, color 240ms ease, border-color 260ms ease, opacity 260ms ease !important;
 }
 
-/* 2. Living Navigation Dock, Phone Dock & Context Sub-Nav Selection Pills */
+/* 3. Sleek Rounded Theme-Aware Scrollbars + Clipped Modal Body (Fixes Screenshot #5) */
+#modal-root .modal {
+ display: flex;
+ flex-direction: column;
+ overflow: hidden !important;
+ border-radius: 20px;
+}
+
+#modal-root .modal-header {
+ flex: 0 0 auto;
+}
+
+#modal-root .modal-body {
+ flex: 1 1 auto;
+ min-height: 0;
+ overflow-y: auto;
+ overscroll-behavior: contain;
+ scrollbar-width: thin;
+ scrollbar-color: color-mix(in srgb, var(--lime) 34%, var(--border)) transparent;
+}
+
+#modal-root .modal-body > form {
+ padding: 20px 22px;
+}
+
+#modal-root .modal-body > p {
+ padding: 18px 22px;
+ font-size: 12px;
+ line-height: 1.75;
+ color: var(--muted);
+ margin: 0;
+}
+
+#modal-root .modal-body > form > p {
+ font-size: 12px;
+ margin-bottom: 16px;
+}
+
+#modal-root .modal-body > form > .button {
+ margin-top: 16px;
+}
+
+#modal-root .modal-body > .custom-study-box {
+ margin: 12px 22px 0;
+}
+
+#modal-root .modal-body > .study-presets {
+ padding: 14px 22px 0;
+}
+
+@media (max-width: 700px) {
+ #modal-root .modal {
+  border-radius: 23px 23px 0 0;
+ }
+ #modal-root .modal-body > form {
+  padding: 16px;
+ }
+ #modal-root .modal-body > p {
+  padding: 14px 16px;
+ }
+ #modal-root .modal-body > .custom-study-box {
+  margin: 10px 16px 0;
+ }
+ #modal-root .modal-body > .study-presets {
+  padding: 12px 16px 0;
+ }
+}
+
+/* Custom WebKit scrollbars so native rectangular tracks never cut rounded glass corners */
+:is(#modal-root .modal-body, .practice-table, .command-results, .sidebar, .chart-workspace)::-webkit-scrollbar {
+ width: 8px;
+ height: 8px;
+}
+
+:is(#modal-root .modal-body, .practice-table, .command-results, .sidebar, .chart-workspace)::-webkit-scrollbar-track {
+ background: transparent;
+ margin-block: 10px;
+}
+
+:is(#modal-root .modal-body, .practice-table, .command-results, .sidebar, .chart-workspace)::-webkit-scrollbar-thumb {
+ background: color-mix(in srgb, var(--lime) 30%, var(--border));
+ border-radius: 999px;
+ border: 2px solid transparent;
+ background-clip: content-box;
+}
+
+:is(#modal-root .modal-body, .practice-table, .command-results, .sidebar, .chart-workspace)::-webkit-scrollbar-thumb:hover {
+ background: color-mix(in srgb, var(--lime) 52%, var(--border));
+ border: 2px solid transparent;
+ background-clip: content-box;
+}
+
+/* 4. Screenshot #1 Fix + Restore Hidden Data on Desktop/Tablet/Phone */
+#app .studio-insights {
+ display: block !important;
+}
+
+.dashboard-news .news-card-bottom {
+ display: flex !important;
+}
+
+@media (min-width: 1151px) {
+ .news-reading-panel .news-card {
+  grid-template-columns: 145px minmax(0, 1fr) minmax(145px, 215px);
+ }
+ .news-reading-panel .news-card-bottom {
+  justify-content: flex-end;
+  justify-self: end;
+ }
+}
+
+@media (max-width: 700px) {
+ #app .wb-24h {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 11px;
+ }
+ #app .topbar .top-actions a {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  min-width: 38px;
+  height: 40px;
+  min-height: 40px;
+ }
+ #app .topbar :is(.search-trigger, .top-actions .icon-button) {
+  width: 38px;
+  min-width: 38px;
+  height: 40px;
+  min-height: 40px;
+ }
+}
+
+#studio-insights .studio-ratio-wrap {
+ margin: 6px 20px 12px;
+}
+
+#studio-insights .studio-movers {
+ margin: 10px 0 12px;
+}
+
+#studio-insights .studio-movers .eyebrow {
+ display: block;
+ padding: 0 20px;
+ margin: 0 0 6px;
+}
+
+#studio-insights > p {
+ font-size: 11.5px;
+ line-height: 1.65;
+ color: var(--subtle-text);
+ padding: 0 20px;
+ margin: 10px 0 14px;
+}
+
+#studio-insights > .source {
+ display: block;
+ padding: 0 20px;
+ margin: 0 0 16px;
+ white-space: normal;
+}
+
+#studio-insights .callout {
+ margin: 12px 20px 16px;
+}
+
+/* 5. Screenshot #2 Fix: Desktop Chart Toolbar Alignment + Single-Row Balance */
+@media (min-width: 701px) {
+ #app .wb-toolbar {
+  align-items: center;
+  gap: 8px 10px;
+  padding: 9px 14px;
+ }
+ #app .wb-toolbar .timeframes {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+ }
+ #app .wb-toolbar .timeframes button {
+  min-height: 34px;
+  padding: 6px 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+ }
+ #app .wb-toolbar .wb-style {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+ }
+ #app .wb-toolbar .wb-style > span {
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--muted);
+ }
+ #app .wb-toolbar .wb-style select {
+  min-height: 34px;
+  height: 34px;
+  padding: 4px 10px;
+  font-size: 12px;
+ }
+ #app .wb-toolbar .button,
+ #app .wb-toolbar .chart-menu summary,
+ #app .wb-toolbar #focus-chart {
+  min-height: 34px;
+  height: 34px;
+ }
+}
+
+@media (min-width: 1120px) {
+ #app .wb-toolbar {
+  flex-wrap: nowrap;
+  gap: 7px;
+ }
+ #app .wb-toolbar .wb-study-button {
+  margin-left: auto;
+ }
+}
+
+/* 6. Screenshot #4 Fix: Indicators Modal Multi-SMA Quick Row Alignment & Input Width */
+#modal-root .study-lengths .sma-quick-row {
+ display: flex;
+ flex-wrap: wrap;
+ align-items: center;
+ gap: 8px;
+ grid-column: 1 / -1;
+ margin-top: 6px;
+}
+
+#modal-root .study-lengths .sma-quick-row .button {
+ margin-top: 0 !important;
+ align-self: center;
+ min-height: 36px;
+ padding: 6px 11px;
+ font-size: 11.5px;
+ white-space: nowrap;
+ flex-shrink: 0;
+}
+
+#modal-root .study-lengths .sma-add-inline {
+ display: inline-flex;
+ align-items: center;
+ gap: 6px;
+ flex-shrink: 0;
+}
+
+#modal-root .study-lengths .sma-add-inline input {
+ width: 114px;
+ min-height: 36px;
+ height: 36px;
+ padding: 6px 10px;
+ font-size: 12px;
+ margin: 0;
+}
+
+/* 7. Phone Chart Viewing Experience + Wide 2x Horizontal Enlargement + Landscape */
+.phone-chart-quickbar,
+.phone-wide-hint {
+ display: none;
+}
+
+@media (max-width: 700px), (max-width: 1000px) and (max-height: 500px) {
+ .phone-chart-quickbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--era-control);
+ }
+
+ .phone-tf-strip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  min-width: 0;
+  flex: 1 1 auto;
+ }
+
+ .phone-tf-strip::-webkit-scrollbar {
+  display: none;
+ }
+
+ .phone-tf-strip button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  min-width: 26px;
+  padding: 4px 5.5px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+ }
+
+ .phone-tf-strip button.selected {
+  color: var(--text);
+  background: var(--selected-glass);
+  border-color: var(--chrome-rim);
+ }
+
+ .phone-view-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+ }
+
+ .phone-view-actions .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 32px;
+  padding: 4px 7px;
+  font-size: 10.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  border-radius: 8px;
+ }
+
+ .phone-view-actions .chip svg {
+  width: 13px;
+  height: 13px;
+ }
+
+ .phone-wide-hint:not([hidden]) {
+  display: block;
+  padding: 5px 10px;
+  font-size: 10.5px;
+  color: var(--lime);
+  background: color-mix(in srgb, var(--lime) 10%, var(--surface-deep));
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+ }
+
+ /* Give portrait phone charts generous breathing height & legible crosshair HUD */
+ #app .wb-main .price-chart {
+  height: clamp(315px, 47svh, 440px);
+ }
+
+ #app .crosshair-hud {
+  font-size: 10px;
+  padding: 4px 8px;
+ }
+
+ /* Horizontal Wide 2.2x Chart Stage on Phone */
+ #app .wb-main.chart-wide .chart-workspace {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+ }
+
+ #app .wb-main.chart-wide .price-chart {
+  flex: 0 0 auto;
+  width: max(220%, 820px);
+  min-width: max(220%, 820px);
+  height: clamp(340px, 52svh, 460px);
+ }
+
+ body.chart-focus #app .wb-main.chart-wide .price-chart {
+  height: 100%;
+ }
+
+ /* Keep the phone quick bar visible even in Focus mode so users can switch timeframes / toggle Wide 2x / Exit easily */
+ body.chart-focus #app .phone-chart-quickbar {
+  display: flex;
+  flex-shrink: 0;
+ }
+}
+
+/* Native Phone Landscape Optimization (when physically rotated sideways) */
+@media (max-width: 1000px) and (max-height: 500px) {
+ body[data-page="terminal"] #app .terminal-heading {
+  display: none;
+ }
+ #app .wb-instrument {
+  padding: 5px 10px;
+  gap: 5px;
+ }
+ #app .wb-main .price-chart {
+  height: clamp(235px, 64dvh, 360px);
+ }
+}
+
+/* 8. Living Navigation Dock, Phone Dock & Context Sub-Nav Selection Pills */
 #app .sidebar nav a {
  isolation: isolate;
 }
@@ -231,9 +753,9 @@ body::before {
 }
 
 :root[data-theme="light"] .dock-selection {
- background: rgba(255, 255, 255, 0.78);
+ background: rgba(255, 255, 255, 0.8);
  border-color: rgba(255, 255, 255, 0.96);
- box-shadow: inset 0 1px 0 #ffffff, 0 6px 18px rgba(40, 99, 218, 0.14);
+ box-shadow: inset 0 1px 0 #ffffff, 0 6px 18px rgba(36, 92, 212, 0.14);
 }
 
 :root[data-material="solid"] .dock-selection {
@@ -245,7 +767,6 @@ body::before {
  box-shadow: 0 0 10px color-mix(in srgb, var(--lime) 70%, transparent);
 }
 
-/* Living Phone Bottom Dock active elevation & glow */
 .phone-dock .phone-selection {
  box-shadow: inset 0 1px 0 var(--glass-shine), 0 5px 16px color-mix(in srgb, var(--lime) 20%, transparent);
 }
@@ -255,7 +776,6 @@ body::before {
  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--lime) 38%, transparent));
 }
 
-/* Living Secondary Context Sub-Nav Sliding Glass Pill */
 #app #context-root .context-nav a {
  position: relative;
  isolation: isolate;
@@ -287,7 +807,6 @@ body::before {
  box-shadow: none;
 }
 
-/* Living Workbench Tabs, Studio Tabs, News Tabs, Backtest Tabs & Learning Shelf */
 .wb-tabs button[aria-selected="true"] > .selection-surface {
  box-shadow: inset 0 1px 0 var(--glass-shine), 0 4px 15px color-mix(in srgb, var(--lime) 18%, transparent);
 }
@@ -304,14 +823,12 @@ body::before {
  box-shadow: inset 0 1px 0 var(--glass-shine), 0 4px 14px color-mix(in srgb, var(--lime) 18%, transparent);
 }
 
-/* 3. Living Sections, Glass Specular Sheen & Tactile Micro-Interactions */
+/* 9. Living Sections, Glass Specular Sheen & Tactile Micro-Interactions */
 @media (prefers-reduced-motion: no-preference) {
- /* Every page hero heading gently breathes in harmony with the wallpaper */
  :root:not([data-motion="reduced"]) .section-heading::before {
   animation: era-light 18s ease-in-out infinite alternate;
  }
 
- /* Living brand mark & heading icons */
  :root:not([data-motion="reduced"]) .cryptoz-mark > span {
   transition: transform 280ms var(--era-ease);
  }
@@ -324,12 +841,10 @@ body::before {
   transform: translate(1px, 1px) scale(1.06);
  }
 
- /* Live streaming status subtle breathing dot */
  :root:not([data-motion="reduced"]) .live-dot {
   animation: live-pulse 2.4s ease-in-out infinite;
  }
 
- /* Smooth transitions on all interactive cards, rows, pills, inputs & controls */
  :root:not([data-motion="reduced"]) :is(
   .panel, .stat-card, .live-quote, .news-card, .analyst-card,
   .market-insight-card, .market-discovery-card, .bt-kpi-grid > div,
@@ -337,6 +852,7 @@ body::before {
   .studio-tabs .chip, .bt-result-tabs .chip, .bt-presets .chip,
   .news-sort-toggle button, .analyst-quick-bar .chip,
   .learning-shelf-tab, .learning-shelf-icon, .heading-icon,
+  .phone-tf-strip button, .phone-view-actions .chip,
   input, select, textarea
  ) {
   transition:
@@ -347,12 +863,10 @@ body::before {
    color 180ms ease;
  }
 
- /* Smooth details/accordion content entrance */
  :root:not([data-motion="reduced"]) details[open] > :not(summary) {
   animation: glass-detail-in 220ms var(--era-ease) both;
  }
 
- /* Smooth toast glide */
  :root:not([data-motion="reduced"]) #toast {
   transition: opacity 220ms var(--era-ease), transform 260ms var(--era-ease);
  }
@@ -368,7 +882,6 @@ body::before {
  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Subtle interactive glass lift & pointer spotlight on hover-capable desktops */
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
  :root:not([data-motion="reduced"]) :is(.stat-card, .analyst-card, .market-insight-card, .bt-kpi-grid > div, .signal-card, .era-shortcuts a, .live-quote, .learning-shelf-tab) {
   position: relative;
@@ -387,7 +900,7 @@ body::before {
  }
 
  :root[data-theme="light"]:not([data-motion="reduced"]) :is(.stat-card, .analyst-card, .market-insight-card, .bt-kpi-grid > div, .signal-card, .era-shortcuts a, .live-quote, .learning-shelf-tab)::after {
-  background: radial-gradient(220px circle at var(--spot-x, 50%) var(--spot-y, 20%), rgba(255, 255, 255, 0.62), rgba(56, 140, 255, 0.08) 48%, transparent 74%);
+  background: radial-gradient(220px circle at var(--spot-x, 50%) var(--spot-y, 20%), rgba(255, 255, 255, 0.65), rgba(56, 140, 255, 0.08) 48%, transparent 74%);
  }
 
  :root:not([data-motion="reduced"]) [data-glow="on"]::after {
@@ -430,25 +943,9 @@ body::before {
  }
 }
 
-/* Touch feedback on phones */
 @media (hover: none) and (prefers-reduced-motion: no-preference) {
- :root:not([data-motion="reduced"]) :is(.era-shortcuts a, .market-discovery-card, .live-quote, .news-card, .learning-shelf-tab, .bt-result-tabs .chip, .studio-tabs .chip):active {
-  transform: scale(0.98);
- }
-}
-
-/* Desktop chart workbench toolbar single-row alignment (fixes Focus chart wrap at 1440px) */
-@media (min-width: 1120px) {
- #app .wb-toolbar {
-  flex-wrap: nowrap;
-  gap: 7px;
-  padding: 9px 12px;
- }
- #app .wb-toolbar .wb-study-button {
-  margin-left: auto;
- }
- #app .wb-toolbar .timeframes button {
-  padding: 6px 8px;
+ :root:not([data-motion="reduced"]) :is(.era-shortcuts a, .market-discovery-card, .live-quote, .news-card, .learning-shelf-tab, .bt-result-tabs .chip, .studio-tabs .chip, .phone-view-actions .chip):active {
+  transform: scale(0.975);
  }
 }
 
