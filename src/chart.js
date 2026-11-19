@@ -470,7 +470,9 @@ export class TerminalChart {
    if(!Number.isFinite(x1)||Math.min(x1,x2)>=plotWidth||Math.max(x1,x2)<0||bothAbove||bothBelow)return '';
    const color=colors[drawing.color]??colors.gold,label=esc((drawing.label||drawing.type).slice(0,34));
    const line=`<line data-auto-guide="${drawing.id}" x1="${x1}" y1="${first.y}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-dasharray="5 4"/>`;
-   const text=drawing.id.startsWith('fibonacci-')?'':`<text x="${labelX(x1+6)}" y="${first.y-5}" fill="${color}">${label}</text>`;
+   const tuckLabel=this.phoneView?.matches&&!trend&&x1>=100;
+   const textX=tuckLabel?Math.max(96,Math.min(x1-6,plotWidth-78)):labelX(x1+6);
+   const text=drawing.id.startsWith('fibonacci-')?'':`<text x="${textX}" y="${first.y-5}" fill="${color}"${tuckLabel?' text-anchor="end"':''}>${label}</text>`;
    return line+text+(trend?`<circle cx="${x1}" cy="${first.y}" r="3" fill="${color}"/><circle cx="${x2}" cy="${y2}" r="3" fill="${color}"/>`:'');
   };
   const manualLine=drawing=>{
