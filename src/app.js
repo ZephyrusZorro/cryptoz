@@ -785,8 +785,10 @@ function formatSpreadPercent(bid,ask){
  if(!bid||!ask||ask<bid)return '';
  const mid=(ask+bid)/2;
  const pctVal=(ask-bid)/mid*100;
- if(pctVal<0.01)return `${num(pctVal*100,2)} bps`;
- return `${num(pctVal,3)}%`;
+ const bps=pctVal*100;
+ if(bps<0.01)return `${bps.toFixed(4)} bps`;
+ if(pctVal<0.01)return `${bps.toFixed(2)} bps`;
+ return `${pctVal.toFixed(3)}%`;
 }
 function updateBook(r){activeBook=r;if(!$('#orderbook')||$('#wb-depth')?.hidden)return;const now=Date.now();if(r?.cache==='live'&&now-lastBookPaint<250)return;lastBookPaint=r?now:0;if(!r){$('#book-mode').textContent='AWAITING DATA';$('#orderbook').innerHTML=empty('Book unavailable','Awaiting next valid snapshot.');$('#book-source').textContent='No current snapshot';return;}$('#book-mode').textContent=r.cache==='live'?'LIVE · TOP 20':'L2 SNAPSHOT';const d=r.data,max=Math.max(...d.bids.slice(0,7).map(x=>x[1]),...d.asks.slice(0,7).map(x=>x[1]),1);const rows=(items,side)=>items.map(x=>`<div class="book-row ${side}" style="--depth:${x[1]/max*100}%"><span>${moneyMarkup(x[0],selected.quote)}</span><span>${num(x[1],5)}</span><span>${moneyMarkup(x[0]*x[1],selected.quote,'compact')}</span></div>`).join('');const bid=d.bids[0]?.[0],ask=d.asks[0]?.[0];const spreadText=formatSpreadPercent(bid,ask);$('#orderbook').innerHTML=rows(d.asks.slice(0,7).reverse(),'ask')+`<div class="book-spread"><span>Spread <strong>${moneyMarkup(ask-bid,selected.quote,'parallel')}</strong></span><small>${esc(spreadText)}</small></div>`+rows(d.bids.slice(0,7),'bid');$('#book-source').textContent=`${r.provider} · ${r.cache==='stale'?'STALE · ':''}${r.cache==='live'?'received '+new Date(r.fetchedAt).toLocaleTimeString():ago(r.fetchedAt)} · top 7 / side`;}
 

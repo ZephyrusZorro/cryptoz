@@ -61,7 +61,10 @@ export class TerminalChart {
   },listenerOptions);
   this.host.addEventListener('pointermove',event=>{if(event.buttons&&event.pointerType!=='touch')gesture();},listenerOptions);
   this.chart.timeScale().subscribeVisibleLogicalRangeChange(()=>this.scheduleRangeRender());
-  this.chart.timeScale().subscribeSizeChange(()=>this.scheduleRangeRender());
+  this.chart.timeScale().subscribeSizeChange(()=>{
+   if(['all','recent'].includes(this.viewPreset))requestAnimationFrame(()=>this.resizeView());
+   else this.scheduleRangeRender();
+  });
   this.observer=new ResizeObserver(()=>requestAnimationFrame(()=>this.resizeView()));
   this.observer.observe(this.host);this.draw();requestAnimationFrame(()=>{if(!this.disposed)this.notifyWindow();});
  }
@@ -511,8 +514,13 @@ export class TerminalChart {
     return `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" stroke="${colors.violet}" opacity=".7"/><text x="${labelX(right+5)}" y="${y-4}" fill="${colors.violet}">${ratio} · ${esc(displayPrice(value,this.instrument.quote))}</text>`;
    }).join('');
   };
+  const orderedAuto=[...automatic].sort((a,b)=>{
+   const ya=this.series.priceToCoordinate(a.points[0]?.price);
+   const yb=this.series.priceToCoordinate(b.points[0]?.price);
+   return (Number.isFinite(ya)?ya:Infinity)-(Number.isFinite(yb)?yb:Infinity);
+  });
   this.svg.setAttribute('viewBox',`0 0 ${width} ${height}`);
-  this.svg.innerHTML=[...automatic.map(autoLine),...manual.map(manualLine)].join('');
+  this.svg.innerHTML=[...orderedAuto.map(autoLine),...manual.map(manualLine)].join('');
   this.svg.style.clipPath=`inset(0 ${Math.max(0,width-plotWidth)}px ${Math.max(0,height-paneHeight)}px 0)`;
  }
  exportCSV(){
