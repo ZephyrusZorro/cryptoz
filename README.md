@@ -50,6 +50,8 @@ Live tests depend on third-party availability and quotas. See [verification evid
 
 ## Deployment
 
+On Vercel, import the GitHub repository with the root directory set to the repository root. `vercel.json` builds the Vite client and routes market requests through the Node function in `api/`. Check `/healthz`, `/api/news` and `/api/candles?venue=binance&symbol=BTCUSDT&interval=1h` after deployment. No environment variables are needed for the default feeds.
+
 `npm run build` generates the client and a self-contained Worker ES module at `dist/server/index.js`; the same handler is served by the included Node launcher. `.openai/hosting.json` holds the owner-private Sites identity. No API key or exchange account is needed for the configured public data endpoints. Public APIs can rate-limit or be regionally restricted; production-scale licensed data may require paid provider plans.
 
 No assets are held and no orders are placed. Technical metrics describe historical prices; they do not establish profitable signals. No guarantee of universal coin coverage, uninterrupted service, institutional latency or superiority over TradingView/CoinDCX. Local research state is unencrypted and is not account-synchronized.

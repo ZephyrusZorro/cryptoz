@@ -1,6 +1,7 @@
 import {build as viteBuild} from 'vite';import {build as esbuild} from 'esbuild';import {readFile,readdir,mkdir,writeFile,copyFile} from 'node:fs/promises';import path from 'node:path';
 const release=JSON.parse(await readFile('package.json','utf8')).version;
 await viteBuild({build:{outDir:'dist/client',emptyOutDir:true,chunkSizeWarningLimit:750,rollupOptions:{output:{manualChunks:{charts:['lightweight-charts']}}}}});
+if(process.argv.includes('--client-only'))process.exit(0);
 const assets={};async function walk(dir){for(const e of await readdir(dir,{withFileTypes:true})){const p=path.join(dir,e.name);if(e.isDirectory())await walk(p);else{const key='/'+path.relative('dist/client',p).replaceAll('\\','/');const ext=path.extname(p);assets[key]={body:(await readFile(p)).toString('base64'),type:({'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.txt':'text/plain; charset=utf-8','.webp':'image/webp','.png':'image/png','.jpg':'image/jpeg','.woff2':'font/woff2','.ttf':'font/ttf'})[ext]??'application/octet-stream'};}}}await walk('dist/client');
 await mkdir('dist/server',{recursive:true});await mkdir('dist/.openai',{recursive:true});
 await writeFile('dist/asset-map.json',JSON.stringify(assets));
