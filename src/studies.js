@@ -1,5 +1,5 @@
 import {HistogramSeries, LineSeries, LineStyle} from 'lightweight-charts';
-import {atr, bollinger, ema, macd, rsi, sma, vwap} from './analytics.js';
+import {atr, bollinger, ema, macd, rollingExtrema, rsi, sma, vwap} from './analytics.js';
 import {evaluateCustomStudy} from './custom-studies.js';
 import {pricePrecision} from './numbers.js';
 import {axisPriceFormat} from './currency.js';
@@ -114,24 +114,7 @@ export function normalizeStudyIds(ids) {
 }
 
 function channel(bars, period) {
-  const upper = [];
-  const lower = [];
-  for (let i = 0; i < bars.length; i++) {
-    if (i + 1 < period) {
-      upper.push(null);
-      lower.push(null);
-      continue;
-    }
-    let high = -Infinity;
-    let low = Infinity;
-    for (let j = i - period + 1; j <= i; j++) {
-      high = Math.max(high, bars[j].high);
-      low = Math.min(low, bars[j].low);
-    }
-    upper.push(high);
-    lower.push(low);
-  }
-  return {upper, lower};
+  return rollingExtrema(bars, period);
 }
 
 export function supertrendSeries(bars, period = 10, multiplier = 3) {
@@ -306,19 +289,35 @@ function stochastic(bars) {
 }
 
 function moneyFlow(bars) {
-  const typical = bars.map(b => (b.high + b.low + b.close) / 3);
-  const flow = typical.map((price, i) => i ? Math.sign(price - typical[i - 1]) * price * bars[i].volume : 0);
-  return flow.map((_, i) => {
-    if (i < 14) return null;
-    let positive = 0;
-    let negative = 0;
-    for (let j = i - 13; j <= i; j++) {
-      positive += Math.max(0, flow[j]);
-      negative += Math.max(0, -flow[j]);
+  const n = bars.length;
+  const out = new Array(n).fill(null);
+  if (n <= 14) return out;
+  const pos = new Float64Array(n);
+  const neg = new Float64Array(n);
+  let prevTp = (bars[0].high + bars[0].low + bars[0].close) / 3;
+  let posSum = 0, negSum = 0, activeCount = 0;
+  for (let i = 1; i < n; i++) {
+    const tp = (bars[i].high + bars[i].low + bars[i].close) / 3;
+    const raw = tp * bars[i].volume;
+    if (tp > prevTp && raw > 0) pos[i] = raw;
+    else if (tp < prevTp && raw > 0) neg[i] = raw;
+    prevTp = tp;
+    posSum += pos[i];
+    negSum += neg[i];
+    if (pos[i] > 0 || neg[i] > 0) activeCount++;
+    if (i > 14) {
+      const op = pos[i - 14], on = neg[i - 14];
+      posSum -= op;
+      negSum -= on;
+      if (op > 0 || on > 0) activeCount--;
     }
-    const total = positive + negative;
-    return total > 0 ? 100 * (positive / total) : null;
-  });
+    if (activeCount === 0) { posSum = 0; negSum = 0; }
+    if (i >= 14) {
+      const total = posSum + negSum;
+      out[i] = activeCount > 0 && total > 0 ? 100 * (posSum / total) : null;
+    }
+  }
+  return out;
 }
 
 function weightedAverage(closes, period) {
@@ -356,27 +355,43 @@ function commodityChannel(bars) {
 }
 
 function relativeVolume(bars) {
-  const period = 20;
-  return bars.map((bar, i) => {
-    if (i < period) return null;
-    const average = bars.slice(i - period, i).reduce((sum, previous) => sum + previous.volume, 0) / period;
-    return average > 0 ? bar.volume / average : null;
-  });
+  const period = 20, n = bars.length;
+  const out = new Array(n).fill(null);
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    if (i >= period) {
+      const average = sum / period;
+      out[i] = average > 0 ? bars[i].volume / average : null;
+      sum -= bars[i - period].volume;
+    }
+    sum += bars[i].volume;
+  }
+  return out;
 }
 
 function chaikinFlow(bars) {
-  const period = 20;
-  const multipliers = bars.map(bar => bar.high > bar.low ? 2 * ((bar.close - bar.low) / (bar.high - bar.low)) - 1 : 0);
-  return bars.map((_, i) => {
-    if (i + 1 < period) return null;
-    let volume = 0;
-    let flow = 0;
-    for (let j = i - period + 1; j <= i; j++) {
-      volume += bars[j].volume;
-      flow += multipliers[j] * bars[j].volume;
+  const period = 20, n = bars.length;
+  const out = new Array(n).fill(null);
+  const flows = new Float64Array(n);
+  let volSum = 0, flowSum = 0, volCount = 0;
+  for (let i = 0; i < n; i++) {
+    const b = bars[i];
+    const mult = b.high > b.low ? 2 * ((b.close - b.low) / (b.high - b.low)) - 1 : 0;
+    const f = mult * b.volume;
+    flows[i] = f;
+    volSum += b.volume;
+    flowSum += f;
+    if (b.volume > 0) volCount++;
+    if (i >= period) {
+      const oldVol = bars[i - period].volume;
+      volSum -= oldVol;
+      flowSum -= flows[i - period];
+      if (oldVol > 0) volCount--;
     }
-    return volume > 0 ? flow / volume : null;
-  });
+    if (volCount === 0) { volSum = 0; flowSum = 0; }
+    if (i + 1 >= period) out[i] = volCount > 0 && volSum > 0 ? flowSum / volSum : null;
+  }
+  return out;
 }
 
 function choppiness(bars) {

@@ -50,7 +50,7 @@ export function chartGuide(pov,setup,mode,studies=[],studyCatalog={}){
    <div><dt>Upside trigger → target</dt><dd class="positive">${moneyMarkup(out.upsideTrigger,quote)} → ${moneyMarkup(out.upsideTarget,quote)}</dd></div>
    <div><dt>Downside break → risk</dt><dd class="negative">${moneyMarkup(out.downsideTrigger,quote)} → ${moneyMarkup(out.downsideTarget,quote)}</dd></div>
   </dl>
-  <ul class="chart-factor-pills">${out.factors.map(f=>`<li class="factor-${f.tone}"><span>${esc(f.label)}</span><strong>${esc(f.state)}</strong></li>`).join('')}</ul>
+  <ul class="chart-factor-pills">${out.factors.map(f=>`<li class="factor-${f.tone}"><span>${esc(f.label)}</span><strong><i class="factor-dot" aria-hidden="true"></i>${esc(f.state)}</strong></li>`).join('')}</ul>
  </section>`:'';
  const core=pov.ready?`<div class="chart-reading-state"><strong>${esc(pov.trend)}</strong><time datetime="${new Date(pov.closedAt*1000).toISOString()}">${new Date(pov.closedAt*1000).toISOString().slice(0,16).replace('T',' ')} UTC</time></div>
  ${outlookCard}
@@ -58,7 +58,7 @@ export function chartGuide(pov,setup,mode,studies=[],studyCatalog={}){
  const latestSetup=setup?.ready&&!setup.stale?setup.events?.at(-1):null;
  const selectedGuide=setup?.[setup.activeGuide];
  return `${pov.stale?'<p class="source warn">Latest confirmed history is delayed.</p>':''}${core}
- ${pov.ready?`<details class="guide-disclosure" open><summary>What to watch next (price paths)</summary><dl class="chart-observations">${pov.scenarios.map(s=>`<div><dt>${esc(s.label)}</dt><dd>${esc(s.text)}</dd></div>`).join('')}</dl></details>`:''}
+ ${pov.ready?`<details class="guide-disclosure"><summary>What to watch next (price paths)</summary><dl class="chart-observations">${pov.scenarios.map(s=>`<div><dt>${esc(s.label)}</dt><dd>${esc(s.text)}</dd></div>`).join('')}</dl></details>`:''}
  <details class="guide-disclosure"><summary>How to read a candle</summary><p>The body shows the opening and closing price. The thin lines show the highest and lowest prices. The unfinished candle can change until its interval ends.</p><a href="#learn?view=readings" class="text-link">Try a guided chart</a></details>
  ${studies.length?`<details class="guide-disclosure"><summary>What your studies mean</summary><dl class="chart-observations">${studies.filter(id=>studyCatalog[id]).map(id=>`<div><dt>${esc(studyCatalog[id].label)}</dt><dd>${esc(studyCatalog[id].meaning)} <small>${esc(studyCatalog[id].check)}</small></dd></div>`).join('')}</dl></details>`:''}
  ${setup&&setup.activeGuide!=='none'?`<details class="guide-disclosure"><summary>${esc(selectedGuide?.label??'Automatic drawing')}</summary><p>${esc(selectedGuide?.detail??setup.reason??'No confirmed anchors for this setup yet.')}</p>${selectedGuide?.anchors?.length?`<dl class="chart-observations">${selectedGuide.anchors.map(a=>`<div><dt>${esc(a.kind)} · ${price(a.price,'')}</dt><dd>Anchor ${new Date(a.time*1000).toISOString().slice(0,16).replace('T',' ')} UTC</dd></div>`).join('')}</dl>`:''}${selectedGuide?.levels?.length?`<dl class="fib-levels">${selectedGuide.levels.map(level=>`<div><dt>${(level.ratio*100).toFixed(1)}%</dt><dd>${price(level.price,'')}</dd></div>`).join('')}</dl>`:''}</details>`:''}

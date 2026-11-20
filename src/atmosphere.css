@@ -771,3 +771,320 @@ body[data-page="terminal"] .terminal-heading {
  .ambient-stage { display: none; }
  .dock-selection, .context-selection { border: 2px solid Highlight; }
 }
+
+/* 11. Subtle, Understated Details Bay Below the Chart (.wb-inspector)
+   Eliminates heavy boxes-inside-boxes in favor of serene hairline editorial hierarchy */
+.wb-inspector {
+ border-color: color-mix(in srgb, var(--era-outline, var(--border)) 72%, transparent);
+}
+
+.wb-inspector .wb-tabs {
+ padding: 7px 14px;
+ gap: 4px;
+ border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.wb-inspector .wb-tabs button {
+ font-size: 12px;
+ font-weight: 500;
+ padding: 6px 11px;
+ min-height: 32px;
+ color: var(--muted);
+}
+
+.wb-inspector .wb-tabs button[aria-selected="true"] {
+ font-weight: 600;
+ color: var(--text);
+ border-color: color-mix(in srgb, var(--nav-edge) 70%, transparent);
+ background: color-mix(in srgb, var(--nav-highlight) 72%, transparent);
+}
+
+.wb-inspector .wb-pane {
+ padding: 16px 20px 18px;
+}
+
+/* Quiet inline reading state instead of heavy standalone box */
+.wb-reader .chart-reading-state {
+ display: inline-flex;
+ align-items: center;
+ gap: 10px;
+ padding: 0 0 10px;
+ margin: 0 0 4px;
+ border: 0;
+ border-radius: 0;
+ background: transparent;
+ font-size: 12px;
+ color: var(--muted);
+}
+
+.wb-reader .chart-reading-state strong {
+ font-size: 12px;
+ font-weight: 600;
+ letter-spacing: 0.02em;
+ color: var(--text);
+ padding: 2px 8px;
+ border-radius: 999px;
+ border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+ background: color-mix(in srgb, var(--tint) 75%, transparent);
+}
+
+.wb-reader .chart-reading-state time {
+ font-size: 11px;
+ color: var(--muted);
+ opacity: 0.82;
+}
+
+/* Open editorial outlook header — no nested dark container wall */
+.wb-reader .chart-outlook {
+ margin: 0 0 16px;
+ padding: 2px 0 16px;
+ border: 0;
+ border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+ border-radius: 0;
+ background: transparent;
+ gap: 12px;
+}
+
+.wb-reader .chart-outlook-head {
+ align-items: baseline;
+ gap: 10px;
+}
+
+.wb-reader .chart-outlook-head strong {
+ font-size: 14.5px;
+ font-weight: 600;
+ letter-spacing: -0.012em;
+}
+
+.wb-reader .chart-outlook-head strong.positive {
+ color: color-mix(in srgb, var(--positive) 84%, var(--text));
+}
+
+.wb-reader .chart-outlook-head strong.negative {
+ color: color-mix(in srgb, var(--negative) 80%, var(--text));
+}
+
+.wb-reader .chart-outlook-score {
+ font-size: 11px;
+ font-weight: 500;
+ padding: 2px 9px;
+ border-color: color-mix(in srgb, var(--border) 62%, transparent);
+ background: transparent;
+ color: var(--muted);
+}
+
+.wb-reader .chart-outlook > p {
+ font-size: 12.5px;
+ line-height: 1.58;
+ color: var(--muted);
+ max-width: 84ch;
+}
+
+/* Understated trigger/risk hairline strip */
+.wb-reader .chart-path-grid {
+ gap: 10px;
+}
+
+.wb-reader .chart-path-grid > div {
+ padding: 9px 13px;
+ border: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+ border-radius: 10px;
+ background: color-mix(in srgb, var(--surface-deep) 36%, transparent);
+ gap: 3px;
+}
+
+.wb-reader .chart-path-grid dt {
+ font-size: 10px;
+ font-weight: 500;
+ letter-spacing: 0.055em;
+ color: var(--muted);
+ opacity: 0.85;
+}
+
+.wb-reader .chart-path-grid dd {
+ font-size: 12.5px;
+ font-weight: 600;
+}
+
+.wb-reader .chart-path-grid dd.positive {
+ color: color-mix(in srgb, var(--positive) 86%, var(--text));
+}
+
+.wb-reader .chart-path-grid dd.negative {
+ color: color-mix(in srgb, var(--negative) 82%, var(--text));
+}
+
+/* Calm hairline factor micro-columns with subtle semantic dot instead of loud red/green boxes */
+.wb-reader .chart-factor-pills {
+ gap: 10px 18px;
+ padding-top: 4px;
+}
+
+.wb-reader .chart-factor-pills li {
+ padding: 8px 0 2px;
+ border: 0;
+ border-top: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
+ border-radius: 0;
+ background: transparent;
+ gap: 3px;
+}
+
+.wb-reader .chart-factor-pills li span {
+ font-size: 10.5px;
+ color: var(--muted);
+ opacity: 0.85;
+}
+
+.wb-reader .chart-factor-pills li strong {
+ display: inline-flex;
+ align-items: flex-start;
+ gap: 6px;
+ font-size: 11.5px;
+ font-weight: 550;
+ line-height: 1.4;
+ color: var(--text) !important;
+}
+
+.wb-reader .factor-dot {
+ width: 6px;
+ height: 6px;
+ margin-top: 5px;
+ border-radius: 50%;
+ flex: none;
+ background: color-mix(in srgb, var(--muted) 65%, transparent);
+}
+
+.wb-reader .chart-factor-pills li.factor-up .factor-dot {
+ background: var(--positive);
+}
+
+.wb-reader .chart-factor-pills li.factor-down .factor-dot {
+ background: var(--negative);
+}
+
+/* Breathable hairline-divided observation columns instead of 4 bordered cards */
+.wb-reader .chart-observations {
+ gap: 14px 22px;
+ margin: 4px 0 12px;
+}
+
+.wb-reader .chart-observations > div {
+ border: 0;
+ border-top: 1px solid color-mix(in srgb, var(--border) 46%, transparent);
+ border-radius: 0;
+ padding: 10px 0 4px;
+ background: transparent;
+}
+
+.wb-reader .chart-observations dt {
+ font-size: 12px;
+ font-weight: 600;
+ color: var(--text);
+ margin-bottom: 4px;
+}
+
+.wb-reader .chart-observations dd {
+ font-size: 12px;
+ line-height: 1.56;
+ color: var(--muted);
+}
+
+.wb-reader .chart-observations small {
+ margin-top: 5px;
+ font-size: 11px;
+ color: var(--subtle-text);
+ opacity: 0.82;
+ font-variant-numeric: tabular-nums;
+}
+
+/* Quiet disclosure accordions & event footer */
+.wb-reader .guide-disclosure {
+ padding: 9px 0;
+ border-bottom: 1px solid color-mix(in srgb, var(--border) 44%, transparent);
+}
+
+.wb-reader .guide-disclosure summary {
+ font-size: 12px;
+ font-weight: 550;
+ color: var(--subtle-text);
+}
+
+.wb-reader .guide-disclosure[open] summary {
+ color: var(--text);
+}
+
+.wb-reader .setup-event {
+ margin-top: 12px !important;
+ padding-top: 10px;
+ border-top: 1px solid color-mix(in srgb, var(--border) 44%, transparent);
+ font-size: 11.5px;
+ color: var(--muted);
+ line-height: 1.55;
+}
+
+.wb-reader .setup-event b {
+ font-weight: 600;
+ color: var(--text);
+ margin-right: 6px;
+}
+
+/* Subtle Forecast & Price Levels tab harmonization */
+.wb-inspector .forecast-form {
+ padding: 12px 14px;
+ border-color: color-mix(in srgb, var(--border) 55%, transparent);
+ background: color-mix(in srgb, var(--surface-deep) 34%, transparent);
+}
+
+.wb-inspector .forecast-outcome {
+ padding: 10px 13px;
+ border-color: color-mix(in srgb, var(--border) 55%, transparent);
+ background: color-mix(in srgb, var(--tint) 65%, transparent);
+}
+
+.wb-inspector .forecast-projection {
+ padding: 14px 16px;
+ border-color: color-mix(in srgb, var(--border) 55%, transparent);
+ background: color-mix(in srgb, var(--surface-deep) 38%, transparent);
+}
+
+.wb-inspector .forecast-corridor > div {
+ border-color: color-mix(in srgb, var(--border) 50%, transparent);
+ background: color-mix(in srgb, var(--panel) 32%, transparent);
+}
+
+.wb-inspector .forecast-metrics div,
+.wb-inspector .forecast-checks li,
+.wb-inspector .forecast-drivers > div {
+ border-color: color-mix(in srgb, var(--border) 46%, transparent);
+ background: color-mix(in srgb, var(--surface-deep) 28%, transparent);
+}
+
+/* 12. 60fps Desktop & Mobile Responsiveness + Zero Tap Delay */
+button, a, select, summary, [role="tab"] {
+ touch-action: manipulation;
+}
+
+:root.page-hidden .ambient-wallpaper {
+ animation-play-state: paused !important;
+}
+
+#app .panel {
+ contain: layout style;
+}
+
+@media (max-width: 700px) {
+ .wb-inspector .wb-pane {
+  padding: 12px 13px 14px;
+ }
+ .wb-reader .chart-observations {
+  gap: 10px 14px;
+ }
+ .wb-reader .chart-factor-pills {
+  gap: 8px 12px;
+ }
+ /* Lighter GPU blur on repeated mobile list cards keeps thumb scrolling locked at 60fps */
+ :root:not([data-material="solid"]) #app :is(.market-discovery-card, .live-quote, .stat-card) {
+  -webkit-backdrop-filter: blur(8px) saturate(135%);
+  backdrop-filter: blur(8px) saturate(135%);
+ }
+}

@@ -37,7 +37,7 @@ import './era.css';
 import './desktop-polish.css';
 import './phone-layout.css';
 import './atmosphere.css';
-import {dismissSurface,motionEnabled as navigationMotion,moveSelection,reveal} from './motion.js';
+import {dismissSurface,flashTick,motionEnabled as navigationMotion,moveSelection,reveal} from './motion.js';
 import {PHONE_LAYOUT,chartScrollOptions} from './phone-layout.js';
 import {BENCHMARK_RANGES,benchmarkWindow,dashboardShortcuts} from './dashboard.js';
 import {createMarketMovers,marketMoversPanel} from './market-movers.js';
@@ -428,13 +428,8 @@ function placeHomeChart(){
 
 function observeBenchmark(gen){
  const host=$('#benchmark-chart');if(!host)return;
- if(typeof IntersectionObserver!=='function'){loadBenchmark(gen);return;}
- const observer=new IntersectionObserver(entries=>{
-  if(!entries.some(entry=>entry.isIntersecting))return;
-  observer.disconnect();
-  if(benchmarkObserver===observer){benchmarkObserver=null;loadBenchmark(gen);}
- },{rootMargin:'320px 0px'});
- benchmarkObserver=observer;observer.observe(host);
+ // Load the Overview Bitcoin chart immediately with zero IntersectionObserver delay (especially critical on mobile!)
+ loadBenchmark(gen);
 }
 async function loadBenchmark(gen){
  if(gen!==pageGeneration||page!=='overview')return;
@@ -788,7 +783,9 @@ function renderTerminal(){
   if(status.textContent!==label)status.textContent=label;
  };
  $('#venue').value=selected.venue;$('#chart-style').value=terminal.style;
- refreshIndicatorStrip();updateInstrumentOptions();terminal.load(selected,selectedInterval);
+ const seeded=selected.venue==='binance'?marketStream?.observation(selected.symbol):null;
+ const initialQuote=seeded?.quote?{venue:'binance',symbol:selected.symbol,price:seeded.quote.price,change:seeded.quote.change,high:seeded.quote.high??null,low:seeded.quote.low??null,updatedAt:seeded.quote.updatedAt,stale:seeded.quality==='last',source:seeded.quality==='live'?'WebSocket':'REST'}:null;
+ refreshIndicatorStrip();updateInstrumentOptions();terminal.load(selected,selectedInterval,{initialQuote});
  bindForecastForm();
  $('.wb-tabs').addEventListener('keydown',e=>{
   const tab=e.target.closest('[role="tab"]');
@@ -814,10 +811,16 @@ function syncTimeframe(){for(const b of document.querySelectorAll('[data-time]')
 function updateChartAnalyst(){const link=$('#chart-analyst');if(link)link.href='#analysts?asset='+encodeURIComponent(analystAssetKey(selected));}
 function updateInstrumentOptions(){if(!$('#instrument'))return;updateChartAnalyst();const customForVenue=(workspace.customSymbols??[]).filter(x=>x.venue===selected.venue);const items=[...instruments[selected.venue]];for(const sym of customForVenue)if(!items.some(x=>x.symbol===sym.symbol))items.push(sym);if(!items.some(x=>x.symbol===selected.symbol))items.unshift(selected);items.sort((a,b)=>a.base.localeCompare(b.base));$('#instrument').innerHTML=items.map(x=>`<option value="${esc(x.symbol)}">${esc(x.base)}/${esc(x.quote)}</option>`).join('');$('#instrument').value=selected.symbol;}
 
+let lastTerminalPrice=null;
 function updateQuote(q){
  const quote=$('#terminal-price');
  if(!quote)return;
- setMoneyText(quote,q?.price,selected.quote);
+ const nextPrice=q?.price;
+ setMoneyText(quote,nextPrice,selected.quote);
+ if(Number.isFinite(nextPrice)&&Number.isFinite(lastTerminalPrice)&&nextPrice!==lastTerminalPrice){
+  flashTick(quote,nextPrice>lastTerminalPrice?1:-1);
+ }
+ lastTerminalPrice=Number.isFinite(nextPrice)?nextPrice:null;
  setMoneyText($('#terminal-native'),q?.price,selected.quote,'native');
  setMoneyText($('#terminal-high'),q?.high,selected.quote);
  setMoneyText($('#terminal-low'),q?.low,selected.quote);
@@ -1421,10 +1424,11 @@ try{currency.set(storage.getItem(DISPLAY_CURRENCY_KEY));}catch{}
 refreshFx();
 setInterval(refreshFx,15_000);
 document.addEventListener('visibilitychange',()=>{
+ document.documentElement.classList.toggle('page-hidden',document.hidden);
  if(document.hidden)return;
  refreshFx();
  refreshSpotSnapshot();
- if(page==='terminal'&&terminal&&!terminal.freshStream())terminal.refresh();
+ if(page==='terminal'&&terminal&&(!terminal.bars.length||!terminal.freshStream()))terminal.refresh();
 });
 window.addEventListener('online',refreshFx);
 

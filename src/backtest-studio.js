@@ -6,9 +6,10 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { api } from './api.js';
 import {
   BT_INDICATORS, BT_OPERATORS, BT_PRESETS, defaultBacktestConfig,
-  extractSweepableParameters, parseOHLCVImport, runOpenBacktest,
-  runParameterSweep, setParameterAtPath, validateStrategyImport,
+  extractSweepableParameters, parseOHLCVImport,
+  setParameterAtPath, validateStrategyImport,
 } from './backtest-engine.js';
+import { runBacktestInWorker, runSweepInWorker } from './backtest-client.js';
 import { normalizeCandles } from './analytics.js';
 import { serializeCSV } from './exports.js';
 import { axisPriceFormat, displayPrice, moneyMarkup } from './currency.js';
@@ -386,15 +387,34 @@ export function mountBacktestStudio({ root, instrument, getInstruments, storage,
     }
   }
 
-  function executeBacktest() {
+  let runController = null;
+  let sweepController = null;
+  signal.addEventListener('abort', () => { runController?.abort(); sweepController?.abort(); }, { once: true });
+
+  async function executeBacktest() {
     persistConfig();
     if (!loadedBars.length) {
       $('#bt-results-body').innerHTML = '<p class="data-note">Load exchange candles or import a CSV/JSON OHLCV dataset above first.</p>';
       return;
     }
-    lastResult = runOpenBacktest(loadedBars, config, { interval: dataSource === 'exchange' ? interval : null });
-    lastSweep = null;
-    renderResults();
+    runController?.abort();
+    const task = new AbortController();
+    runController = task;
+    const sub = $('#bt-result-subtitle');
+    if (sub) sub.textContent = `Evaluating ${loadedBars.length.toLocaleString()} candles…`;
+    try {
+      const result = await runBacktestInWorker(loadedBars, config, { interval: dataSource === 'exchange' ? interval : null }, task.signal);
+      if (task.signal.aborted || signal.aborted) return;
+      lastResult = result;
+      lastSweep = null;
+      renderResults();
+    } catch (err) {
+      if (task.signal.aborted || signal.aborted) return;
+      lastResult = { ready: false, reason: err?.message || 'Backtest failed.' };
+      renderResults();
+    } finally {
+      if (runController === task) runController = null;
+    }
   }
 
   function mountVisualCharts(result) {
@@ -592,19 +612,37 @@ export function mountBacktestStudio({ root, instrument, getInstruments, storage,
         sForm.elements.max.value = hi;
         sForm.elements.step.value = Math.max(0.5, Math.round(((hi - lo) / 10) * 10) / 10);
       });
-      sForm.addEventListener('submit', e => {
+      sForm.addEventListener('submit', async e => {
         e.preventDefault();
+        sweepController?.abort();
+        const task = new AbortController();
+        sweepController = task;
         const fd = new FormData(sForm);
-        lastSweep = runParameterSweep(loadedBars, config, {
-          path: String(fd.get('path')),
-          min: Number(fd.get('min')),
-          max: Number(fd.get('max')),
-          step: Number(fd.get('step')),
-          rankBy: String(fd.get('rankBy')),
-          interval: dataSource === 'exchange' ? interval : null,
-        });
-        $('#bt-sweep-output').innerHTML = renderSweepTable(lastSweep);
-        bindSweepApply();
+        const out = $('#bt-sweep-output');
+        if (out) out.innerHTML = '<p class="data-note">Running parameter sweep in background worker…</p>';
+        try {
+          const result = await runSweepInWorker(loadedBars, config, {
+            path: String(fd.get('path')),
+            min: Number(fd.get('min')),
+            max: Number(fd.get('max')),
+            step: Number(fd.get('step')),
+            rankBy: String(fd.get('rankBy')),
+            interval: dataSource === 'exchange' ? interval : null,
+          }, task.signal);
+          if (task.signal.aborted || signal.aborted) return;
+          lastSweep = result;
+          const liveOut = $('#bt-sweep-output');
+          if (liveOut) {
+            liveOut.innerHTML = renderSweepTable(lastSweep);
+            bindSweepApply();
+          }
+        } catch (err) {
+          if (task.signal.aborted || signal.aborted) return;
+          const liveOut = $('#bt-sweep-output');
+          if (liveOut) liveOut.innerHTML = `<p class="data-note negative">${esc(err?.message || 'Sweep failed.')}</p>`;
+        } finally {
+          if (sweepController === task) sweepController = null;
+        }
       });
       bindSweepApply();
       return;

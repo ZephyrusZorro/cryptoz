@@ -117,27 +117,84 @@ function predict(coefficients, features) {
   return sigmoid(logOdds);
 }
 
-function fitLogistic(features, labels, first, last, ridge, passes = 38) {
+// In-place Cholesky L*L^T solver for small symmetric positive-definite Hessian (dim = 10)
+function solveCholesky(H, g, dim, delta) {
+  const L = new Float64Array(dim * dim);
+  for (let i = 0; i < dim; i++) {
+    for (let j = 0; j <= i; j++) {
+      let sum = H[i * dim + j];
+      for (let k = 0; k < j; k++) sum -= L[i * dim + k] * L[j * dim + k];
+      if (i === j) {
+        if (!(sum > 1e-12)) return false;
+        L[i * dim + j] = Math.sqrt(sum);
+      } else {
+        L[i * dim + j] = sum / L[j * dim + j];
+      }
+    }
+  }
+  const y = new Float64Array(dim);
+  for (let i = 0; i < dim; i++) {
+    let sum = g[i];
+    for (let k = 0; k < i; k++) sum -= L[i * dim + k] * y[k];
+    y[i] = sum / L[i * dim + i];
+  }
+  for (let i = dim - 1; i >= 0; i--) {
+    let sum = y[i];
+    for (let k = i + 1; k < dim; k++) sum -= L[k * dim + i] * delta[k];
+    delta[i] = sum / L[i * dim + i];
+  }
+  return true;
+}
+
+// Damped Newton-Raphson / IRLS solver: converges quadratically to the exact global L2-logistic optimum in ~5-7 steps (vs 52 GD steps)
+function fitLogistic(features, labels, first, last, ridge, maxIters = 7) {
   const dim = features[first].length;
   const count = last - first + 1;
+  const invCount = 1 / count;
   const coefficients = new Float64Array(dim);
   const gradient = new Float64Array(dim);
+  const hessian = new Float64Array(dim * dim);
+  const step = new Float64Array(dim);
   let ups = 0;
   for (let i = first; i <= last; i++) ups += labels[i];
   const base = (ups + 1) / (count + 2);
   coefficients[0] = Math.log(base / (1 - base));
-  const lr = Math.min(0.8, 1.6 / (1 + ridge * 2));
-  for (let pass = 0; pass < passes; pass++) {
+
+  for (let iter = 0; iter < maxIters; iter++) {
     gradient.fill(0);
+    hessian.fill(0);
     for (let i = first; i <= last; i++) {
       const f = features[i];
-      const error = predict(coefficients, f) - labels[i];
-      for (let k = 0; k < dim; k++) gradient[k] += error * f[k];
+      let z = 0;
+      for (let k = 0; k < dim; k++) z += coefficients[k] * f[k];
+      const p = sigmoid(z);
+      const err = p - labels[i];
+      const w = Math.max(1e-6, p * (1 - p));
+      for (let r = 0; r < dim; r++) {
+        const fr = f[r];
+        gradient[r] += err * fr;
+        const wf = w * fr;
+        const rowOff = r * dim;
+        for (let c = 0; c <= r; c++) hessian[rowOff + c] += wf * f[c];
+      }
     }
-    coefficients[0] -= lr * gradient[0] / count;
-    for (let k = 1; k < dim; k++) {
-      coefficients[k] -= lr * (gradient[k] / count + ridge * coefficients[k]);
+    gradient[0] *= invCount;
+    hessian[0] = hessian[0] * invCount + 1e-6;
+    for (let r = 1; r < dim; r++) {
+      gradient[r] = gradient[r] * invCount + ridge * coefficients[r];
+      const rowOff = r * dim;
+      for (let c = 0; c <= r; c++) hessian[rowOff + c] *= invCount;
+      hessian[rowOff + r] += ridge + 1e-6;
     }
+    if (!solveCholesky(hessian, gradient, dim, step)) break;
+    let maxStep = 0;
+    for (let k = 0; k < dim; k++) {
+      const s = Math.max(-2.5, Math.min(2.5, step[k]));
+      coefficients[k] -= s;
+      const absS = Math.abs(s);
+      if (absS > maxStep) maxStep = absS;
+    }
+    if (maxStep < 1e-5) break;
   }
   return { coefficients, base };
 }
@@ -180,8 +237,8 @@ function train(features, labels, rows, origin, horizon) {
   let expertWeights = [0.22, 0.35, 0.23, 0.20];
 
   if (innerTrainEnd - first >= 75) {
-    const innerFast = fitLogistic(features, labels, first, innerTrainEnd, 0.05 * hScale, 30);
-    const innerReg = fitLogistic(features, labels, first, innerTrainEnd, 1.8 * hScale, 26);
+    const innerFast = fitLogistic(features, labels, first, innerTrainEnd, 0.05 * hScale, 6);
+    const innerReg = fitLogistic(features, labels, first, innerTrainEnd, 1.8 * hScale, 5);
     const losses = [0, 0, 0, 0];
     let nVal = 0;
     for (let v = innerValStart; v <= last; v += horizon) {
@@ -206,8 +263,8 @@ function train(features, labels, rows, origin, horizon) {
     }
   }
 
-  const fastFit = fitLogistic(features, labels, first, last, 0.045 * hScale, 52);
-  const regFit = fitLogistic(features, labels, first, last, 1.8 * hScale, 30);
+  const fastFit = fitLogistic(features, labels, first, last, 0.045 * hScale, 7);
+  const regFit = fitLogistic(features, labels, first, last, 1.8 * hScale, 6);
   const fo = features[origin];
   const pFast = Math.max(0.01, Math.min(0.99, predict(fastFit.coefficients, fo)));
   const pReg = Math.max(0.01, Math.min(0.99, predict(regFit.coefficients, fo)));

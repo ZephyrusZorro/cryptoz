@@ -40,13 +40,22 @@ function groupPivots(rows,wiggle,kind,cutoff,step){
  return groups.filter(g=>g.anchors.length>=2);
 }
 function priceProfile(rows){
- const min=Math.min(...rows.map(b=>b.low)),max=Math.max(...rows.map(b=>b.high)),width=(max-min)/BINS;
+ let min=Infinity,max=-Infinity;
+ for(let i=0;i<rows.length;i++){if(rows[i].low<min)min=rows[i].low;if(rows[i].high>max)max=rows[i].high;}
+ const width=(max-min)/BINS;
  if(!(width>0)||!Number.isFinite(width))return null;
  const bins=Array.from({length:BINS},(_,i)=>({min:min+i*width,max:min+(i+1)*width,volume:0}));
  for(const b of rows){
   if(!b.volume)continue;
   if(b.high===b.low){bins[Math.min(BINS-1,Math.max(0,Math.floor((b.close-min)/width)))].volume+=b.volume;continue;}
-  for(const bin of bins){const intersection=Math.max(0,Math.min(b.high,bin.max)-Math.max(b.low,bin.min));bin.volume+=b.volume*(intersection/(b.high-b.low));}
+  const invSpan=1/(b.high-b.low);
+  const startBin=Math.max(0,Math.floor((b.low-min)/width));
+  const endBin=Math.min(BINS-1,Math.floor((b.high-min)/width));
+  for(let k=startBin;k<=endBin;k++){
+   const bin=bins[k];
+   const intersection=Math.max(0,Math.min(b.high,bin.max)-Math.max(b.low,bin.min));
+   bin.volume+=b.volume*(intersection*invSpan);
+  }
  }
  const total=bins.reduce((sum,bin)=>sum+bin.volume,0);
  if(!Number.isFinite(total)||total<=0)return null;
@@ -60,21 +69,26 @@ function priceProfile(rows){
 }
 
 function detectFairValueGaps(rows,atrSeries,latest,dist){
+ const n=rows.length;
+ const suffixMinLow=new Float64Array(n+1);
+ const suffixMaxHigh=new Float64Array(n+1);
+ suffixMinLow[n]=Infinity;
+ suffixMaxHigh[n]=-Infinity;
+ for(let i=n-1;i>=0;i--){
+  suffixMinLow[i]=Math.min(rows[i].low,suffixMinLow[i+1]);
+  suffixMaxHigh[i]=Math.max(rows[i].high,suffixMaxHigh[i+1]);
+ }
  const bullish=[],bearish=[];
- for(let i=1;i<rows.length-1;i++){
+ for(let i=1;i<n-1;i++){
   const prev=rows[i-1],curr=rows[i],next=rows[i+1];
   const barAtr=atrSeries[i];
   const minGap=Number.isFinite(barAtr)&&barAtr>0?barAtr*0.25:(curr.high-curr.low)*0.15;
   if(next.low>prev.high&&(next.low-prev.high)>=minGap){
    const bottom=prev.high,top=next.low;
-   let mitigated=false;
-   for(let j=i+2;j<rows.length;j++){if(rows[j].low<=bottom){mitigated=true;break;}}
-   if(!mitigated)bullish.push({side:'bullish',top,bottom,price:(top+bottom)/2,time:curr.time,confirmedAt:next.time});
+   if(suffixMinLow[i+2]>bottom)bullish.push({side:'bullish',top,bottom,price:(top+bottom)/2,time:curr.time,confirmedAt:next.time});
   }else if(next.high<prev.low&&(prev.low-next.high)>=minGap){
    const top=prev.low,bottom=next.high;
-   let mitigated=false;
-   for(let j=i+2;j<rows.length;j++){if(rows[j].high>=top){mitigated=true;break;}}
-   if(!mitigated)bearish.push({side:'bearish',top,bottom,price:(top+bottom)/2,time:curr.time,confirmedAt:next.time});
+   if(suffixMaxHigh[i+2]<top)bearish.push({side:'bearish',top,bottom,price:(top+bottom)/2,time:curr.time,confirmedAt:next.time});
   }
  }
  const nearBull=bullish.filter(z=>z.bottom<=latest.close*1.03).sort((a,b)=>Math.abs(latest.close-a.price)-Math.abs(latest.close-b.price)).slice(0,2);
@@ -94,8 +108,17 @@ function detectFairValueGaps(rows,atrSeries,latest,dist){
 }
 
 function detectOrderBlocks(rows,atrSeries,latest,dist){
+ const n=rows.length;
+ const suffixMinClose=new Float64Array(n+1);
+ const suffixMaxClose=new Float64Array(n+1);
+ suffixMinClose[n]=Infinity;
+ suffixMaxClose[n]=-Infinity;
+ for(let i=n-1;i>=0;i--){
+  suffixMinClose[i]=Math.min(rows[i].close,suffixMinClose[i+1]);
+  suffixMaxClose[i]=Math.max(rows[i].close,suffixMaxClose[i+1]);
+ }
  const demand=[],supply=[];
- for(let i=3;i<rows.length-1;i++){
+ for(let i=3;i<n-1;i++){
   const impulse=rows[i],barAtr=atrSeries[i];
   if(!Number.isFinite(barAtr)||barAtr<=0)continue;
   const body=Math.abs(impulse.close-impulse.open);
@@ -104,20 +127,15 @@ function detectOrderBlocks(rows,atrSeries,latest,dist){
   const prevHigh=Math.max(rows[i-1].high,rows[i-2].high,rows[i-3].high);
   const prevLow=Math.min(rows[i-1].low,rows[i-2].low,rows[i-3].low);
   if(impulse.close>impulse.open&&impulse.close>prevHigh){
-   // Last opposing bearish candle in the 3 bars before impulse
    let ob=null;
    for(let k=i-1;k>=Math.max(0,i-3);k--){if(rows[k].close<rows[k].open){ob=rows[k];break;}}
    if(!ob)ob=rows[i-1];
-   let broken=false;
-   for(let j=i+1;j<rows.length;j++){if(rows[j].close<ob.low){broken=true;break;}}
-   if(!broken)demand.push({side:'demand',top:Math.max(ob.open,ob.close),bottom:ob.low,price:(Math.max(ob.open,ob.close)+ob.low)/2,time:ob.time,strength:range/barAtr});
+   if(suffixMinClose[i+1]>=ob.low)demand.push({side:'demand',top:Math.max(ob.open,ob.close),bottom:ob.low,price:(Math.max(ob.open,ob.close)+ob.low)/2,time:ob.time,strength:range/barAtr});
   }else if(impulse.close<impulse.open&&impulse.close<prevLow){
    let ob=null;
    for(let k=i-1;k>=Math.max(0,i-3);k--){if(rows[k].close>rows[k].open){ob=rows[k];break;}}
    if(!ob)ob=rows[i-1];
-   let broken=false;
-   for(let j=i+1;j<rows.length;j++){if(rows[j].close>ob.high){broken=true;break;}}
-   if(!broken)supply.push({side:'supply',top:ob.high,bottom:Math.min(ob.open,ob.close),price:(ob.high+Math.min(ob.open,ob.close))/2,time:ob.time,strength:range/barAtr});
+   if(suffixMaxClose[i+1]<=ob.high)supply.push({side:'supply',top:ob.high,bottom:Math.min(ob.open,ob.close),price:(ob.high+Math.min(ob.open,ob.close))/2,time:ob.time,strength:range/barAtr});
   }
  }
  const pick=(list,below)=>list

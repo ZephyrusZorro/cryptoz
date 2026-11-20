@@ -1,4 +1,4 @@
-import { atr, bollinger, ema, macd, normalizeCandles, rsi, sma } from './analytics.js';
+import { atr, bollinger, ema, macd, normalizeCandles, rollingExtrema, rsi, sma, wmaFast } from './analytics.js';
 import { adxSeries, supertrendSeries } from './studies.js';
 import { evaluateFormula, parseFormula } from './custom-studies.js';
 import { INTERVALS } from './preferences.js';
@@ -164,31 +164,15 @@ export function defaultBacktestConfig() {
 }
 
 function weightedMA(closes, period) {
-  const denom = period * (period + 1) / 2;
-  return closes.map((_, i) => {
-    if (i + 1 < period) return null;
-    let sum = 0;
-    for (let k = 0; k < period; k++) sum += closes[i - period + 1 + k] * (k + 1);
-    return sum / denom;
-  });
+  return wmaFast(closes, period);
 }
 
 function hullMA(closes, period) {
-  const half = weightedMA(closes, Math.max(1, Math.floor(period / 2)));
-  const full = weightedMA(closes, period);
-  const diff = full.map((v, i) => v === null || half[i] === null ? null : 2 * half[i] - v);
-  const sqrtP = Math.max(1, Math.floor(Math.sqrt(period)));
-  const denom = sqrtP * (sqrtP + 1) / 2;
-  return diff.map((_, i) => {
-    if (i + 1 < sqrtP) return null;
-    let sum = 0;
-    for (let k = 0; k < sqrtP; k++) {
-      const v = diff[i - sqrtP + 1 + k];
-      if (!Number.isFinite(v)) return null;
-      sum += v * (k + 1);
-    }
-    return sum / denom;
-  });
+  const half = wmaFast(closes, Math.max(1, Math.floor(period / 2)));
+  const full = wmaFast(closes, period);
+  const diff = new Array(closes.length);
+  for (let i = 0; i < closes.length; i++) diff[i] = full[i] === null || half[i] === null ? null : 2 * half[i] - full[i];
+  return wmaFast(diff, Math.max(1, Math.floor(Math.sqrt(period))));
 }
 
 function customMacd(closes, fast = 12, slow = 26, sig = 9) {
@@ -200,32 +184,33 @@ function customMacd(closes, fast = 12, slow = 26, sig = 9) {
 }
 
 function priorChannel(bars, period, isHigh) {
-  // Strictly uses PRIOR N bars [i - period .. i - 1] so comparing close > priorChannel has zero self-inclusion bias!
-  return bars.map((_, i) => {
-    if (i < period) return null;
-    let best = isHigh ? -Infinity : Infinity;
-    for (let j = i - period; j < i; j++) best = isHigh ? Math.max(best, bars[j].high) : Math.min(best, bars[j].low);
-    return best;
-  });
+  // Strictly uses PRIOR N bars [i - period .. i - 1] via O(N) Monotonic Deque (zero self-inclusion bias!)
+  const { upper, lower } = rollingExtrema(bars, period, { priorOnly: true });
+  return isHigh ? upper : lower;
 }
 
 function relativeVolume(bars, period) {
-  return bars.map((bar, i) => {
-    if (i < period) return null;
-    let sum = 0;
-    for (let j = i - period; j < i; j++) sum += bars[j].volume;
-    const avg = sum / period;
-    return avg > 0 ? bar.volume / avg : null;
-  });
+  const n = bars.length;
+  const out = new Array(n).fill(null);
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    if (i >= period) {
+      const avg = sum / period;
+      out[i] = avg > 0 ? bars[i].volume / avg : null;
+      sum -= bars[i - period].volume;
+    }
+    sum += bars[i].volume;
+  }
+  return out;
 }
 
 function stochK(bars, period) {
-  const raw = bars.map((bar, i) => {
-    if (i + 1 < period) return null;
-    let hi = -Infinity, lo = Infinity;
-    for (let j = i - period + 1; j <= i; j++) { hi = Math.max(hi, bars[j].high); lo = Math.min(lo, bars[j].low); }
-    return hi > lo ? 100 * (bar.close - lo) / (hi - lo) : 50;
-  });
+  const { upper, lower } = rollingExtrema(bars, period);
+  const raw = new Array(bars.length);
+  for (let i = 0; i < bars.length; i++) {
+    const hi = upper[i], lo = lower[i];
+    raw[i] = hi === null || lo === null ? null : (hi > lo ? 100 * (bars[i].close - lo) / (hi - lo) : 50);
+  }
   return sma(raw, 3);
 }
 
@@ -385,8 +370,8 @@ function summarizeSegment(equitySlice, tradesSlice, initialEquity, barsPerYear) 
   };
 }
 
-export function runOpenBacktest(rawBars, userConfig = {}, { interval } = {}) {
-  const bars = normalizeCandles(rawBars);
+export function runOpenBacktest(rawBars, userConfig = {}, { interval, precomputed = null } = {}) {
+  const bars = precomputed?.bars ?? normalizeCandles(rawBars);
   if (bars.length < 30) return { ready: false, reason: `Backtesting needs at least 30 valid candles (${bars.length} available).` };
 
   const cfg = { ...defaultBacktestConfig(), ...userConfig };
@@ -400,9 +385,9 @@ export function runOpenBacktest(rawBars, userConfig = {}, { interval } = {}) {
     return { ready: false, reason: 'Fee and slippage must be between 0 and 1000 bps.' };
   }
 
-  const closes = bars.map(b => b.close);
-  const atr14 = atr(bars, 14);
-  const cache = new Map();
+  const closes = precomputed?.closes ?? bars.map(b => b.close);
+  const atr14 = precomputed?.atr14 ?? atr(bars, 14);
+  const cache = precomputed?.cache ?? new Map();
   let checkLongEntry, checkLongExit, checkShortEntry, checkShortExit;
   try {
     checkLongEntry = cfg.direction !== 'short' ? compileRuleSet(cfg.entryRules, cfg.entryLogic, bars, closes, cache) : () => false;
@@ -691,9 +676,13 @@ export function runParameterSweep(bars, baseConfig, { path, min, max, step, rank
   }
   if (!values.length) return { ready: false, reason: 'No parameter values in sweep range.' };
 
+  const normBars = normalizeCandles(bars);
+  const precomputed = normBars.length >= 30
+    ? { bars: normBars, closes: normBars.map(b => b.close), atr14: atr(normBars, 14), cache: new Map() }
+    : null;
   const rows = values.map(value => {
     const nextCfg = setParameterAtPath(baseConfig, path, value);
-    const res = runOpenBacktest(bars, nextCfg, { interval });
+    const res = runOpenBacktest(normBars, nextCfg, { interval, precomputed });
     return {
       value,
       ready: res.ready,

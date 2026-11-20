@@ -1,11 +1,14 @@
 import {asNumber} from './numbers.js';
 
-const PUBLIC_STREAM = 'wss://data-stream.binance.vision/ws/!miniTicker@arr';
+const PUBLIC_STREAMS = [
+  'wss://data-stream.binance.vision/ws/!miniTicker@arr',
+  'wss://stream.binance.com:9443/ws/!miniTicker@arr'
+];
 export const BENCHMARK_ASSETS = Object.freeze(['BTC', 'ETH', 'SOL', 'BNB', 'XRP']);
 const FRESH_MS = 15_000;
 const FUTURE_TOLERANCE_MS = 5_000;
-const CONNECT_TIMEOUT_MS = 15_000;
-const STREAM_TIMEOUT_MS = 30_000;
+const CONNECT_TIMEOUT_MS = 8_000;
+const STREAM_TIMEOUT_MS = 25_000;
 const HEALTH_MS = 3_000;
 
 function observationTime(time) {
@@ -57,6 +60,7 @@ export class MarketStream {
     this.lastMessage = 0;
     this.connectionStarted = 0;
     this.attempt = 0;
+    this.endpointIndex = 0;
     this.frame = null;
     this.retry = null;
     this.socket = null;
@@ -123,8 +127,10 @@ export class MarketStream {
     this.transition('connecting');
     let socket;
     try {
-      socket = this.socketFactory(PUBLIC_STREAM);
+      const url = PUBLIC_STREAMS[this.endpointIndex % PUBLIC_STREAMS.length];
+      socket = this.socketFactory(url);
     } catch {
+      this.endpointIndex++;
       this.scheduleRetry();
       return;
     }
@@ -165,8 +171,9 @@ export class MarketStream {
   scheduleRetry() {
     this.stopConnection();
     if (this.closed) return;
+    this.endpointIndex++;
     this.transition('reconnecting');
-    const delay = Math.min(30_000, 1_500 * 2 ** Math.min(this.attempt++, 5) * (0.8 + this.random() * 0.4));
+    const delay = Math.min(20_000, 750 * 2 ** Math.min(this.attempt++, 5) * (0.8 + this.random() * 0.4));
     this.retry = this.timers.setTimeout(() => {
       this.retry = null;
       this.syncConnection();

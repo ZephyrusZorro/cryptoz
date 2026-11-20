@@ -11,7 +11,7 @@ import {buildAutoSetup,chartSignalEvents} from './auto-setup.js';
 import {peakVolumeVwap,previousPeriodLevels,structureTools} from './structure-tools.js';
 import {heikinAshi,technicalSummary,normalizeCandles} from './analytics.js';
 import {AUTO_GUIDES,normalizePreferences} from './preferences.js';
-import {api} from './api.js';import {esc,download,toast} from './ui.js';
+import {api,peekApiCache} from './api.js';import {esc,download,toast} from './ui.js';
 import {chartScrollOptions,isChartTouch} from './phone-layout.js';
 const seconds={'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400};
 const HISTORY_LIMIT=4000;
@@ -30,24 +30,71 @@ export class TerminalChart {
  currentQuote(now=Date.now()){return usableQuote(this.quote,this.instrument,now);}
  freshStream(){return this.lastStream>0&&Date.now()-this.lastStream<20000;}
  async refresh(){if(this.disposed)return;if(this.historyAnchor||!this.bars.length)return this.load(this.instrument,this.interval,{before:this.historyAnchor});return Promise.allSettled([this.poll(this.generation),this.reconcile(this.generation)]);}
- async load(instrument=this.instrument,interval=this.interval,{before=null}={}){
+ async load(instrument=this.instrument,interval=this.interval,{before=null,initialQuote=null}={}){
   if(this.disposed)return;
   this.clearSignalFocus();
   this.lastRangeGesture=null;this.historyRetryAt=0;
   this.referenceDays=[];this.referenceRequest=null;this.referenceCursor=null;this.referenceRetryAt=0;this.periodBeforeAt=null;
-  this.instrument=instrument;this.interval=interval;this.historyAnchor=before;this.generation++;const gen=this.generation;this.stopNetwork();this.networkController=new AbortController();this.gestureController?.abort();this.liveRevision=0;this.confirmedThrough=0;this.latestSnapshotAt=0;this.confirmedStreamBars.clear();this.studyBars=[];this.visibleSignals=[];this.markerDescriptions=null;this.autoSetup=null;this.barRevisions=new Map();this.barEvents=new Map();this.observer?.disconnect();this.chart?.remove();this.chart=null;this.series=null;this.svg=null;this.bars=[];this.historyStatus='idle';this.historyNotice='';this.quote=null;this.candleMeta=null;this.lastStream=0;this.lastSocketFrame=0;this.reconnectAttempt=0;this.lastKlineReceived=0;this.lastBookAt=0;this.bookSequence=0;this.pendingPoint=null;this.status('loading');this.onWindow?.({visible:0,total:0,start:null,end:null});this.onQuote(null);this.onBook(null);this.onSummary({ready:false});this.host.innerHTML='<div class="chart-loading"><span class="loader"></span> Connecting to '+esc(instrument.venue)+' market data…</div>';this.onDrawings();
+  this.instrument=instrument;this.interval=interval;this.historyAnchor=before;this.generation++;const gen=this.generation;this.stopNetwork();this.networkController=new AbortController();this.gestureController?.abort();this.liveRevision=0;this.confirmedThrough=0;this.latestSnapshotAt=0;this.confirmedStreamBars.clear();this.studyBars=[];this.visibleSignals=[];this.markerDescriptions=null;this.autoSetup=null;this.barRevisions=new Map();this.barEvents=new Map();this.observer?.disconnect();this.chart?.remove();this.chart=null;this.series=null;this.svg=null;this.bars=[];this.historyStatus='idle';this.historyNotice='';this.quote=initialQuote;this.candleMeta=null;this.lastStream=0;this.lastSocketFrame=0;this.reconnectAttempt=0;this.wsEndpointIdx=0;this.lastKlineReceived=0;this.lastBookAt=0;this.bookSequence=0;this.pendingPoint=null;this.status('loading');this.onWindow?.({visible:0,total:0,start:null,end:null});this.onQuote(initialQuote);this.onBook(null);this.onSummary({ready:false});this.onDrawings();
+
+  const candlePath=`candles?venue=${instrument.venue}&symbol=${instrument.symbol}&interval=${interval}${before?'&before='+before:''}`;
+  const warm=!before?peekApiCache(candlePath,{maxAgeMs:300_000}):null;
+  let warmPainted=false;
+  if(warm?.data?.bars?.length){
+   const warmBars=normalizeCandles(warm.data.bars);
+   if(warmBars.length){
+    this.bars=warmBars;this.candleMeta=warm;this.latestSnapshotAt=this.snapshotCutoff(warm,Date.now());
+    this.observeStudyBars(this.bars,this.latestSnapshotAt);
+    this.build();this.updateSummary();this.status('snapshot');
+    if(!this.quote)this.onQuote({price:this.bars.at(-1).close,source:'candle',updatedAt:warm.fetchedAt,stale:warm.cache==='stale'});
+    warmPainted=true;
+   }
+  }
+  if(!warmPainted){
+   this.host.innerHTML='<div class="chart-loading"><span class="loader"></span> Connecting to '+esc(instrument.venue)+' market data…</div>';
+  }
+  // Open live WebSocket in parallel with candle REST fetch so real-time prices stream with zero wait!
+  if(!before&&typeof WebSocket==='function')this.connect(gen,{reconcileOnOpen:false});
+
   try{
    const requestedAt=Date.now();
    let response;
-   try{response=await this.fetch(`candles?venue=${instrument.venue}&symbol=${instrument.symbol}&interval=${interval}${before?'&before='+before:''}`);}
+   try{response=await this.fetch(candlePath);}
    catch(firstErr){
     if(gen!==this.generation||this.disposed||firstErr?.name==='AbortError'||(firstErr?.status&&firstErr.status<500))throw firstErr;
-    await new Promise(r=>setTimeout(r,400));
+    await new Promise(r=>setTimeout(r,350));
     if(gen!==this.generation||this.disposed)return;
-    response=await this.fetch(`candles?venue=${instrument.venue}&symbol=${instrument.symbol}&interval=${interval}${before?'&before='+before:''}`);
+    response=await this.fetch(candlePath);
    }
-   if(gen!==this.generation||this.disposed)return;this.bars=normalizeCandles(response.data?.bars??[]).filter(bar=>!before||bar.time<before);if(!this.bars.length)throw Error(before?'No provider candles before that date for this pair and interval.':'No valid candles available');this.candleMeta=response;this.latestSnapshotAt=this.snapshotCutoff(response,requestedAt);this.observeStudyBars(this.bars,Math.min(before??Infinity,this.latestSnapshotAt));this.build();this.updateSummary();this.status(before?'archive':response.cache==='stale'?'stale':'snapshot');if(before)return;this.onQuote({price:this.bars.at(-1).close,source:'candle',updatedAt:response.fetchedAt,stale:response.cache==='stale'});this.connect(gen);this.poll(gen);this.pollTimer=setInterval(()=>{if(!document.hidden)this.poll(gen);},10000);this.healthTimer=setInterval(()=>this.checkConnection(gen),5000);
-  }catch(e){if(gen!==this.generation||this.disposed)return;this.host.innerHTML=`<div class="chart-loading error-state"><strong>Chart unavailable</strong><p>${esc(e.message)}</p><button data-action="retry-chart" class="button">Retry connection</button><small>Select another venue or instrument. No synthetic candles are shown.</small></div>`;this.status('unavailable');this.historyStatus='unavailable';this.onWindow?.({visible:0,total:0,historyStatus:'unavailable'});}
+   if(gen!==this.generation||this.disposed)return;
+   if(warmPainted){
+    this.applyHistory(response,this.liveRevision,requestedAt);
+    if(!this.freshStream())this.status(response.cache==='stale'?'stale':'snapshot');
+   }else{
+    this.bars=normalizeCandles(response.data?.bars??[]).filter(bar=>!before||bar.time<before);
+    if(!this.bars.length)throw Error(before?'No provider candles before that date for this pair and interval.':'No valid candles available');
+    this.candleMeta=response;this.latestSnapshotAt=this.snapshotCutoff(response,requestedAt);
+    this.observeStudyBars(this.bars,Math.min(before??Infinity,this.latestSnapshotAt));
+    this.build();this.updateSummary();
+    if(!this.freshStream())this.status(before?'archive':response.cache==='stale'?'stale':'snapshot');
+    if(!before&&!this.quote)this.onQuote({price:this.bars.at(-1).close,source:'candle',updatedAt:response.fetchedAt,stale:response.cache==='stale'});
+   }
+   if(before)return;
+   if(!this.socket&&typeof WebSocket==='function')this.connect(gen,{reconcileOnOpen:false});
+   this.poll(gen);
+   this.pollTimer=setInterval(()=>{if(!document.hidden)this.poll(gen);},10000);
+   this.healthTimer=setInterval(()=>this.checkConnection(gen),5000);
+  }catch(e){
+   if(gen!==this.generation||this.disposed)return;
+   if(warmPainted){
+    if(!this.freshStream())this.status('delayed');
+    this.pollTimer=setInterval(()=>{if(!document.hidden)this.poll(gen);},10000);
+    this.healthTimer=setInterval(()=>this.checkConnection(gen),5000);
+    return;
+   }
+   this.closeSocket();
+   this.host.innerHTML=`<div class="chart-loading error-state"><strong>Chart unavailable</strong><p>${esc(e.message)}</p><button data-action="retry-chart" class="button">Retry connection</button><small>Select another venue or instrument. No synthetic candles are shown.</small></div>`;this.status('unavailable');this.historyStatus='unavailable';this.onWindow?.({visible:0,total:0,historyStatus:'unavailable'});
+  }
  }
  build(){
   if(this.rangeFrame){cancelAnimationFrame(this.rangeFrame);this.rangeFrame=0;}this.lastRangeGesture=null;
@@ -75,7 +122,16 @@ export class TerminalChart {
    if(['all','recent'].includes(this.viewPreset))requestAnimationFrame(()=>this.resizeView());
    else this.scheduleRangeRender();
   });
-  this.observer=new ResizeObserver(()=>requestAnimationFrame(()=>this.resizeView()));
+  this._lastSize={w:el.clientWidth,h:el.clientHeight};
+  this.observer=new ResizeObserver(()=>requestAnimationFrame(()=>{
+   if(this.disposed||!this.chart)return;
+   const w=this.host.clientWidth,h=this.host.clientHeight;
+   if(w>20&&h>20&&(this._lastSize.w<20||this._lastSize.h<20||Math.abs(w-this._lastSize.w)>2||Math.abs(h-this._lastSize.h)>2)){
+    this._lastSize={w,h};
+    this.chart.resize(w,h);
+   }
+   this.resizeView();
+  }));
   this.observer.observe(this.host);this.draw();requestAnimationFrame(()=>{if(!this.disposed)this.notifyWindow();});
  }
  renderIndicators(incremental=false,{refreshAnalysis=true}={}){
@@ -296,12 +352,16 @@ export class TerminalChart {
   const requestedAt=Date.now(),revision=this.liveRevision,instrument={...this.instrument},interval=this.interval;
   try{const r=await this.fetch(`candles?venue=${instrument.venue}&symbol=${instrument.symbol}&interval=${interval}`);if(this.disposed||gen!==this.generation)return;this.applyHistory(r,revision,requestedAt);}catch{if(!this.disposed&&gen===this.generation&&!this.freshStream())this.status('delayed');}
  }
- connect(gen){
-  if(this.disposed||gen!==this.generation)return;const {venue,symbol}=this.instrument;const endpoint=venue==='binance'?`wss://data-stream.binance.vision/stream?streams=${symbol.toLowerCase()}@kline_${this.interval}/${symbol.toLowerCase()}@ticker${this.deskMode==='pro'?'/'+symbol.toLowerCase()+'@depth20':''}`:'wss://ws-feed.exchange.coinbase.com';
+ connect(gen,{reconcileOnOpen=true}={}){
+  if(this.disposed||gen!==this.generation)return;const {venue,symbol}=this.instrument;
+  const streams=`${symbol.toLowerCase()}@kline_${this.interval}/${symbol.toLowerCase()}@ticker${this.deskMode==='pro'?'/'+symbol.toLowerCase()+'@depth20':''}`;
+  const binanceHosts=['wss://data-stream.binance.vision/stream?streams=','wss://stream.binance.com:9443/stream?streams='];
+  const endpoint=venue==='binance'?binanceHosts[(this.wsEndpointIdx??0)%binanceHosts.length]+streams:'wss://ws-feed.exchange.coinbase.com';
   if(this.socket)return;
   clearTimeout(this.reconnectTimer);
   let socket;
   try{socket=new WebSocket(endpoint);}catch{
+   this.wsEndpointIdx=(this.wsEndpointIdx??0)+1;
    this.retrySocket(gen);
    return;
   }
@@ -314,7 +374,7 @@ export class TerminalChart {
     try{socket.send(JSON.stringify({type:'subscribe',product_ids:[symbol],channels:['ticker','heartbeat']}));}
     catch{this.retrySocket(gen,socket);return;}
    }
-   this.reconcile(gen);
+   if(reconcileOnOpen&&this.bars.length)this.reconcile(gen);
   };
   socket.onmessage=event=>{
    if(!current())return;
@@ -351,11 +411,12 @@ export class TerminalChart {
  retrySocket(generation,socket){
   if(this.disposed||generation!==this.generation||socket&&socket!==this.socket)return;
   this.closeSocket();
+  this.wsEndpointIdx=(this.wsEndpointIdx??0)+1;
   this.lastStream=0;
   this.status('polling');
-  if(socket)this.poll(generation);
+  if(socket&&this.bars.length)this.poll(generation);
   clearTimeout(this.reconnectTimer);
-  const wait=Math.min(20000,800*2**Math.min(this.reconnectAttempt??0,4));
+  const wait=Math.min(16000,550*2**Math.min(this.reconnectAttempt??0,4));
   this.reconnectAttempt=(this.reconnectAttempt??0)+1;
   this.reconnectTimer=setTimeout(()=>this.connect(generation),wait);
  }

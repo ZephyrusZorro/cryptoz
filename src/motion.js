@@ -54,8 +54,10 @@ export function moveSelection(previous, selected) {
 
 export function flashTick(element, direction) {
   if (!element?.animate || !direction || !motionEnabled()) return;
+  const flashColor = direction > 0 ? 'var(--positive, #4dd9a4)' : 'var(--negative, #ff6b81)';
   play(element, [
-    { opacity: .74 },
+    { color: flashColor, opacity: 1 },
+    { color: flashColor, opacity: .94, offset: 0.25 },
     { opacity: 1 }
-  ], 320, 'ease-out');
+  ], 420, 'cubic-bezier(.22,1,.36,1)');
 }
