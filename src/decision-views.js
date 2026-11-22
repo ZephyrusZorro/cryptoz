@@ -40,19 +40,32 @@ export function analystPanel(asset,marketQuote=null){
 export function chartGuide(pov,setup,mode,studies=[],studyCatalog={}){
  const quote=pov.instrument?.quote??'';
  const out=pov.outlook;
+ const live=pov.live?.active?pov.live:null;
+ const shiftBadge=live&&Number.isFinite(out?.convictionShift)&&Math.abs(out.convictionShift)>=4
+  ?`<span class="chart-outlook-shift ${out.convictionShift>0?'positive':'negative'}">${out.convictionShift>0?'+':''}${out.convictionShift} live</span>`:'';
+ const convictionBadge=live&&Number.isFinite(out?.conviction)
+  ?`<span class="chart-outlook-score">Conviction ${out.conviction>0?'+':''}${out.conviction}</span>`:'';
+ const breachLine=out?.activeBreach
+  ?`<p class="chart-breach-note ${out.activeBreach.kind==='up'?'positive':'negative'}">${out.activeBreach.kind==='up'?'Live breakout test':'Live breakdown test'} · Spot ${pct(out.activeBreach.pct)} ${out.activeBreach.kind==='up'?'above':'below'} prior ${esc(out.activeBreach.label.toLowerCase())} (${moneyMarkup(out.activeBreach.level,quote)})</p>`:'';
  const outlookCard=pov.ready&&out?`<section class="chart-outlook" aria-label="Technical bias and price path">
   <div class="chart-outlook-head">
    <strong class="${out.biasTone==='up'?'positive':out.biasTone==='down'?'negative':''}">${esc(out.bias)}</strong>
-   <span class="chart-outlook-score">${out.score>0?'+':''}${out.score} / ${out.maxScore} factors</span>
+   <div class="chart-outlook-badges">${convictionBadge}${shiftBadge}<span class="chart-outlook-score">${out.score>0?'+':''}${out.score} / ${out.maxScore} factors</span></div>
   </div>
   <p>${esc(out.summary)}</p>
+  ${breachLine}
   <dl class="chart-path-grid">
-   <div><dt>Upside trigger → target</dt><dd class="positive">${moneyMarkup(out.upsideTrigger,quote)} → ${moneyMarkup(out.upsideTarget,quote)}</dd></div>
-   <div><dt>Downside break → risk</dt><dd class="negative">${moneyMarkup(out.downsideTrigger,quote)} → ${moneyMarkup(out.downsideTarget,quote)}</dd></div>
+   <div><dt>Upside trigger${out.upsideLabel?' ('+esc(out.upsideLabel)+')':''} → target${Number.isFinite(out.upsideDistPct)?' <small class="path-dist">'+pct(out.upsideDistPct)+'</small>':''}</dt><dd class="positive">${moneyMarkup(out.upsideTrigger,quote)} → ${moneyMarkup(out.upsideTarget,quote)}</dd></div>
+   <div><dt>Downside break${out.downsideLabel?' ('+esc(out.downsideLabel)+')':''} → risk${Number.isFinite(out.downsideDistPct)?' <small class="path-dist">'+pct(out.downsideDistPct)+'</small>':''}</dt><dd class="negative">${moneyMarkup(out.downsideTrigger,quote)} → ${moneyMarkup(out.downsideTarget,quote)}</dd></div>
   </dl>
   <ul class="chart-factor-pills">${out.factors.map(f=>`<li class="factor-${f.tone}"><span>${esc(f.label)}</span><strong><i class="factor-dot" aria-hidden="true"></i>${esc(f.state)}</strong></li>`).join('')}</ul>
  </section>`:'';
- const core=pov.ready?`<div class="chart-reading-state"><strong>${esc(pov.trend)}</strong><time datetime="${new Date(pov.closedAt*1000).toISOString()}">${new Date(pov.closedAt*1000).toISOString().slice(0,16).replace('T',' ')} UTC</time></div>
+ const closedIso=pov.ready?new Date(pov.closedAt*1000).toISOString():'';
+ const updatedIso=live?new Date(live.updatedAt*1000).toISOString():closedIso;
+ const stateHeader=live
+  ?`<div class="chart-reading-state"><span class="reading-live-pill"><i class="live-dot" aria-hidden="true"></i>Live</span><strong>${esc(pov.trend)}</strong><span class="reading-live-meta">${moneyMarkup(live.price,quote)} <em class="${tone(live.barChangePct)}">${pct(live.barChangePct)} bar</em> · closes in ${esc(live.countdown)}</span><time datetime="${updatedIso}" title="Last confirmed candle ${closedIso.slice(0,16).replace('T',' ')} UTC">Updated ${updatedIso.slice(11,19)} UTC</time></div>`
+  :`<div class="chart-reading-state"><strong>${esc(pov.trend)}</strong><time datetime="${closedIso}">${closedIso.slice(0,16).replace('T',' ')} UTC</time></div>`;
+ const core=pov.ready?`${stateHeader}
  ${outlookCard}
  <dl class="chart-observations">${pov.observations.map(x=>`<div><dt>${esc(x.label)}</dt><dd>${esc(x.text)}${mode!=='basic'?'<small>'+esc(x.detail)+'</small>':''}</dd></div>`).join('')}</dl>`:`<p class="source">${esc(pov.reason)}</p>`;
  const latestSetup=setup?.ready&&!setup.stale?setup.events?.at(-1):null;
@@ -140,14 +153,16 @@ export function learningPrimer(){
  return `<section class="panel lesson-primer"><div class="panel-top"><h2>Crypto foundations</h2></div>${topics.map(([title,body])=>`<details class="guide-disclosure"><summary>${title}</summary><p>${body}</p></details>`).join('')}</section>`;
 }
 
-export function renderGuideAudit(setup,key,quote){
+export function renderGuideAudit(setup,key,quote,livePrice=null){
  const detail=setup?.[key];
  if(key==='none')return '<p class="data-note">Choose an Auto overlay above the chart, or open Drawings to mark your own levels.</p>';
  if(!detail)return '<p class="data-note">This drawing needs more confirmed structure. A sparse market or gaps can leave no valid levels.</p>';
  const rows=detail.levels??detail.anchors??[];
  const label=(row)=>row.name??(Number.isFinite(row.ratio)?Math.round(row.ratio*1000)/10+'%':row.kind??'Anchor');
  const records=rows.map(row=>{
-  const dist=Number.isFinite(row.distancePct)?` <small class="${tone(row.distancePct)}">(${pct(row.distancePct)} vs close)</small>`:'';
+  const liveDist=Number.isFinite(livePrice)&&livePrice>0&&Number.isFinite(row.price)?((row.price/livePrice-1)*100):null;
+  const effectiveDist=liveDist!==null?liveDist:row.distancePct;
+  const dist=Number.isFinite(effectiveDist)?` <small class="${tone(effectiveDist)}">(${pct(effectiveDist)} ${liveDist!==null?'vs live':'vs close'})</small>`:'';
   const span=(Number.isFinite(row.bottom)&&Number.isFinite(row.top))?`<small>Zone: ${moneyMarkup(row.bottom,quote,'parallel')} – ${moneyMarkup(row.top,quote,'parallel')}</small>`:'';
   return `<div><dt>${esc(label(row))}</dt><dd>${moneyMarkup(row.price,quote,'parallel')}${dist}${span}${Number.isFinite(row.time)?'<small>'+new Date(row.time*1000).toISOString().slice(0,16).replace('T',' ')+' UTC</small>':''}${row.anchors?.length?'<small>'+row.anchors.length+' distinct confirmed pivots</small>':''}</dd></div>`;
  }).join('');

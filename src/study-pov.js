@@ -2,11 +2,13 @@ import { atr, bollinger, ema, macd, normalizeCandles, rsi, sma } from './analyti
 import { adxSeries } from './studies.js';
 import { formatter, pricePrecision } from './numbers.js';
 import { INTERVALS, validInstrument } from './preferences.js';
+import { compileClosedState, evaluateLiveReading } from './live-reading-engine.js';
 
 const SAMPLE_SIZE = 50;
 const RANGE_SIZE = 20;
 const price = (value, quote) => `${formatter({ maximumFractionDigits: pricePrecision(value) }).format(value)} ${quote}`;
 const ratio = formatter({ maximumSignificantDigits: 2 });
+const signedPct = value => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
 function detectRsiDivergence(sample, rsiValues) {
   const highPivots = [];
@@ -30,7 +32,255 @@ function detectRsiDivergence(sample, rsiValues) {
   return null;
 }
 
-export function buildStudyPov({ bars, instrument, interval, nowSeconds = Date.now() / 1000, candleMeta, confirmedThrough } = {}) {
+function buildLivePov(result, sample, duration, instrument, { liveBar, liveQuote, nowSeconds }) {
+  const compiled = compileClosedState(sample, duration);
+  const live = evaluateLiveReading(compiled, { liveBar, liveQuote, nowSeconds });
+  if (!live) return null;
+
+  const m = live.metrics;
+  if (![m.sma20, m.sma50, m.rsi, m.atr].every(Number.isFinite)) return null;
+
+  const quote = instrument.quote;
+  const spot = live.price;
+  const trend = spot > m.sma20 && m.sma20 > m.sma50 ? 'Rising' : spot < m.sma20 && m.sma20 < m.sma50 ? 'Falling' : 'Mixed';
+  const trendText = trend === 'Rising'
+    ? (spot > m.ema9 ? 'Live price is leading above EMA 9, SMA 20, and SMA 50 in an aligned uptrend.' : 'Live price remains above SMA 20 and SMA 50, cooling slightly beneath EMA 9.')
+    : trend === 'Falling'
+    ? (spot < m.ema9 ? 'Live price is trading below EMA 9, SMA 20, and SMA 50 with sellers in control.' : 'Live price is rebounding above EMA 9 inside a broader SMA 20 < SMA 50 downtrend.')
+    : 'Live price and key moving averages are crossing over, signaling a transitional regime.';
+
+  const rsiRound = Math.round(m.rsi);
+  const rsiDeltaStr = Math.abs(m.rsiDelta) >= 0.4 ? ` (${m.rsiDelta > 0 ? '+' : ''}${m.rsiDelta.toFixed(1)} vs close)` : '';
+  const momentum = m.rsi >= 70 ? `Live buying momentum is stretched in overbought territory${rsiDeltaStr}.`
+    : m.rsi <= 30 ? `Live selling pressure sits in stretched oversold territory${rsiDeltaStr}.`
+    : m.rsi >= 55 ? `Live momentum leans bullish${rsiDeltaStr} with room before overbought extremes.`
+    : m.rsi <= 45 ? `Live momentum leans heavy${rsiDeltaStr} without reaching oversold extremes.`
+    : `Live momentum is balanced near mid-range${rsiDeltaStr}.`;
+
+  // 6 Live-Updating Factors
+  const factors = [];
+  let score = 0;
+
+  // 1. MA structure (live spot vs EMA9 / SMA20 / SMA50)
+  if (trend === 'Rising') {
+    score += 1;
+    factors.push({ label: 'MA alignment', state: spot > m.ema9 ? 'Bullish (Live > EMA9 > SMA20)' : 'Bullish (Above SMA20/50)', tone: 'up' });
+  } else if (trend === 'Falling') {
+    if (spot > m.ema9 && live.barChangePct > 0.6) {
+      factors.push({ label: 'MA alignment', state: 'Counter-trend lift above EMA9', tone: 'neutral' });
+    } else {
+      score -= 1;
+      factors.push({ label: 'MA alignment', state: 'Bearish (Live < SMA20 < SMA50)', tone: 'down' });
+    }
+  } else {
+    const fastTilt = spot > m.ema9 && spot > m.sma20 ? 'up' : spot < m.ema9 && spot < m.sma20 ? 'down' : 'neutral';
+    if (fastTilt === 'up') { score += 1; factors.push({ label: 'MA alignment', state: 'Reclaiming EMA9 & SMA20', tone: 'up' }); }
+    else if (fastTilt === 'down') { score -= 1; factors.push({ label: 'MA alignment', state: 'Slipping below EMA9 & SMA20', tone: 'down' }); }
+    else factors.push({ label: 'MA alignment', state: 'Mixed / transitional', tone: 'neutral' });
+  }
+
+  // 2. Live Trend strength (ADX + DI)
+  if (Number.isFinite(m.adx) && Number.isFinite(m.plusDI) && Number.isFinite(m.minusDI)) {
+    if (m.adx >= 25 && m.plusDI > m.minusDI) {
+      score += 1;
+      factors.push({ label: 'Trend strength (ADX)', state: `Active uptrend (ADX ${Math.round(m.adx)}, +DI > −DI)`, tone: 'up' });
+    } else if (m.adx >= 25 && m.minusDI > m.plusDI) {
+      score -= 1;
+      factors.push({ label: 'Trend strength (ADX)', state: `Active downtrend (ADX ${Math.round(m.adx)}, −DI > +DI)`, tone: 'down' });
+    } else {
+      factors.push({ label: 'Trend strength (ADX)', state: `Ranging / building (ADX ${Math.round(m.adx)})`, tone: 'neutral' });
+    }
+  }
+
+  // 3. Live MACD impulse
+  if (Number.isFinite(m.macdHist) && Number.isFinite(m.macdPrev)) {
+    if (m.macdHist > 0 && m.macdHist >= m.macdPrev) {
+      score += 1;
+      factors.push({ label: 'MACD impulse', state: 'Positive & expanding live', tone: 'up' });
+    } else if (m.macdHist < 0 && m.macdHist <= m.macdPrev) {
+      score -= 1;
+      factors.push({ label: 'MACD impulse', state: 'Negative & deepening live', tone: 'down' });
+    } else if (m.macdHist > 0) {
+      factors.push({ label: 'MACD impulse', state: 'Positive, cooling intraday', tone: 'neutral' });
+    } else {
+      factors.push({ label: 'MACD impulse', state: 'Negative, recovering intraday', tone: 'neutral' });
+    }
+  }
+
+  // 4. Live RSI momentum & divergence
+  const divergence = compiled.divergence;
+  if (divergence) {
+    score += divergence.kind === 'bullish' ? 1 : -1;
+    factors.push({ label: 'RSI momentum', state: `${divergence.label} (RSI ${rsiRound})`, tone: divergence.kind === 'bullish' ? 'up' : 'down' });
+  } else if (m.rsi >= 55 && m.rsi < 75) {
+    score += 1;
+    factors.push({ label: 'RSI momentum', state: `Constructive (${rsiRound}${Math.abs(m.rsiDelta) >= 1 ? (m.rsiDelta > 0 ? ' ↑' : ' ↓') : ''})`, tone: 'up' });
+  } else if (m.rsi <= 45 && m.rsi > 25) {
+    score -= 1;
+    factors.push({ label: 'RSI momentum', state: `Heavy (${rsiRound}${Math.abs(m.rsiDelta) >= 1 ? (m.rsiDelta > 0 ? ' ↑' : ' ↓') : ''})`, tone: 'down' });
+  } else {
+    factors.push({
+      label: 'RSI momentum',
+      state: m.rsi >= 75 ? `Overbought (${rsiRound})` : m.rsi <= 25 ? `Oversold (${rsiRound}${m.rsiDelta >= 1 ? ' ↑' : ''})` : `Balanced (${rsiRound})`,
+      tone: 'neutral',
+    });
+  }
+
+  // 5. Live Volume Pace & OBV flow
+  if (m.obvFlowRatio !== null) {
+    const paceTag = m.volumeRatio !== null ? ` · ${ratio.format(m.volumeRatio)}× pace` : '';
+    if (m.obvFlowRatio > 0.16) {
+      score += 1;
+      factors.push({ label: 'Volume & OBV pace', state: `Accumulation${paceTag}`, tone: 'up' });
+    } else if (m.obvFlowRatio < -0.16) {
+      score -= 1;
+      factors.push({ label: 'Volume & OBV pace', state: `Distribution${paceTag}`, tone: 'down' });
+    } else {
+      factors.push({ label: 'Volume & OBV pace', state: `Balanced flow${paceTag}`, tone: 'neutral' });
+    }
+  }
+
+  // 6. Live Forming Candle & VWAP Pressure
+  const vwapTone = m.vwapDevPct > 0.35 && live.tape.tone !== 'down' ? 'up' : m.vwapDevPct < -0.35 && live.tape.tone !== 'up' ? 'down' : live.tape.tone;
+  if (vwapTone === 'up') score += 1;
+  else if (vwapTone === 'down') score -= 1;
+  factors.push({
+    label: 'Live bar & VWAP',
+    state: `${live.tape.label} (${signedPct(m.vwapDevPct)} vs VWAP)`,
+    tone: vwapTone,
+  });
+
+  // High-resolution Bias Headline incorporating live conviction & intraday shifts
+  const conv = live.conviction;
+  const shift = live.convictionShift;
+  let bias;
+  if (conv >= 42 || score >= 4) bias = 'Bullish technical alignment';
+  else if (conv >= 16 || score >= 2) bias = shift >= 10 ? 'Strengthening bullish momentum' : 'Constructive — leaning higher';
+  else if (conv <= -42 || score <= -4) bias = shift >= 12 ? 'Bearish trend — intraday bounce active' : 'Bearish technical alignment';
+  else if (conv <= -16 || score <= -2) bias = shift >= 10 ? 'Defensive — stabilizing intraday' : 'Defensive — leaning lower';
+  else if (shift >= 12) bias = 'Transitional — live buyers stepping in';
+  else if (shift <= -12) bias = 'Transitional — live supply pressing lower';
+  else bias = 'Balanced — range-bound structure';
+
+  const biasTone = (conv >= 16 || score >= 2) ? 'up' : (conv <= -16 || score <= -2) ? 'down' : 'neutral';
+
+  const lv = live.levels;
+  const upTrigStr = price(lv.upsideTrigger, quote);
+  const upTgtStr = price(lv.upsideTarget, quote);
+  const dnTrigStr = price(lv.downsideTrigger, quote);
+  const dnTgtStr = price(lv.downsideTarget, quote);
+  const spotStr = price(spot, quote);
+
+  const breachClause = lv.activeBreach
+    ? lv.activeBreach.kind === 'up'
+      ? ` Live price (${spotStr}) is actively pressing ${signedPct(lv.activeBreach.pct)} above the prior ${lv.activeBreach.label.toLowerCase()} (${price(lv.activeBreach.level, quote)}).`
+      : ` Live price (${spotStr}) is actively trading ${signedPct(lv.activeBreach.pct)} beneath the prior ${lv.activeBreach.label.toLowerCase()} (${price(lv.activeBreach.level, quote)}).`
+    : '';
+
+  const shiftClause = Math.abs(shift) >= 8
+    ? ` Intraday conviction shifted ${shift > 0 ? '+' : ''}${shift} pts from last close (${live.tape.label.toLowerCase()}, ${signedPct(live.barChangePct)} on current bar).`
+    : ` Current candle is ${signedPct(live.barChangePct)} (${live.elapsedPct}% elapsed, closes in ${live.countdown}).`;
+
+  const directionSummary = biasTone === 'up'
+    ? `Live indicators lean bullish (${score > 0 ? '+' : ''}${score}/${factors.length}, conviction ${conv > 0 ? '+' : ''}${conv}/100) at ${live.range.posPct}% of the 20-bar range.${breachClause} Clearing ${lv.upsideLabel} (${upTrigStr}, ${signedPct(lv.upsideDistPct)}) opens ${upTgtStr}, while losing ${lv.downsideLabel} (${dnTrigStr}, ${signedPct(lv.downsideDistPct)}) weakens momentum.${shiftClause}`
+    : biasTone === 'down'
+    ? `Live indicators align defensively (${score > 0 ? '+' : ''}${score}/${factors.length}, conviction ${conv}/100) at ${live.range.posPct}% of the 20-bar range.${breachClause} A break beneath ${lv.downsideLabel} (${dnTrigStr}, ${signedPct(lv.downsideDistPct)}) exposes ${dnTgtStr}, while reclaiming ${lv.upsideLabel} (${upTrigStr}, ${signedPct(lv.upsideDistPct)}) eases selling pressure.${shiftClause}`
+    : `Live signals are balanced (${score >= 0 ? '+' : ''}${score}/${factors.length}, conviction ${conv >= 0 ? '+' : ''}${conv}/100) with spot at ${live.range.posPct}% of the 20-bar range.${breachClause}${live.volatilitySqueeze ? ' Bollinger Bandwidth is compressed in a squeeze — watch for a decisive break outside ' + dnTrigStr + ' or ' + upTrigStr + '.' : ` Watch ${lv.upsideLabel} (${upTrigStr}) above and ${lv.downsideLabel} (${dnTrigStr}) below for the next directional leg.`}${shiftClause}`;
+
+  const volState = live.volatilitySqueeze
+    ? `Live volatility squeeze (BBW ${m.bbw.toFixed(2)}%) — tight compression often precedes an expanded directional break.`
+    : `Live ATR averages ${price(m.atr, quote)} per bar (${(m.atr / spot * 100).toFixed(2)}% of spot); current bar spans ${(live.tape.expansion * 100).toFixed(0)}% of ATR.`;
+
+  const volumeNote = m.volumeRatio === null
+    ? 'Live candle volume is still accumulating against the 20-bar baseline.'
+    : `Forming candle is tracking ${ratio.format(m.volumeRatio)}× normal volume pace (${live.elapsedPct}% through bar).${m.obvFlowRatio !== null && Math.abs(m.obvFlowRatio) > 0.16 ? (m.obvFlowRatio > 0 ? ' 10-bar OBV shows net accumulation.' : ' 10-bar OBV shows net distribution.') : ''}`;
+
+  const invalidationLevel = biasTone === 'up' ? Math.min(m.ema20, m.sma20) : biasTone === 'down' ? Math.max(m.ema20, m.sma20) : null;
+
+  return {
+    ...result,
+    ready: true,
+    reason: null,
+    method: 'Real-time incremental multi-factor chart engine (O(1) live + confirmed structure)',
+    trend,
+    range: { high: live.range.high, low: live.range.low, periods: RANGE_SIZE },
+    metrics: {
+      close: spot,
+      sma20: m.sma20,
+      sma50: m.sma50,
+      ema9: m.ema9,
+      ema20: m.ema20,
+      rsi: m.rsi,
+      atr: m.atr,
+      adx: m.adx,
+      bbw: m.bbw,
+      vwap20: m.vwap20,
+      volumeRatio: m.volumeRatio,
+      obvFlowRatio: m.obvFlowRatio,
+    },
+    live: {
+      active: true,
+      price: spot,
+      barOpen: live.barOpen,
+      barHigh: live.barHigh,
+      barLow: live.barLow,
+      barChangePct: live.barChangePct,
+      elapsedPct: live.elapsedPct,
+      remainingSec: live.remainingSec,
+      countdown: live.countdown,
+      updatedAt: live.updatedAt,
+      conviction: live.conviction,
+      closedConviction: live.closedConviction,
+      convictionShift: live.convictionShift,
+      tape: live.tape,
+      vwap20: m.vwap20,
+      vwapDevPct: m.vwapDevPct,
+      rsiDelta: m.rsiDelta,
+      upsideLabel: lv.upsideLabel,
+      upsideDistPct: lv.upsideDistPct,
+      downsideLabel: lv.downsideLabel,
+      downsideDistPct: lv.downsideDistPct,
+      activeBreach: lv.activeBreach,
+      revisionKey: live.revisionKey,
+    },
+    outlook: {
+      bias,
+      biasTone,
+      score,
+      maxScore: factors.length,
+      conviction: live.conviction,
+      convictionShift: live.convictionShift,
+      summary: directionSummary,
+      factors,
+      volatilitySqueeze: live.volatilitySqueeze,
+      divergence,
+      rangePosPct: live.range.posPct,
+      upsideTrigger: lv.upsideTrigger,
+      upsideLabel: lv.upsideLabel,
+      upsideDistPct: lv.upsideDistPct,
+      upsideTarget: lv.upsideTarget,
+      downsideTrigger: lv.downsideTrigger,
+      downsideLabel: lv.downsideLabel,
+      downsideDistPct: lv.downsideDistPct,
+      downsideTarget: lv.downsideTarget,
+      activeBreach: lv.activeBreach,
+      invalidationLevel,
+    },
+    observations: [
+      { label: 'Price trend', text: trendText, detail: `EMA 9 ${price(m.ema9, quote)} · SMA 20 ${price(m.sma20, quote)} · SMA 50 ${price(m.sma50, quote)}${Number.isFinite(m.adx) ? ` · ADX ${Math.round(m.adx)}` : ''}` },
+      { label: 'Momentum', text: divergence ? `${momentum} ${divergence.detail}` : momentum, detail: `Live RSI 14 ${rsiRound} / 100${rsiDeltaStr} · VWAP 20 ${price(m.vwap20, quote)} (${signedPct(m.vwapDevPct)})` },
+      { label: 'Volatility & move', text: volState, detail: `Live ATR 14 ${price(m.atr, quote)}${m.bbw !== null ? ` · BB Width ${m.bbw.toFixed(2)}%` : ''}` },
+      { label: 'Trading volume', text: volumeNote, detail: `Time-normalized pace across forming candle + 10-bar OBV flow.` },
+    ],
+    scenarios: [
+      { label: `Upside path (${lv.upsideLabel})`, text: `Sustained trade and candle close above ${upTrigStr} (${signedPct(lv.upsideDistPct)} from live spot) targets ${upTgtStr} (+1.5× ATR measured move).` },
+      { label: 'Active range rotation', text: `Between ${dnTrigStr} (${lv.downsideLabel}) and ${upTrigStr} (${lv.upsideLabel}), expect rotation around 20-bar VWAP (${price(m.vwap20, quote)}).` },
+      { label: `Downside path (${lv.downsideLabel})`, text: `A confirmed close beneath ${dnTrigStr} (${signedPct(lv.downsideDistPct)} from live spot) opens downside risk toward ${dnTgtStr} (−1.5× ATR measured move).` },
+    ],
+  };
+}
+
+export function buildStudyPov({ bars, instrument, interval, nowSeconds = Date.now() / 1000, candleMeta, confirmedThrough, liveBar = null, liveQuote = null, includeLive = false } = {}) {
   const duration = Object.hasOwn(INTERVALS, interval) ? INTERVALS[interval] : 0;
   const result = {
     ready: false,
@@ -44,6 +294,7 @@ export function buildStudyPov({ bars, instrument, interval, nowSeconds = Date.no
     observations: [],
     scenarios: [],
     outlook: null,
+    live: null,
     stale: candleMeta?.cache === 'stale',
     truncatedByGap: false,
   };
@@ -52,7 +303,8 @@ export function buildStudyPov({ bars, instrument, interval, nowSeconds = Date.no
   const fetchedAt = Date.parse(candleMeta?.fetchedAt) / 1000;
   const observedThrough = Number.isFinite(fetchedAt) ? fetchedAt : nowSeconds;
   const confirmed = Number.isFinite(confirmedThrough) && confirmedThrough <= nowSeconds ? confirmedThrough : 0;
-  const cutoff = Math.min(nowSeconds, Math.max(observedThrough, confirmed));
+  const liveObserved = includeLive && Number.isFinite(liveBar?.time) && liveBar.time <= nowSeconds ? liveBar.time : 0;
+  const cutoff = Math.min(nowSeconds, Math.max(observedThrough, confirmed, liveObserved));
   const eligible = Array.isArray(bars) ? bars.filter(bar => bar && bar.time % duration === 0 && bar.time + duration <= cutoff) : [];
   const closed = normalizeCandles(eligible);
   if (!closed.length) return { ...result, reason: 'Waiting for a completed candle from this market.' };
@@ -69,6 +321,12 @@ export function buildStudyPov({ bars, instrument, interval, nowSeconds = Date.no
   if (sample.length < SAMPLE_SIZE) {
     const missing = result.truncatedByGap ? 'A gap limits the recent sample.' : 'More market history is needed.';
     return { ...result, reason: `Study POV needs ${SAMPLE_SIZE} consecutive closed candles. ${missing}` };
+  }
+
+  // Real-time incremental path when live streaming data is provided
+  if (includeLive && (liveBar || (Number.isFinite(liveQuote?.price) && liveQuote.price > 0))) {
+    const livePov = buildLivePov(result, sample, duration, instrument, { liveBar, liveQuote, nowSeconds });
+    if (livePov) return livePov;
   }
 
   const last = sample.at(-1);

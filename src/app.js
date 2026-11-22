@@ -835,7 +835,18 @@ function updateQuote(q){
 function updateSummary(){
  if(!terminal||!$('#technical-summary'))return;
  syncForecastScope(terminal);
- const pov=buildStudyPov({bars:terminal.studyBars,instrument:selected,interval:selectedInterval,nowSeconds:terminal.historyAnchor??Date.now()/1000,candleMeta:terminal.candleMeta,confirmedThrough:terminal.confirmedThrough});
+ const liveMode=!terminal.historyAnchor;
+ const pov=buildStudyPov({
+  bars:terminal.studyBars,
+  instrument:selected,
+  interval:selectedInterval,
+  nowSeconds:terminal.historyAnchor??Date.now()/1000,
+  candleMeta:terminal.candleMeta,
+  confirmedThrough:terminal.confirmedThrough,
+  liveBar:liveMode?terminal.getLiveBar():null,
+  liveQuote:liveMode?terminal.currentQuote():null,
+  includeLive:liveMode
+ });
  updateChartReader(terminal,pov);
 }
 function renderSignalEvents(chart){
@@ -855,11 +866,24 @@ function renderSignalEvents(chart){
 }
 function updateChartReader(chart,pov){
  const node=$('#technical-summary');if(!node||!chart)return;
- const key=[chart.generation,chart.analysisRevision,pov.closedAt,pov.stale,chart.manualDrawing,chart.autoGuide,chart.signalKinds?.join(','),chart.studyIds?.join(','),chart.markers,chart.rsiPeriod,pov.reason].join(':');
- if(node.dataset.context===key)return;node.dataset.context=key;refreshIndicatorStrip();renderSignalEvents(chart);
- const open=[...node.querySelectorAll('details[open] summary')].map(x=>x.textContent);const levels=$('#auto-guide-info');if(levels)levels.innerHTML=renderGuideAudit(chart.autoSetup,chart.manualDrawing?'none':chart.autoGuide,chart.instrument.quote);
+ const liveKey=pov.live?.revisionKey??'';
+ const structuralKey=[chart.generation,chart.analysisRevision,pov.closedAt,pov.stale,chart.manualDrawing,chart.autoGuide,chart.signalKinds?.join(','),chart.studyIds?.join(','),chart.markers,chart.rsiPeriod,pov.reason].join(':');
+ const key=structuralKey+'|'+liveKey;
+ if(node.dataset.context===key)return;
+ const structuralChanged=node.dataset.structuralContext!==structuralKey;
+ node.dataset.context=key;
+ node.dataset.structuralContext=structuralKey;
+ if(structuralChanged){refreshIndicatorStrip();renderSignalEvents(chart);}
+ const open=[...node.querySelectorAll('details[open] summary')].map(x=>x.textContent);
+ const activeSummary=node.contains(document.activeElement)&&document.activeElement?.tagName==='SUMMARY'?document.activeElement.textContent:null;
+ const levels=$('#auto-guide-info');
+ if(levels)levels.innerHTML=renderGuideAudit(chart.autoSetup,chart.manualDrawing?'none':chart.autoGuide,chart.instrument.quote,pov.live?.price??chart.currentQuote()?.price??null);
  node.innerHTML=chartGuide(pov,chart.autoSetup?{...chart.autoSetup,activeGuide:'none',events:chart.visibleSignals??[]}:null,'hybrid',chart.activeStudies(),STUDIES);
- for(const x of node.querySelectorAll('details'))x.open=open.includes(x.querySelector('summary').textContent);
+ for(const x of node.querySelectorAll('details')){
+  const label=x.querySelector('summary')?.textContent;
+  x.open=open.includes(label);
+  if(activeSummary&&label===activeSummary)x.querySelector('summary')?.focus({preventScroll:true});
+ }
  if(pov.ready&&!chart.historyAnchor){if(!forecastRun&&forecastView?.result.asOf<pov.closedAt&&node.dataset.forecastWake!==String(pov.closedAt)){node.dataset.forecastWake=String(pov.closedAt);paintForecast(chart);}acceptForecastResults(chart,pov.closedAt);}
 }
 

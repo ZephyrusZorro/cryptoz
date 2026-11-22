@@ -35,7 +35,7 @@ export class TerminalChart {
   this.clearSignalFocus();
   this.lastRangeGesture=null;this.historyRetryAt=0;
   this.referenceDays=[];this.referenceRequest=null;this.referenceCursor=null;this.referenceRetryAt=0;this.periodBeforeAt=null;
-  this.instrument=instrument;this.interval=interval;this.historyAnchor=before;this.generation++;const gen=this.generation;this.stopNetwork();this.networkController=new AbortController();this.gestureController?.abort();this.liveRevision=0;this.confirmedThrough=0;this.latestSnapshotAt=0;this.confirmedStreamBars.clear();this.studyBars=[];this.visibleSignals=[];this.markerDescriptions=null;this.autoSetup=null;this.barRevisions=new Map();this.barEvents=new Map();this.observer?.disconnect();this.chart?.remove();this.chart=null;this.series=null;this.svg=null;this.bars=[];this.historyStatus='idle';this.historyNotice='';this.quote=initialQuote;this.candleMeta=null;this.lastStream=0;this.lastSocketFrame=0;this.reconnectAttempt=0;this.wsEndpointIdx=0;this.lastKlineReceived=0;this.lastBookAt=0;this.bookSequence=0;this.pendingPoint=null;this.status('loading');this.onWindow?.({visible:0,total:0,start:null,end:null});this.onQuote(initialQuote);this.onBook(null);this.onSummary({ready:false});this.onDrawings();
+  this.instrument=instrument;this.interval=interval;this.historyAnchor=before;this.generation++;const gen=this.generation;this.stopNetwork();this.networkController=new AbortController();this.gestureController?.abort();this.liveRevision=0;this.confirmedThrough=0;this.latestSnapshotAt=0;this.confirmedStreamBars.clear();this.studyBars=[];this.visibleSignals=[];this.markerDescriptions=null;this.autoSetup=null;this.barRevisions=new Map();this.barEvents=new Map();this.observer?.disconnect();this.chart?.remove();this.chart=null;this.series=null;this.svg=null;this.bars=[];this.historyStatus='idle';this.historyNotice='';this.quote=initialQuote;this.candleMeta=null;this.lastStream=0;this.lastSocketFrame=0;this.reconnectAttempt=0;this.wsEndpointIdx=0;this.lastKlineReceived=0;this.lastBookAt=0;this.bookSequence=0;this.pendingPoint=null;this.lastLiveSummaryAt=0;this.lastLiveSummaryPrice=null;this.status('loading');this.onWindow?.({visible:0,total:0,start:null,end:null});this.onQuote(initialQuote);this.onBook(null);this.onSummary({ready:false});this.onDrawings();
 
   const candlePath=`candles?venue=${instrument.venue}&symbol=${instrument.symbol}&interval=${interval}${before?'&before='+before:''}`;
   const warm=!before?peekApiCache(candlePath,{maxAgeMs:300_000}):null;
@@ -317,6 +317,77 @@ export class TerminalChart {
   return true;
  }
  completedCutoff(now=Math.floor(Date.now()/1000)){return Math.min(now,this.historyAnchor??Infinity,this.confirmedThrough);}
+ getLiveBar(){
+  if(this.historyAnchor||!this.bars.length)return null;
+  const step=seconds[this.interval];
+  const last=this.bars.at(-1);
+  if(!last||!step)return null;
+  const lastClosedTime=this.studyBars.at(-1)?.time??0;
+  const q=this.currentQuote();
+  const qPrice=Number.isFinite(q?.price)&&q.price>0?q.price:null;
+  if(last.time>lastClosedTime){
+   if(!qPrice)return last;
+   return {...last,close:qPrice,high:Math.max(last.high,qPrice),low:Math.min(last.low,qPrice)};
+  }
+  if(!qPrice)return null;
+  const nowSec=Math.floor(Date.now()/1000);
+  const openTime=Math.max(lastClosedTime+step,Math.floor(nowSec/step)*step);
+  const base=last.close;
+  return {time:openTime,open:base,high:Math.max(base,qPrice),low:Math.min(base,qPrice),close:qPrice,volume:0};
+ }
+ applyLiveQuoteToFormingBar(quote){
+  if(this.disposed||this.historyAnchor||!this.bars.length||!quote||!Number.isFinite(quote.price)||quote.price<=0)return;
+  const step=seconds[this.interval];
+  if(!step)return;
+  const last=this.bars.at(-1);
+  const lastClosedTime=this.studyBars.at(-1)?.time??0;
+  if(this.confirmedStreamBars.has(last.time))return;
+  const nowSec=Math.floor(Date.now()/1000);
+  const bucket=Math.floor(nowSec/step)*step;
+  const price=quote.price;
+  if(last.time===bucket&&last.time>lastClosedTime){
+   const nextHigh=Math.max(last.high,price),nextLow=Math.min(last.low,price);
+   if(last.close===price&&last.high===nextHigh&&last.low===nextLow)return;
+   this.bars[this.bars.length-1]={...last,close:price,high:nextHigh,low:nextLow};
+   if(this.series&&this.style!=='heikin'){
+    const updated=this.bars.at(-1);
+    this.series.update(this.style==='line'?{time:updated.time,value:updated.close}:updated);
+   }
+  }else if(this.instrument.venue==='coinbase'&&bucket>last.time&&bucket>lastClosedTime){
+   const open=last.close;
+   const forming={time:bucket,open,high:Math.max(open,price),low:Math.min(open,price),close:price,volume:0};
+   this.bars.push(forming);
+   if(this.bars.length>HISTORY_LIMIT)this.bars.shift();
+   if(this.series&&this.style!=='heikin'){
+    this.series.update(this.style==='line'?{time:forming.time,value:forming.close}:forming);
+    this.seriesLastTime=forming.time;
+   }
+  }
+ }
+ scheduleLiveSummary(price,{immediate=false}={}){
+  if(this.disposed||this.historyAnchor||!this.studyBars.length)return;
+  if(typeof document!=='undefined'&&document.hidden)return;
+  const now=Date.now();
+  const elapsed=now-(this.lastLiveSummaryAt??0);
+  const moved=Number.isFinite(price)&&Number.isFinite(this.lastLiveSummaryPrice)&&this.lastLiveSummaryPrice>0
+   ?Math.abs(price-this.lastLiveSummaryPrice)/this.lastLiveSummaryPrice>=0.0012
+   :false;
+  const fire=()=>{
+   clearTimeout(this.liveSummaryTimer);
+   this.liveSummaryTimer=null;
+   if(this.disposed||this.historyAnchor)return;
+   this.lastLiveSummaryAt=Date.now();
+   if(Number.isFinite(price))this.lastLiveSummaryPrice=price;
+   this.updateSummary();
+  };
+  if(immediate||elapsed>=1200||(moved&&elapsed>=350)){
+   fire();
+   return;
+  }
+  if(!this.liveSummaryTimer){
+   this.liveSummaryTimer=setTimeout(fire,Math.max(120,1200-elapsed));
+  }
+ }
  updateSummary(){const cutoff=this.completedCutoff();this.onSummary(technicalSummary(this.studyBars.filter(b=>b.time<cutoff)));}
  applyHistory(response,revision,requestedAt=Date.now()){
   const incoming=normalizeCandles(response.data?.bars??[]);if(!incoming.length)throw Error('Invalid historical candles');
@@ -343,7 +414,7 @@ export class TerminalChart {
   const current=()=>gen===this.generation&&!this.disposed;
   this.pollingPromise=Promise.allSettled([
    this.deskMode==='pro'?this.fetch(`book?venue=${venue}&symbol=${symbol}`).then(r=>{if(current()&&Date.now()-(this.lastBookAt??0)>5000)this.onBook(r);}).catch(()=>{if(current()&&Date.now()-(this.lastBookAt??0)>5000)this.onBook(null);}):Promise.resolve(),
-   this.fetch(`ticker?venue=${venue}&symbol=${symbol}`).then(r=>{if(!current()||this.freshStream())return;const d=r.data,value=+(d.lastPrice??d.last),open=+(d.openPrice??d.open),time=Date.parse(d.observedAt??r.fetchedAt),previous=Date.parse(this.quote?.updatedAt);if(!Number.isFinite(value)||value<=0||!Number.isFinite(time)||Number.isFinite(previous)&&time<=previous)return;this.quote={venue,symbol,price:value,change:d.priceChangePercent!==null&&d.priceChangePercent!==''&&Number.isFinite(+d.priceChangePercent)?+d.priceChangePercent:open>0?(value/open-1)*100:null,high:+(d.highPrice??d.high)||null,low:+(d.lowPrice??d.low)||null,updatedAt:new Date(time).toISOString(),stale:r.cache==='stale',source:'REST'};this.onQuote(this.quote);}),
+   this.fetch(`ticker?venue=${venue}&symbol=${symbol}`).then(r=>{if(!current()||this.freshStream())return;const d=r.data,value=+(d.lastPrice??d.last),open=+(d.openPrice??d.open),time=Date.parse(d.observedAt??r.fetchedAt),previous=Date.parse(this.quote?.updatedAt);if(!Number.isFinite(value)||value<=0||!Number.isFinite(time)||Number.isFinite(previous)&&time<=previous)return;this.quote={venue,symbol,price:value,change:d.priceChangePercent!==null&&d.priceChangePercent!==''&&Number.isFinite(+d.priceChangePercent)?+d.priceChangePercent:open>0?(value/open-1)*100:null,high:+(d.highPrice??d.high)||null,low:+(d.lowPrice??d.low)||null,updatedAt:new Date(time).toISOString(),stale:r.cache==='stale',source:'REST'};this.onQuote(this.quote);this.applyLiveQuoteToFormingBar(this.quote);this.scheduleLiveSummary(this.quote.price);}),
    (!this.freshStream()||venue==='coinbase'||Date.now()-(this.lastKlineReceived??0)>15000)?this.fetch(`candles?venue=${venue}&symbol=${symbol}&interval=${this.interval}`).then(r=>{if(current())this.applyHistory(r,revision,requestedAt);}).catch(()=>{if(current()&&!this.freshStream())this.status('delayed');}):Promise.resolve()
   ]).finally(()=>{if(this.pollToken===token){this.polling=false;this.pollingPromise=null;}});
   return this.pollingPromise;
@@ -396,6 +467,8 @@ export class TerminalChart {
     const quote=parseLiveQuote(message,this.instrument,this.quote);
     if(!quote)return;
     this.quote=quote;this.onQuote(quote);
+    this.applyLiveQuoteToFormingBar(quote);
+    this.scheduleLiveSummary(quote.price);
    }else if(venue==='coinbase'&&message.type==='heartbeat'&&message.product_id===symbol){
     this.lastSocketFrame=Date.now();
     this.reconnectAttempt=0;
@@ -425,6 +498,15 @@ export class TerminalChart {
   if(this.socket&&now-this.lastSocketFrame>25000)this.retrySocket(generation,this.socket);
   if(this.lastStream&&now-this.lastStream>20000&&this.streamState==='streaming')this.status('delayed');
   if(this.lastBookAt&&now-this.lastBookAt>12000){this.lastBookAt=0;this.poll(generation);}
+  if(!this.historyAnchor&&this.studyBars.length&&!(typeof document!=='undefined'&&document.hidden)){
+   const step=seconds[this.interval],lastClosedEnd=this.confirmedThrough||0;
+   if(step&&lastClosedEnd&&Math.floor(now/1000)>=lastClosedEnd+step&&now-(this.lastKlineReceived??0)>5000){
+    this.reconcile(generation);
+   }
+   if(now-(this.lastLiveSummaryAt??0)>=15000){
+    this.scheduleLiveSummary(this.currentQuote(now)?.price??this.bars.at(-1)?.close,{immediate:true});
+   }
+  }
   this.onStatus(this.streamState);
  }
  closeSocket(){
@@ -460,7 +542,8 @@ export class TerminalChart {
    this.observeStudyBars([bar],bar.time+step);
   }
   this.updateSeries({live:!historical,closed:k.x});
-  if(k.x)this.updateSummary();
+  if(k.x){this.lastLiveSummaryAt=now;this.lastLiveSummaryPrice=bar.close;this.updateSummary();}
+  else this.scheduleLiveSummary(bar.close);
   return true;
  }
  markViewportGesture(now=Date.now()){this.viewPreset='custom';this.lastRangeGesture=now;}
@@ -698,6 +781,6 @@ export class TerminalChart {
   if(!this.chart||!this.svg||this.exporting)return;this.exporting=true;const instrument={...this.instrument},interval=this.interval;
   try{const blob=await capturePNG({chart:this.chart,overlay:new XMLSerializer().serializeToString(this.svg),watermark:`CRYPTOZ · ${instrument.venue.toUpperCase()} ${instrument.symbol} ${interval} · exported ${new Date().toISOString()}`,color:palette().accent});downloadBlob(`cryptoz-${instrument.venue}-${instrument.symbol}-${interval}.png`,blob);}catch(error){toast('Snapshot export failed: '+error.message);}finally{this.exporting=false;}
  }
- stopNetwork(){if(this.rangeFrame){cancelAnimationFrame(this.rangeFrame);this.rangeFrame=0;}this.lastRangeGesture=null;this.networkController?.abort();this.historyPage=null;this.pollToken=null;clearInterval(this.pollTimer);clearInterval(this.healthTimer);clearTimeout(this.reconnectTimer);this.closeSocket();this.polling=false;}
+ stopNetwork(){if(this.rangeFrame){cancelAnimationFrame(this.rangeFrame);this.rangeFrame=0;}this.lastRangeGesture=null;this.networkController?.abort();this.historyPage=null;this.pollToken=null;clearInterval(this.pollTimer);clearInterval(this.healthTimer);clearTimeout(this.reconnectTimer);clearTimeout(this.liveSummaryTimer);this.liveSummaryTimer=null;this.closeSocket();this.polling=false;}
  dispose(){this.disposed=true;this.generation++;this.stopNetwork();this.gestureController?.abort();this.observer?.disconnect();this.chart?.remove();}
 }
