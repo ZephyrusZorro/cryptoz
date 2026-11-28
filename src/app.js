@@ -50,8 +50,9 @@ import {createDialogController} from './dialog.js';
 import {closeToolMenus} from './disclosure-menu.js';
 import {refreshPage} from './page-refresh.js';
 import {matchesAsset,rankAssets,catalogQuery,normalizeSearch,createLatestSearch,mergeAssets,assetIdentity,isFetchAsset} from './asset-search.js';
-import {newsWindow} from './news-window.js';
+import {newsWindow,NEWS_WINDOW_OPTIONS,validNewsWindow} from './news-window.js';
 import {renderNewsCards} from './news-view.js';
+import {buildKpiIntelligence} from './market-intel.js';
 import {PRIMARY,resolveNavigation,navigationFor,normalizeDock,readDock,saveDock} from './navigation.js';
 import {createDataLoader} from './data-loader.js';
 import {palette,chartOptions,readAppearance,applyAppearance} from './theme.js';
@@ -80,7 +81,7 @@ const $=s=>document.querySelector(s);const storage=safeStorage();const drafts=cr
 
 let selected=workspace.preferences.lastInstrument;let selectedInterval=workspace.preferences.interval;let comparison=null,studioViewName='map',studioMapMetric='marketCap',studioMapLimit=45,studioDepthPair=null;let riskCalculator;let modalGeneration=0,studioGeneration=0;const alertPrices=new Map();let learning=null,marketStream=null,miniSeries=null;let appearance=applyAppearance(readAppearance(storage),storage);
 
-let dockMode=readDock(storage),newsLimit=20,newsSource='all',newsSort='impact';let searchTimer,marketSearchTimer,remoteAssets=[],marketRemoteAssets=[],remoteLoading=false,remoteError='',marketRemoteLoading=false,marketRemoteError='';const assetLookup=new Map();let dialogController,manualRefreshing=false,operationError='';
+let dockMode=readDock(storage),newsLimit=20,newsSource='all',newsSort='impact',newsTimeframe='latest',newsWindowLoading=false,newsWindowError='',newsWindowController=null;const newsDigestCache={};let searchTimer,marketSearchTimer,remoteAssets=[],marketRemoteAssets=[],remoteLoading=false,remoteError='',marketRemoteLoading=false,marketRemoteError='';const assetLookup=new Map();let dialogController,manualRefreshing=false,operationError='';
 let benchmarkTask=null,benchmarkObserver=null,practice=null,backtestView=null,practiceSelected=null,homeNewsTopic='all',marketGroup='all',insightsView=null,marketScreen=initialScreen();
 let benchmarkRange='7d', benchmarkDisplayed=null;
 const transparencyPreference=matchMedia('(prefers-reduced-transparency: reduce)');
@@ -300,6 +301,7 @@ function syncDisplayCurrency(){
  refreshMoney(document);
  patchLiveQuotes();
  terminal?.applyCurrency();
+ if(page==='terminal'&&terminal)updateSummary();
  learning?.applyCurrency?.();
  backtestView?.applyCurrency?.();
  if(page==='studio')studioView(studioViewName,pageGeneration,true);
@@ -322,23 +324,62 @@ function refreshFx(){
 
 function renderLearning(){$('#main').innerHTML=header('Learn crypto','Build the basics, read a live chart and test what you know.')+'<div id="learning-root"></div>';learning=mountLearningHub($('#learning-root'),{instruments,hydrate,storage,progress:learningProgress,initialView:new URLSearchParams(location.hash.split('?')[1]??'').get('view')??'start',onViewChange:view=>history.replaceState(null,'','#learn'+(view==='start'?'':'?view='+view)),onChart:i=>{selected=i;location.hash='terminal';}});}
 
+function activeNewsPayload(){
+ return newsTimeframe==='latest'?data.news:(newsDigestCache[newsTimeframe]??null);
+}
 function newsSourceOptions(){
- const feeds=(data.news?.data?.feeds??[]).filter(f=>f.ok&&f.count>0).map(f=>f.source);
- const itemSources=[...new Set((data.news?.data?.items??[]).map(x=>x.source))];
- const names=[...new Set([...feeds,...itemSources])];
+ const payload=activeNewsPayload();
+ const feeds=(payload?.data?.feeds??[]).filter(f=>f.ok&&f.count>0&&!f.source.startsWith('Digest Query')).map(f=>f.source);
+ const itemSources=[...new Set((payload?.data?.items??[]).map(x=>x.source))];
+ const names=[...new Set([...feeds,...itemSources])].sort((a,b)=>a.localeCompare(b));
  return `<option value="all">All sources${names.length?` (${names.length})`:''}</option>`+names.map(s=>`<option value="${esc(s)}"${newsSource===s?' selected':''}>${esc(s)}</option>`).join('');
 }
 function syncNewsSources(){const sel=$('#news-source');if(sel){sel.innerHTML=newsSourceOptions();sel.value=newsSource;}}
+async function loadNewsTimeframe(win,{force=false}={}){
+ const next=validNewsWindow(win);
+ newsTimeframe=next;
+ newsWindowError='';
+ if(next==='latest'){newsWindowLoading=false;syncNewsSources();renderNewsResults();return;}
+ if(!force&&newsDigestCache[next]){newsWindowLoading=false;syncNewsSources();renderNewsResults();return;}
+ newsWindowController?.abort();
+ const ctrl=newsWindowController=new AbortController();
+ newsWindowLoading=true;
+ renderNewsResults();
+ try{
+  const res=await api('news?window='+encodeURIComponent(next),{signal:ctrl.signal});
+  if(ctrl.signal.aborted||newsWindowController!==ctrl)return;
+  newsDigestCache[next]=res;
+ }catch(err){
+  if(ctrl.signal.aborted||newsWindowController!==ctrl)return;
+  newsWindowError=err?.message??'Digest currently unavailable';
+ }finally{
+  if(newsWindowController===ctrl){
+   newsWindowLoading=false;
+   syncNewsSources();
+   renderNewsResults();
+  }
+ }
+}
 function newsToolbar(){
+ const winTabs=`<div class="news-window-bar" role="group" aria-label="News time window">${NEWS_WINDOW_OPTIONS.map(o=>`<button type="button" class="news-win-btn ${newsTimeframe===o.id?'active':''}" data-action="news-window" data-window="${o.id}" aria-pressed="${newsTimeframe===o.id}">${esc(o.label)}</button>`).join('')}</div>`;
  const topics=[['all','All'],['HIGH_IMPACT','High impact'],['MACRO','Macro'],['POLICY','Policy'],['INSTITUTIONAL','Institutional'],['SECURITY','Security'],['MARKETS','Markets'],['ECOSYSTEM','Ecosystem']];
- return `<div class="news-toolbar"><div class="tabs" aria-label="News topics">${topics.map(([key,label])=>`<button class="tab ${newsTopic===key?'active':''}" data-action="news-topic" data-topic="${key}" aria-pressed="${newsTopic===key}">${label}</button>`).join('')}</div><div class="news-controls-right"><div class="news-sort-toggle" role="group" aria-label="News sort order"><button type="button" data-action="news-sort" data-sort="impact" aria-pressed="${newsSort==='impact'}">Impact first</button><button type="button" data-action="news-sort" data-sort="latest" aria-pressed="${newsSort==='latest'}">Latest</button></div><select id="news-source" aria-label="Filter by publisher">${newsSourceOptions()}</select><label class="search-field">${icon('search')}<input id="news-search" aria-label="Search news" placeholder="Search headlines" value="${esc(newsQuery)}"></label></div></div>`;
+ return `${winTabs}<div class="news-toolbar"><div class="tabs" aria-label="News topics">${topics.map(([key,label])=>`<button class="tab ${newsTopic===key?'active':''}" data-action="news-topic" data-topic="${key}" aria-pressed="${newsTopic===key}">${label}</button>`).join('')}</div><div class="news-controls-right"><div class="news-sort-toggle" role="group" aria-label="News sort order"><button type="button" data-action="news-sort" data-sort="impact" aria-pressed="${newsSort==='impact'}">Impact first</button><button type="button" data-action="news-sort" data-sort="latest" aria-pressed="${newsSort==='latest'}">Latest</button></div><select id="news-source" aria-label="Filter by publisher">${newsSourceOptions()}</select><label class="search-field">${icon('search')}<input id="news-search" aria-label="Search news" placeholder="Search headlines" value="${esc(newsQuery)}"></label></div></div>`;
 }
 
 function bindNewsSearch(){
  const field=$('#news-search');if(field)field.addEventListener('input',e=>{newsQuery=e.target.value;newsLimit=20;renderNewsResults();});
  const sel=$('#news-source');if(sel)sel.addEventListener('change',e=>{newsSource=e.target.value;newsLimit=20;renderNewsResults();});
 }
-function marketStats(){const g=data.global?.data,s=data.sentiment?.data;return `<div class="stats-grid"><article class="stat-card"><span>Market cap ${icon('globe')}</span><div>${g?moneyMarkup(g.marketCap,'USD','compact'):'—'}</div><p class="${tone(g?.change)}">${pct(g?.change)} <small>24h</small></p>${stateBadge('global')}</article><article class="stat-card"><span>Trading volume ${icon('chart-no-axes-combined')}</span><div>${g?moneyMarkup(g.volume,'USD','compact'):'—'}</div><p class="muted">24-hour volume</p>${stateBadge('global')}</article><article class="stat-card"><span>Bitcoin dominance ${icon('layers')}</span><div>${g?num(g.btcDominance)+'<small>%</small>':'—'}</div><div class="dominance-track"><span style="width:${g?.btcDominance??0}%"></span></div>${stateBadge('global')}</article><article class="stat-card"><span>Fear & Greed ${icon('activity')}</span><div>${s?num(s.value,0)+'<small>/ 100</small>':'—'}</div><p>${s?esc(s.label):'Awaiting index'}</p>${stateBadge('sentiment')}</article></div>`;}
+function marketStats(){
+ const g=data.global?.data,s=data.sentiment?.data;
+ const cue=`<span class="stat-card-cta" aria-hidden="true">Details ${icon('arrow-up-right')}</span>`;
+ return `<div class="stats-grid">
+  <article class="stat-card stat-card-interactive" role="button" tabindex="0" data-action="kpi-detail" data-kpi="marketCap" aria-label="Inspect Total Market Cap details"><span>Market cap ${icon('globe')}</span><div>${g?moneyMarkup(g.marketCap,'USD','compact'):'—'}</div><p class="${tone(g?.change)}">${pct(g?.change)} <small>24h</small></p><footer class="stat-card-foot">${stateBadge('global')}${cue}</footer></article>
+  <article class="stat-card stat-card-interactive" role="button" tabindex="0" data-action="kpi-detail" data-kpi="volume" aria-label="Inspect 24-hour Trading Volume details"><span>Trading volume ${icon('chart-no-axes-combined')}</span><div>${g?moneyMarkup(g.volume,'USD','compact'):'—'}</div><p class="muted">24-hour volume</p><footer class="stat-card-foot">${stateBadge('global')}${cue}</footer></article>
+  <article class="stat-card stat-card-interactive" role="button" tabindex="0" data-action="kpi-detail" data-kpi="dominance" aria-label="Inspect Bitcoin Dominance details"><span>Bitcoin dominance ${icon('layers')}</span><div>${g?num(g.btcDominance)+'<small>%</small>':'—'}</div><div class="dominance-track"><span style="width:${g?.btcDominance??0}%"></span></div><footer class="stat-card-foot">${stateBadge('global')}${cue}</footer></article>
+  <article class="stat-card stat-card-interactive" role="button" tabindex="0" data-action="kpi-detail" data-kpi="sentiment" aria-label="Inspect Fear and Greed Index details"><span>Fear &amp; Greed ${icon('activity')}</span><div>${s?num(s.value,0)+'<small>/ 100</small>':'—'}</div><p>${s?esc(s.label):'Awaiting index'}</p><footer class="stat-card-foot">${stateBadge('sentiment')}${cue}</footer></article>
+ </div>`;
+}
 function breadthContent(){return renderMarketBreadth(data.markets?.data)+stateBadge('markets')+'<a href="#studio" class="button full">Market maps '+icon('arrow-right')+'</a>';}
 function renderAnalystDesk(){
  const key=new URLSearchParams(location.hash.split('?')[1]??'').get('asset')||analystAssetKey(selected)||'btc-bitcoin';
@@ -623,7 +664,7 @@ function paintForecast(chart){
  const target=forecastTarget();if(!target)return;
  const rows=forecastLedger.list(chart.instrument,chart.interval).filter(row=>row.horizon===forecastHorizon);
  const opened=new Set([...target.querySelectorAll('details[open]')].map(node=>node.dataset.disclosure));
- target.innerHTML=(forecastView?forecastPanel(forecastView.result,{archive:Boolean(chart.historyAnchor),recorded:forecastView.recorded,superseded:!chart.historyAnchor&&forecastView.result.asOf<chart.completedCutoff()}):'<p>Run a study to see the tested dates, sample size and baseline comparison.</p>')+forecastJournal(rows);
+ target.innerHTML=(forecastView?forecastPanel(forecastView.result,{archive:Boolean(chart.historyAnchor),recorded:forecastView.recorded,superseded:!chart.historyAnchor&&forecastView.result.asOf<chart.completedCutoff(),macro:{sentiment:data.sentiment?.data??null,global:data.global?.data??null}}):'<p>Run a study to see the tested dates, sample size and baseline comparison.</p>')+forecastJournal(rows);
  target.querySelectorAll('details').forEach(node=>node.open=opened.has(node.dataset.disclosure));
 }
 function syncForecastScope(chart){
@@ -845,6 +886,8 @@ function updateSummary(){
   confirmedThrough:terminal.confirmedThrough,
   liveBar:liveMode?terminal.getLiveBar():null,
   liveQuote:liveMode?terminal.currentQuote():null,
+  orderBook:liveMode?(activeBook?.data??null):null,
+  sentiment:liveMode?(data.sentiment?.data??null):null,
   includeLive:liveMode
  });
  updateChartReader(terminal,pov);
@@ -867,7 +910,7 @@ function renderSignalEvents(chart){
 function updateChartReader(chart,pov){
  const node=$('#technical-summary');if(!node||!chart)return;
  const liveKey=pov.live?.revisionKey??'';
- const structuralKey=[chart.generation,chart.analysisRevision,pov.closedAt,pov.stale,chart.manualDrawing,chart.autoGuide,chart.signalKinds?.join(','),chart.studyIds?.join(','),chart.markers,chart.rsiPeriod,pov.reason].join(':');
+ const structuralKey=[chart.generation,chart.analysisRevision,pov.closedAt,pov.stale,chart.manualDrawing,chart.autoGuide,chart.signalKinds?.join(','),chart.studyIds?.join(','),chart.markers,chart.rsiPeriod,pov.reason,currencySignature].join(':');
  const key=structuralKey+'|'+liveKey;
  if(node.dataset.context===key)return;
  const structuralChanged=node.dataset.structuralContext!==structuralKey;
@@ -916,8 +959,41 @@ function updateBook(r){activeBook=r;if(!$('#orderbook')||$('#wb-depth')?.hidden)
 
 function updateWatchPanel(){if(!$('#terminal-watchlist'))return;const list=(data.markets?.data??[]).filter(a=>workspace.watchlist.includes(a.id));$('#terminal-watchlist').innerHTML=list.length?list.slice(0,8).map(a=>`<button class="watch-row" data-action="asset-chart" data-id="${esc(a.id)}"><span>${esc(a.symbol)}</span><span>${moneyMarkup(a.price)}<small class="${tone(a.change)}">${pct(a.change)}</small></span></button>`).join(''):empty('Watchlist empty','Star an asset in Markets to save it.');}
 
-function renderNews(){$('#main').innerHTML=header('News','Institutional, official regulatory, on-chain and macro market headlines prioritized by impact.')+newsToolbar()+'<div id="news-results" class="news-reading-panel"></div><div class="news-update-note">'+stateBadge('news')+'</div>';bindNewsSearch();renderNewsResults();}
-function renderNewsResults(){if(!$('#news-results'))return;for(const id of ['#news-data-meta','#home-news-meta'])if($(id))$(id).innerHTML=stateBadge('news');const result=newsWindow(data.news?.data?.items??[],{source:page==='overview'?'all':newsSource,topic:page==='overview'?homeNewsTopic:newsTopic,query:page==='overview'?'':newsQuery,sort:page==='overview'?'impact':newsSort,limit:page==='overview'?4:newsLimit});$('#news-results').innerHTML=result.items.length?renderNewsCards(result.items)+(page==='news'?`<div class="news-load"><span>${result.items.length} of ${result.total} headlines</span>${result.remaining?`<button class="button" data-action="news-more">Show more (${Math.min(20,result.remaining)})</button>`:''}</div>`:''):data.news?empty('No matching headlines','Try another topic, source or search.'):errorOrLoading('news');hydrate();}
+function renderNews(){
+ const paramWin=new URLSearchParams(location.hash.split('?')[1]??'').get('window');
+ if(paramWin)newsTimeframe=validNewsWindow(paramWin);
+ $('#main').innerHTML=header('News','Live breaking feeds plus Top of the Week, Month, and Year digests ranked by market, ETF, regulatory, and macro impact.')+newsToolbar()+'<div id="news-digest-banner"></div><div id="news-results" class="news-reading-panel"></div><div class="news-update-note" id="news-data-meta">'+stateBadge('news')+'</div>';
+ bindNewsSearch();
+ if(newsTimeframe!=='latest'&&!newsDigestCache[newsTimeframe])loadNewsTimeframe(newsTimeframe);
+ else renderNewsResults();
+}
+function renderNewsResults(){
+ if(!$('#news-results'))return;
+ const isNewsPage=page==='news';
+ const activeWin=isNewsPage?newsTimeframe:'latest';
+ const payload=isNewsPage?activeNewsPayload():data.news;
+ if($('#home-news-meta'))$('#home-news-meta').innerHTML=stateBadge('news');
+ if($('#news-data-meta')){
+  if(activeWin==='latest')$('#news-data-meta').innerHTML=stateBadge('news');
+  else if(payload)$('#news-data-meta').innerHTML=`<span class="badge">${esc(payload.provider)} · ${esc(payload.cache==='stale'?'STALE · ':'')}${ago(payload.fetchedAt)}</span>`;
+ }
+ const banner=$('#news-digest-banner');
+ if(isNewsPage&&newsWindowLoading){
+  if(banner)banner.innerHTML='';
+  $('#news-results').innerHTML=`<div class="empty-state"><span class="loader"></span><strong>Compiling ${esc(NEWS_WINDOW_OPTIONS.find(o=>o.id===activeWin)?.label??'digest')}…</strong><p>Aggregating institutional, regulatory, and market headlines across the selected window.</p></div>`;
+  return;
+ }
+ const result=newsWindow(payload?.data?.items??[],{source:isNewsPage?newsSource:'all',topic:isNewsPage?newsTopic:homeNewsTopic,query:isNewsPage?newsQuery:'',sort:isNewsPage?newsSort:'impact',window:activeWin,limit:isNewsPage?newsLimit:4});
+ if(banner&&isNewsPage){
+  banner.innerHTML=payload?`<div class="news-digest-bar"><div><strong>${esc(result.window.label)}</strong><span>${esc(result.window.subtitle)}</span></div><div class="news-digest-counts"><span><b>${result.total}</b> stories</span><span><b>${result.highCount}</b> high-impact</span><span><b>${result.sourceCount}</b> publishers</span></div></div>`:'';
+ }
+ $('#news-results').innerHTML=result.items.length
+  ?renderNewsCards(result.items,{window:activeWin})+(isNewsPage?`<div class="news-load"><span>${result.items.length} of ${result.total} headlines</span>${result.remaining?`<button class="button" data-action="news-more">Show more (${Math.min(20,result.remaining)})</button>`:''}</div>`:'')
+  :payload?empty('No matching headlines','Try another topic, time window, source, or search.')
+  :isNewsPage&&newsWindowError?`<div class="empty-state"><strong>Digest temporarily unavailable</strong><p>${esc(newsWindowError)}</p><button type="button" class="button" data-action="news-window" data-window="${esc(activeWin)}">Retry</button></div>`
+  :errorOrLoading('news');
+ hydrate();
+}
 
 function buildSectorSummary(rows){
  return SECTOR_GROUPS.map(([key,label])=>{
@@ -1343,6 +1419,7 @@ document.addEventListener('click',e=>{
  if(a==='export-markets'){const list=filteredMarkets();download('cryptoz-markets.csv',serializeCSV(['id','symbol','name','price','quote','change24h','marketCap','volume','updatedAt'],list.map(x=>[x.id,x.symbol,x.name,x.price,marketUniverse==='exchange'?'USDT':'USD',x.change,x.marketCap,x.volume,x.updatedAt])),'text/csv');return;}
 
  if(a==='home-news-tab'){homeNewsTopic=b.dataset.topic;document.querySelectorAll('[data-action="home-news-tab"]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));renderNewsResults();reveal($('#news-results'),{offset:3,duration:180});return;}
+ if(a==='news-window'){const next=validNewsWindow(b.dataset.window);const retry=next===newsTimeframe&&Boolean(newsWindowError);newsTimeframe=next;newsSource='all';newsLimit=20;document.querySelectorAll('[data-action="news-window"]').forEach(x=>{x.classList.toggle('active',x.dataset.window===newsTimeframe);x.setAttribute('aria-pressed',String(x.dataset.window===newsTimeframe));});history.replaceState(null,'','#news'+(newsTimeframe==='latest'?'':'?window='+newsTimeframe));loadNewsTimeframe(newsTimeframe,{force:retry});reveal($('#news-results'),{offset:3,duration:180});return;}
  if(a==='news-more'){newsLimit+=20;renderNewsResults();reveal($('#news-results'),{offset:3,duration:180});return;}
  if(a==='news-topic'){newsTopic=b.dataset.topic;newsLimit=20;document.querySelectorAll('[data-action="news-topic"]').forEach(x=>{x.classList.toggle('active',x.dataset.topic===newsTopic);x.setAttribute('aria-pressed',x.dataset.topic===newsTopic);});renderNewsResults();reveal($('#news-results'),{offset:3,duration:180});return;}
  if(a==='news-sort'){newsSort=b.dataset.sort==='latest'?'latest':'impact';newsLimit=20;document.querySelectorAll('[data-action="news-sort"]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.sort===newsSort)));renderNewsResults();reveal($('#news-results'),{offset:3,duration:180});return;}
@@ -1364,6 +1441,7 @@ document.addEventListener('click',e=>{
 
  if(a==='delete-layout'){workspace.layouts=workspace.layouts.filter(x=>x.id!==b.dataset.id);save();layoutModal();return;}
 
+ if(a==='kpi-detail'){const intel=buildKpiIntelligence(b.dataset.kpi,{global:data.global,sentiment:data.sentiment,markets:data.markets});modal(intel.title,`<div class="kpi-modal-body">${intel.body}</div>`);return;}
  if(a==='guide'){const help=helpFor(b.dataset.guide);if(help)modal(help.title,'<ol class="help-steps">'+help.items.map(([title,text])=>'<li><h3>'+esc(title)+'</h3><p>'+esc(text)+'</p></li>').join('')+'</ol>');return;}
  if(a==='indicators'){indicatorModal();return;}
  if(a==='import-tools'){indicatorModal({openCustom:true});return;}
@@ -1420,7 +1498,7 @@ document.addEventListener('click',e=>{
 
 });
 
-document.addEventListener('keydown',e=>{if(dialogController?.isOpen)return;if(e.key==='Escape'){if(closeToolMenus(document,null,{returnFocus:true})){e.preventDefault();return;}if(document.body.classList.contains('chart-focus'))setChartFocus(false);terminal?.setTool('cursor');}if(e.key==='/'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){e.preventDefault();openSearch();}});
+document.addEventListener('keydown',e=>{if(dialogController?.isOpen)return;if((e.key==='Enter'||e.key===' ')&&e.target?.matches?.('[role="button"][data-action]')){e.preventDefault();e.target.click();return;}if(e.key==='Escape'){if(closeToolMenus(document,null,{returnFocus:true})){e.preventDefault();return;}if(document.body.classList.contains('chart-focus'))setChartFocus(false);terminal?.setTool('cursor');}if(e.key==='/'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){e.preventDefault();openSearch();}});
 
 $('#modal-root').addEventListener('click',e=>{if(e.target.classList.contains('modal-backdrop'))closeModal();});
 

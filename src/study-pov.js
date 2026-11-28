@@ -1,12 +1,17 @@
 import { atr, bollinger, ema, macd, normalizeCandles, rsi, sma } from './analytics.js';
 import { adxSeries } from './studies.js';
 import { formatter, pricePrecision } from './numbers.js';
+import { displayPrice } from './currency.js';
 import { INTERVALS, validInstrument } from './preferences.js';
 import { compileClosedState, evaluateLiveReading } from './live-reading-engine.js';
 
 const SAMPLE_SIZE = 50;
 const RANGE_SIZE = 20;
 const price = (value, quote) => `${formatter({ maximumFractionDigits: pricePrecision(value) }).format(value)} ${quote}`;
+const livePriceText = (value, quote) => {
+  const formatted = displayPrice(value, quote);
+  return formatted && formatted !== '—' ? formatted : price(value, quote);
+};
 const ratio = formatter({ maximumSignificantDigits: 2 });
 const signedPct = value => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
@@ -32,9 +37,9 @@ function detectRsiDivergence(sample, rsiValues) {
   return null;
 }
 
-function buildLivePov(result, sample, duration, instrument, { liveBar, liveQuote, nowSeconds }) {
+function buildLivePov(result, sample, duration, instrument, { liveBar, liveQuote, orderBook, sentiment, nowSeconds }) {
   const compiled = compileClosedState(sample, duration);
-  const live = evaluateLiveReading(compiled, { liveBar, liveQuote, nowSeconds });
+  const live = evaluateLiveReading(compiled, { liveBar, liveQuote, orderBook, sentiment, nowSeconds });
   if (!live) return null;
 
   const m = live.metrics;
@@ -150,50 +155,98 @@ function buildLivePov(result, sample, duration, instrument, { liveBar, liveQuote
     tone: vwapTone,
   });
 
-  // High-resolution Bias Headline incorporating live conviction & intraday shifts
-  const conv = live.conviction;
+  // 7. Live Order Book L2 Imbalance (when streaming)
+  const inf = live.inflection;
+  if (inf?.bookInfo) {
+    const { imbalance, bidSharePct, askSharePct } = inf.bookInfo;
+    if (imbalance >= 0.16) {
+      score += 1;
+      factors.push({ label: 'Order book (L2)', state: `Bid-heavy (${bidSharePct}% bids supporting)`, tone: 'up' });
+    } else if (imbalance <= -0.16) {
+      score -= 1;
+      factors.push({ label: 'Order book (L2)', state: `Ask-heavy (${askSharePct}% overhead supply)`, tone: 'down' });
+    } else {
+      factors.push({ label: 'Order book (L2)', state: `Balanced L2 (${bidSharePct}% / ${askSharePct}%)`, tone: 'neutral' });
+    }
+  }
+
+  // High-resolution Regime & Bias Headline — separates lagging trend from leading exhaustion/divergence!
+  const conv = live.adjustedConviction ?? live.conviction;
   const shift = live.convictionShift;
   let bias;
-  if (conv >= 42 || score >= 4) bias = 'Bullish technical alignment';
-  else if (conv >= 16 || score >= 2) bias = shift >= 10 ? 'Strengthening bullish momentum' : 'Constructive — leaning higher';
-  else if (conv <= -42 || score <= -4) bias = shift >= 12 ? 'Bearish trend — intraday bounce active' : 'Bearish technical alignment';
-  else if (conv <= -16 || score <= -2) bias = shift >= 10 ? 'Defensive — stabilizing intraday' : 'Defensive — leaning lower';
-  else if (shift >= 12) bias = 'Transitional — live buyers stepping in';
-  else if (shift <= -12) bias = 'Transitional — live supply pressing lower';
-  else bias = 'Balanced — range-bound structure';
-
-  const biasTone = (conv >= 16 || score >= 2) ? 'up' : (conv <= -16 || score <= -2) ? 'down' : 'neutral';
+  let biasTone;
+  if (inf?.kind === 'rebound-risk') {
+    bias = inf.reboundScore >= 40 ? 'Downtrend — Strong Rebound / Reversal Risk' : 'Downtrend — Accumulation / Rebound Watch';
+    biasTone = 'neutral';
+  } else if (inf?.kind === 'pullback-risk') {
+    bias = inf.pullbackScore >= 40 ? 'Uptrend — Overbought Pullback Risk' : 'Uptrend — Distribution / Cooling Watch';
+    biasTone = 'neutral';
+  } else if (inf?.kind === 'squeeze' && !live.levels.activeBreach) {
+    bias = 'Volatility Squeeze — Breakout Pending';
+    biasTone = 'neutral';
+  } else if (conv >= 40 || score >= 4) {
+    bias = 'Bullish technical alignment';
+    biasTone = 'up';
+  } else if (conv >= 16 || score >= 2) {
+    bias = shift >= 10 ? 'Strengthening bullish momentum' : 'Constructive — leaning higher';
+    biasTone = 'up';
+  } else if (conv <= -40 || score <= -4) {
+    bias = shift >= 12 ? 'Bearish trend — intraday bounce active' : 'Bearish technical alignment';
+    biasTone = 'down';
+  } else if (conv <= -16 || score <= -2) {
+    bias = shift >= 10 ? 'Defensive — stabilizing intraday' : 'Defensive — leaning lower';
+    biasTone = 'down';
+  } else if (shift >= 12) {
+    bias = 'Transitional — live buyers stepping in';
+    biasTone = 'neutral';
+  } else if (shift <= -12) {
+    bias = 'Transitional — live supply pressing lower';
+    biasTone = 'neutral';
+  } else {
+    bias = 'Balanced — two-sided range structure';
+    biasTone = 'neutral';
+  }
 
   const lv = live.levels;
-  const upTrigStr = price(lv.upsideTrigger, quote);
-  const upTgtStr = price(lv.upsideTarget, quote);
-  const dnTrigStr = price(lv.downsideTrigger, quote);
-  const dnTgtStr = price(lv.downsideTarget, quote);
-  const spotStr = price(spot, quote);
+  const upTrigStr = livePriceText(lv.upsideTrigger, quote);
+  const upTgtStr = livePriceText(lv.upsideTarget, quote);
+  const dnTrigStr = livePriceText(lv.downsideTrigger, quote);
+  const dnTgtStr = livePriceText(lv.downsideTarget, quote);
+  const spotStr = livePriceText(spot, quote);
+  const vwapStr = livePriceText(m.vwap20, quote);
 
   const breachClause = lv.activeBreach
     ? lv.activeBreach.kind === 'up'
-      ? ` Live price (${spotStr}) is actively pressing ${signedPct(lv.activeBreach.pct)} above the prior ${lv.activeBreach.label.toLowerCase()} (${price(lv.activeBreach.level, quote)}).`
-      : ` Live price (${spotStr}) is actively trading ${signedPct(lv.activeBreach.pct)} beneath the prior ${lv.activeBreach.label.toLowerCase()} (${price(lv.activeBreach.level, quote)}).`
+      ? ` Live price (${spotStr}) is actively pressing ${signedPct(lv.activeBreach.pct)} above the prior ${lv.activeBreach.label.toLowerCase()} (${livePriceText(lv.activeBreach.level, quote)}).`
+      : ` Live price (${spotStr}) is actively trading ${signedPct(lv.activeBreach.pct)} beneath the prior ${lv.activeBreach.label.toLowerCase()} (${livePriceText(lv.activeBreach.level, quote)}).`
     : '';
 
   const shiftClause = Math.abs(shift) >= 8
-    ? ` Intraday conviction shifted ${shift > 0 ? '+' : ''}${shift} pts from last close (${live.tape.label.toLowerCase()}, ${signedPct(live.barChangePct)} on current bar).`
-    : ` Current candle is ${signedPct(live.barChangePct)} (${live.elapsedPct}% elapsed, closes in ${live.countdown}).`;
+    ? ` Intraday pressure shifted ${shift > 0 ? '+' : ''}${shift} pts vs close (${live.tape.label.toLowerCase()}, ${signedPct(live.barChangePct)} on current bar).`
+    : ` Current bar is ${signedPct(live.barChangePct)} (${live.elapsedPct}% elapsed, closes in ${live.countdown}).`;
 
-  const directionSummary = biasTone === 'up'
-    ? `Live indicators lean bullish (${score > 0 ? '+' : ''}${score}/${factors.length}, conviction ${conv > 0 ? '+' : ''}${conv}/100) at ${live.range.posPct}% of the 20-bar range.${breachClause} Clearing ${lv.upsideLabel} (${upTrigStr}, ${signedPct(lv.upsideDistPct)}) opens ${upTgtStr}, while losing ${lv.downsideLabel} (${dnTrigStr}, ${signedPct(lv.downsideDistPct)}) weakens momentum.${shiftClause}`
-    : biasTone === 'down'
-    ? `Live indicators align defensively (${score > 0 ? '+' : ''}${score}/${factors.length}, conviction ${conv}/100) at ${live.range.posPct}% of the 20-bar range.${breachClause} A break beneath ${lv.downsideLabel} (${dnTrigStr}, ${signedPct(lv.downsideDistPct)}) exposes ${dnTgtStr}, while reclaiming ${lv.upsideLabel} (${upTrigStr}, ${signedPct(lv.upsideDistPct)}) eases selling pressure.${shiftClause}`
-    : `Live signals are balanced (${score >= 0 ? '+' : ''}${score}/${factors.length}, conviction ${conv >= 0 ? '+' : ''}${conv}/100) with spot at ${live.range.posPct}% of the 20-bar range.${breachClause}${live.volatilitySqueeze ? ' Bollinger Bandwidth is compressed in a squeeze — watch for a decisive break outside ' + dnTrigStr + ' or ' + upTrigStr + '.' : ` Watch ${lv.upsideLabel} (${upTrigStr}) above and ${lv.downsideLabel} (${dnTrigStr}) below for the next directional leg.`}${shiftClause}`;
+  let directionSummary;
+  if (inf?.kind === 'rebound-risk') {
+    directionSummary = `Lagging trend metrics remain soft from the prior drop, but leading signals show rising upside reversal pressure (${inf.upLeanPct}% upside vs ${inf.downLeanPct}% downside balance).${breachClause} Reclaiming ${lv.upsideLabel} (${upTrigStr}, ${signedPct(lv.upsideDistPct)}) favors a rebound toward ${upTgtStr} and 20-bar VWAP (${vwapStr}); only a confirmed break beneath ${lv.downsideLabel} (${dnTrigStr}, ${signedPct(lv.downsideDistPct)}) validates continuation to ${dnTgtStr}.${shiftClause}`;
+  } else if (inf?.kind === 'pullback-risk') {
+    directionSummary = `Lagging trend remains positive, but stretched momentum and supply signals raise pullback risk (${inf.upLeanPct}% upside vs ${inf.downLeanPct}% downside balance).${breachClause} Holding above ${lv.downsideLabel} (${dnTrigStr}) keeps ${upTgtStr} in play, while losing ${dnTrigStr} invites mean reversion toward 20-bar VWAP (${vwapStr}) and ${dnTgtStr}.${shiftClause}`;
+  } else if (inf?.kind === 'squeeze' && !lv.activeBreach) {
+    directionSummary = `Tight volatility compression (BBW ${m.bbw.toFixed(2)}%) keeps directional forces near equilibrium (${inf.upLeanPct}% upside vs ${inf.downLeanPct}% downside) at ${live.range.posPct}% of the 20-bar range. Wait for a confirmed break above ${lv.upsideLabel} (${upTrigStr}) targeting ${upTgtStr}, or below ${lv.downsideLabel} (${dnTrigStr}) targeting ${dnTgtStr}.${shiftClause}`;
+  } else if (biasTone === 'up') {
+    directionSummary = `Trend and leading flows align higher (${score > 0 ? '+' : ''}${score}/${factors.length}, ${inf.upLeanPct}% upside balance) at ${live.range.posPct}% of the 20-bar range.${breachClause} Clearing ${lv.upsideLabel} (${upTrigStr}, ${signedPct(lv.upsideDistPct)}) opens ${upTgtStr}, while losing ${lv.downsideLabel} (${dnTrigStr}, ${signedPct(lv.downsideDistPct)}) weakens the structure.${shiftClause}`;
+  } else if (biasTone === 'down') {
+    directionSummary = `Trend and leading flows align lower without major reversal divergence (${score > 0 ? '+' : ''}${score}/${factors.length}, ${inf.downLeanPct}% downside balance) at ${live.range.posPct}% of the 20-bar range.${breachClause} A confirmed break beneath ${lv.downsideLabel} (${dnTrigStr}, ${signedPct(lv.downsideDistPct)}) exposes ${dnTgtStr}, while reclaiming ${lv.upsideLabel} (${upTrigStr}, ${signedPct(lv.upsideDistPct)}) relieves selling pressure.${shiftClause}`;
+  } else {
+    directionSummary = `Live technical forces are two-sided (${inf.upLeanPct}% upside vs ${inf.downLeanPct}% downside balance) with spot at ${live.range.posPct}% of the 20-bar range.${breachClause} Watch ${lv.upsideLabel} (${upTrigStr}) above and ${lv.downsideLabel} (${dnTrigStr}) below around 20-bar VWAP (${vwapStr}).${shiftClause}`;
+  }
 
   const volState = live.volatilitySqueeze
     ? `Live volatility squeeze (BBW ${m.bbw.toFixed(2)}%) — tight compression often precedes an expanded directional break.`
-    : `Live ATR averages ${price(m.atr, quote)} per bar (${(m.atr / spot * 100).toFixed(2)}% of spot); current bar spans ${(live.tape.expansion * 100).toFixed(0)}% of ATR.`;
+    : `Live ATR averages ${livePriceText(m.atr, quote)} per bar (${(m.atr / spot * 100).toFixed(2)}% of spot); current bar spans ${(live.tape.expansion * 100).toFixed(0)}% of ATR.`;
 
   const volumeNote = m.volumeRatio === null
     ? 'Live candle volume is still accumulating against the 20-bar baseline.'
-    : `Forming candle is tracking ${ratio.format(m.volumeRatio)}× normal volume pace (${live.elapsedPct}% through bar).${m.obvFlowRatio !== null && Math.abs(m.obvFlowRatio) > 0.16 ? (m.obvFlowRatio > 0 ? ' 10-bar OBV shows net accumulation.' : ' 10-bar OBV shows net distribution.') : ''}`;
+    : `Forming candle is tracking ${ratio.format(m.volumeRatio)}× normal volume pace (${live.elapsedPct}% through bar).${m.obvFlowRatio !== null && Math.abs(m.obvFlowRatio) > 0.14 ? (m.obvFlowRatio > 0 ? ' 10-bar OBV shows net accumulation.' : ' 10-bar OBV shows net distribution.') : ''}`;
 
   const invalidationLevel = biasTone === 'up' ? Math.min(m.ema20, m.sma20) : biasTone === 'down' ? Math.max(m.ema20, m.sma20) : null;
 
@@ -201,7 +254,7 @@ function buildLivePov(result, sample, duration, instrument, { liveBar, liveQuote
     ...result,
     ready: true,
     reason: null,
-    method: 'Real-time incremental multi-factor chart engine (O(1) live + confirmed structure)',
+    method: 'Real-time incremental multi-factor & exhaustion engine (O(1) live + L2 flow + confirmed structure)',
     trend,
     range: { high: live.range.high, low: live.range.low, periods: RANGE_SIZE },
     metrics: {
@@ -214,6 +267,7 @@ function buildLivePov(result, sample, duration, instrument, { liveBar, liveQuote
       atr: m.atr,
       adx: m.adx,
       bbw: m.bbw,
+      bbZ: m.bbZ,
       vwap20: m.vwap20,
       volumeRatio: m.volumeRatio,
       obvFlowRatio: m.obvFlowRatio,
@@ -229,9 +283,11 @@ function buildLivePov(result, sample, duration, instrument, { liveBar, liveQuote
       remainingSec: live.remainingSec,
       countdown: live.countdown,
       updatedAt: live.updatedAt,
-      conviction: live.conviction,
+      conviction: conv,
+      rawTrendConviction: live.conviction,
       closedConviction: live.closedConviction,
       convictionShift: live.convictionShift,
+      inflection: inf,
       tape: live.tape,
       vwap20: m.vwap20,
       vwapDevPct: m.vwapDevPct,
@@ -248,8 +304,9 @@ function buildLivePov(result, sample, duration, instrument, { liveBar, liveQuote
       biasTone,
       score,
       maxScore: factors.length,
-      conviction: live.conviction,
+      conviction: conv,
       convictionShift: live.convictionShift,
+      inflection: inf,
       summary: directionSummary,
       factors,
       volatilitySqueeze: live.volatilitySqueeze,
@@ -267,20 +324,20 @@ function buildLivePov(result, sample, duration, instrument, { liveBar, liveQuote
       invalidationLevel,
     },
     observations: [
-      { label: 'Price trend', text: trendText, detail: `EMA 9 ${price(m.ema9, quote)} · SMA 20 ${price(m.sma20, quote)} · SMA 50 ${price(m.sma50, quote)}${Number.isFinite(m.adx) ? ` · ADX ${Math.round(m.adx)}` : ''}` },
-      { label: 'Momentum', text: divergence ? `${momentum} ${divergence.detail}` : momentum, detail: `Live RSI 14 ${rsiRound} / 100${rsiDeltaStr} · VWAP 20 ${price(m.vwap20, quote)} (${signedPct(m.vwapDevPct)})` },
-      { label: 'Volatility & move', text: volState, detail: `Live ATR 14 ${price(m.atr, quote)}${m.bbw !== null ? ` · BB Width ${m.bbw.toFixed(2)}%` : ''}` },
-      { label: 'Trading volume', text: volumeNote, detail: `Time-normalized pace across forming candle + 10-bar OBV flow.` },
+      { label: 'Price trend', text: trendText, detail: `EMA 9 ${livePriceText(m.ema9, quote)} · SMA 20 ${livePriceText(m.sma20, quote)} · SMA 50 ${livePriceText(m.sma50, quote)}${Number.isFinite(m.adx) ? ` · ADX ${Math.round(m.adx)}` : ''}` },
+      { label: 'Momentum & stretch', text: divergence ? `${momentum} ${divergence.detail}` : momentum, detail: `Live RSI 14 ${rsiRound} / 100${rsiDeltaStr} · VWAP 20 ${vwapStr} (${signedPct(m.vwapDevPct)}) · ${m.bbZ >= 0 ? '+' : ''}${m.bbZ.toFixed(1)}σ` },
+      { label: 'Volatility & move', text: volState, detail: `Live ATR 14 ${livePriceText(m.atr, quote)}${m.bbw !== null ? ` · BB Width ${m.bbw.toFixed(2)}%` : ''}` },
+      { label: 'Volume & order flow', text: volumeNote, detail: inf?.bookInfo ? `Time-normalized pace + 10-bar OBV · Live L2 book ${inf.bookInfo.bidSharePct}% bids / ${inf.bookInfo.askSharePct}% asks.` : 'Time-normalized pace across forming candle + 10-bar OBV flow.' },
     ],
     scenarios: [
       { label: `Upside path (${lv.upsideLabel})`, text: `Sustained trade and candle close above ${upTrigStr} (${signedPct(lv.upsideDistPct)} from live spot) targets ${upTgtStr} (+1.5× ATR measured move).` },
-      { label: 'Active range rotation', text: `Between ${dnTrigStr} (${lv.downsideLabel}) and ${upTrigStr} (${lv.upsideLabel}), expect rotation around 20-bar VWAP (${price(m.vwap20, quote)}).` },
+      { label: 'Mean-reversion & range pivot', text: `Between ${dnTrigStr} (${lv.downsideLabel}) and ${upTrigStr} (${lv.upsideLabel}), 20-bar VWAP (${vwapStr}) acts as the equilibrium magnet.` },
       { label: `Downside path (${lv.downsideLabel})`, text: `A confirmed close beneath ${dnTrigStr} (${signedPct(lv.downsideDistPct)} from live spot) opens downside risk toward ${dnTgtStr} (−1.5× ATR measured move).` },
     ],
   };
 }
 
-export function buildStudyPov({ bars, instrument, interval, nowSeconds = Date.now() / 1000, candleMeta, confirmedThrough, liveBar = null, liveQuote = null, includeLive = false } = {}) {
+export function buildStudyPov({ bars, instrument, interval, nowSeconds = Date.now() / 1000, candleMeta, confirmedThrough, liveBar = null, liveQuote = null, orderBook = null, sentiment = null, includeLive = false } = {}) {
   const duration = Object.hasOwn(INTERVALS, interval) ? INTERVALS[interval] : 0;
   const result = {
     ready: false,
@@ -325,7 +382,7 @@ export function buildStudyPov({ bars, instrument, interval, nowSeconds = Date.no
 
   // Real-time incremental path when live streaming data is provided
   if (includeLive && (liveBar || (Number.isFinite(liveQuote?.price) && liveQuote.price > 0))) {
-    const livePov = buildLivePov(result, sample, duration, instrument, { liveBar, liveQuote, nowSeconds });
+    const livePov = buildLivePov(result, sample, duration, instrument, { liveBar, liveQuote, orderBook, sentiment, nowSeconds });
     if (livePov) return livePov;
   }
 

@@ -464,11 +464,159 @@ function resolveAdaptiveLevels({ spot, liveAtr, closedState, liveMetrics, rangeH
   };
 }
 
+function computeOrderBookImbalance(orderBook) {
+  const bids = orderBook?.bids;
+  const asks = orderBook?.asks;
+  if (!Array.isArray(bids) || !Array.isArray(asks) || !bids.length || !asks.length) return null;
+  let bidNotional = 0;
+  let askNotional = 0;
+  const depth = Math.min(10, bids.length, asks.length);
+  for (let i = 0; i < depth; i++) {
+    const bp = Number(bids[i]?.[0]), bs = Number(bids[i]?.[1]);
+    const ap = Number(asks[i]?.[0]), as = Number(asks[i]?.[1]);
+    if (Number.isFinite(bp) && Number.isFinite(bs) && bp > 0 && bs > 0) bidNotional += bp * bs;
+    if (Number.isFinite(ap) && Number.isFinite(as) && ap > 0 && as > 0) askNotional += ap * as;
+  }
+  const total = bidNotional + askNotional;
+  if (!(total > 0)) return null;
+  const imbalance = (bidNotional - askNotional) / total; // -1 to +1
+  return { imbalance, bidSharePct: Math.round((bidNotional / total) * 100), askSharePct: Math.round((askNotional / total) * 100) };
+}
+
+/**
+ * Leading Exhaustion, Divergence & Mean-Reversion Detector:
+ * Prevents blind trend-chasing at oversold bottoms (e.g., RSI <= 30 + OBV accumulation + bid absorption)
+ * or overbought tops by separating lagging trend direction from leading reversal pressure.
+ */
+function analyzeInflection({
+  spot, liveSma20, std20, liveVwap20, vwapDevPct, liveRsi, rsiDelta,
+  liveObvFlowRatio, priceChange10, tape, rangePosPct, volatilitySqueeze,
+  divergence, bookInfo, sentiment, conviction,
+}) {
+  const bbZ = std20 > 1e-9 ? (spot - liveSma20) / std20 : 0;
+  const upSignals = [];
+  const downSignals = [];
+  let reboundScore = 0;
+  let pullbackScore = 0;
+
+  // 1. Price vs OBV Volume Divergence (smart-money accumulation/distribution)
+  if (priceChange10 < 0 && Number.isFinite(liveObvFlowRatio) && liveObvFlowRatio >= 0.12) {
+    const pts = liveObvFlowRatio >= 0.25 ? 30 : 22;
+    reboundScore += pts;
+    upSignals.push('OBV accumulation while price slips (hidden demand)');
+  } else if (priceChange10 > 0 && Number.isFinite(liveObvFlowRatio) && liveObvFlowRatio <= -0.12) {
+    const pts = liveObvFlowRatio <= -0.25 ? 30 : 22;
+    pullbackScore += pts;
+    downSignals.push('OBV distribution while price rises (hidden supply)');
+  }
+
+  // 2. Oversold / Overbought Statistical Stretch (RSI + Bollinger Z + VWAP distance)
+  if (liveRsi <= 31 || bbZ <= -1.65 || vwapDevPct <= -3.5) {
+    let pts = liveRsi <= 25 || bbZ <= -2.0 ? 28 : 20;
+    if (rsiDelta >= 0.8) pts += 8;
+    reboundScore += pts;
+    upSignals.push(`Oversold stretch (RSI ${Math.round(liveRsi)}, ${bbZ.toFixed(1)}σ vs mean)`);
+  } else if (liveRsi >= 69 || bbZ >= 1.65 || vwapDevPct >= 3.5) {
+    let pts = liveRsi >= 75 || bbZ >= 2.0 ? 28 : 20;
+    if (rsiDelta <= -0.8) pts += 8;
+    pullbackScore += pts;
+    downSignals.push(`Overbought stretch (RSI ${Math.round(liveRsi)}, +${bbZ.toFixed(1)}σ vs mean)`);
+  }
+
+  // 3. Confirmed Pivot RSI Divergence
+  if (divergence?.kind === 'bullish') {
+    reboundScore += 26;
+    upSignals.push('Confirmed bullish RSI divergence');
+  } else if (divergence?.kind === 'bearish') {
+    pullbackScore += 26;
+    downSignals.push('Confirmed bearish RSI divergence');
+  }
+
+  // 4. Wick Absorption / Rejection at Range Extremes
+  if (tape.lowerWick >= 0.44 && tape.closePos >= 0.52 && rangePosPct <= 40) {
+    reboundScore += 18;
+    upSignals.push('Lower-wick bid absorption near range lows');
+  } else if (tape.upperWick >= 0.44 && tape.closePos <= 0.48 && rangePosPct >= 60) {
+    pullbackScore += 18;
+    downSignals.push('Upper-wick supply rejection near range highs');
+  }
+
+  // 5. Real-Time L2 Order Book Depth Imbalance
+  if (bookInfo) {
+    if (bookInfo.imbalance >= 0.16) {
+      reboundScore += 14;
+      upSignals.push(`Live order book bid-heavy (${bookInfo.bidSharePct}% bids)`);
+    } else if (bookInfo.imbalance <= -0.16) {
+      pullbackScore += 14;
+      downSignals.push(`Live order book ask-heavy (${bookInfo.askSharePct}% asks)`);
+    }
+  }
+
+  // 6. Macro Sentiment Contrarian Extreme
+  if (Number.isFinite(sentiment?.value)) {
+    if (sentiment.value <= 20 && rangePosPct <= 40) {
+      reboundScore += 10;
+      upSignals.push(`Extreme Fear (${sentiment.value}/100) contrarian zone`);
+    } else if (sentiment.value >= 80 && rangePosPct >= 60) {
+      pullbackScore += 10;
+      downSignals.push(`Extreme Greed (${sentiment.value}/100) crowding risk`);
+    }
+  }
+
+  reboundScore = clamp(Math.round(reboundScore), 0, 100);
+  pullbackScore = clamp(Math.round(pullbackScore), 0, 100);
+  const netReversion = reboundScore - pullbackScore; // + = upward reversal force, - = downward reversal force
+
+  // Blend lagging conviction with leading exhaustion/flow pressure (and dampen during tight BB squeezes!)
+  const squeezeDamp = volatilitySqueeze ? 0.62 : 1.0;
+  const adjustedConviction = Math.round(clamp((conviction + netReversion * 0.58) * squeezeDamp, -100, 100));
+  const upLeanPct = clamp(Math.round(50 + adjustedConviction * 0.28), 22, 78);
+  const downLeanPct = 100 - upLeanPct;
+
+  const downTrendConflict = conviction <= -14 && reboundScore >= 22;
+  const upTrendConflict = conviction >= 14 && pullbackScore >= 22;
+  const conflict = downTrendConflict || upTrendConflict;
+
+  let kind = 'aligned';
+  let warning = null;
+  let activeSignals = [];
+  const fmtSignal = s => s.charAt(0).toLowerCase() + s.slice(1);
+  const preserveAcronyms = s => s.replace(/\bobv\b/gi, 'OBV').replace(/\brsi\b/gi, 'RSI').replace(/\bl2\b/gi, 'L2').replace(/\bvwap\b/gi, 'VWAP');
+  if (downTrendConflict) {
+    kind = 'rebound-risk';
+    activeSignals = upSignals.slice(0, 3);
+    warning = `Reversal caution: lagging trend is down, but ${preserveAcronyms(activeSignals.slice(0, 2).map(fmtSignal).join(' and '))} warn that selling is losing force — avoid assuming straight-line downside.`;
+  } else if (upTrendConflict) {
+    kind = 'pullback-risk';
+    activeSignals = downSignals.slice(0, 3);
+    warning = `Exhaustion caution: lagging trend is up, but ${preserveAcronyms(activeSignals.slice(0, 2).map(fmtSignal).join(' and '))} warn of overhead supply and mean-reversion pullback risk.`;
+  } else if (volatilitySqueeze) {
+    kind = 'squeeze';
+    warning = `Volatility squeeze active: tight compression makes lagging MAs unreliable — wait for a decisive break outside the nearest trigger levels to set direction.`;
+  }
+
+  return {
+    bbZ,
+    reboundScore,
+    pullbackScore,
+    netReversion,
+    adjustedConviction,
+    upLeanPct,
+    downLeanPct,
+    conflict,
+    kind,
+    warning,
+    activeSignals,
+    bookInfo,
+    meanReversionTarget: liveVwap20,
+  };
+}
+
 /**
  * Tier B: O(1) Real-Time Tick & Forming-Bar Evaluator.
- * Merges live forming candle + live WebSocket quote onto compiled closed-bar registers.
+ * Merges live forming candle + live WebSocket quote + optional L2 order book & sentiment onto compiled closed-bar registers.
  */
-export function evaluateLiveReading(closedState, { liveBar = null, liveQuote = null, nowSeconds = Date.now() / 1000 } = {}) {
+export function evaluateLiveReading(closedState, { liveBar = null, liveQuote = null, orderBook = null, sentiment = null, nowSeconds = Date.now() / 1000 } = {}) {
   const { duration, lastBar, closed, registers } = closedState;
   const quotePrice = Number.isFinite(liveQuote?.price) && liveQuote.price > 0 ? liveQuote.price : null;
   const validLiveBar = liveBar && Number.isFinite(liveBar.time) && Number.isFinite(liveBar.close) && liveBar.close > 0 && liveBar.time >= lastBar.time ? liveBar : null;
@@ -605,11 +753,19 @@ export function evaluateLiveReading(closedState, { liveBar = null, liveQuote = n
   });
 
   const volatilitySqueeze = liveBbw !== null && registers.bbwQuartile !== null && liveBbw <= registers.bbwQuartile;
+  const bookInfo = computeOrderBookImbalance(orderBook);
+  const priceChange10 = spot - closedState.close9Ago;
+  const inflection = analyzeInflection({
+    spot, liveSma20, std20, liveVwap20, vwapDevPct, liveRsi, rsiDelta,
+    liveObvFlowRatio, priceChange10, tape, rangePosPct, volatilitySqueeze,
+    divergence: closedState.divergence, bookInfo, sentiment, conviction,
+  });
 
   // Compact deterministic revision key bucketed cleanly so tiny sub-pip jitter doesn't churn DOM
   const priceSig = liveAtr > 0 ? Math.round(spot / Math.max(liveAtr * 0.008, spot * 0.00015)) : Math.round(spot * 100);
   const countdownBucket = remainingSec > 3600 ? Math.floor(remainingSec / 60) : Math.floor(remainingSec / 15);
-  const revisionKey = `${closedState.closedAt}:${priceSig}:${conviction}:${countdownBucket}:${Math.round(liveRsi * 2)}:${Math.round((volumePace ?? 0) * 10)}`;
+  const bookSig = bookInfo ? Math.round(bookInfo.bidSharePct / 5) : 0;
+  const revisionKey = `${closedState.closedAt}:${priceSig}:${inflection.adjustedConviction}:${countdownBucket}:${Math.round(liveRsi * 2)}:${Math.round((volumePace ?? 0) * 10)}:${bookSig}`;
 
   return {
     active: true,
@@ -641,6 +797,7 @@ export function evaluateLiveReading(closedState, { liveBar = null, liveQuote = n
       bbw: liveBbw,
       bbUpper: liveBbUpper,
       bbLower: liveBbLower,
+      bbZ: inflection.bbZ,
       vwap20: liveVwap20,
       vwapDevPct,
       volumeRatio: volumePace,
@@ -650,8 +807,10 @@ export function evaluateLiveReading(closedState, { liveBar = null, liveQuote = n
     volatilitySqueeze,
     tape,
     conviction,
+    adjustedConviction: inflection.adjustedConviction,
     closedConviction,
     convictionShift,
+    inflection,
     levels,
     revisionKey,
   };

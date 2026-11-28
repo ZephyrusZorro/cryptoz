@@ -1,5 +1,5 @@
 import {esc,icon,pct,price,tone} from './ui.js';
-import {moneyMarkup} from './currency.js';
+import {displayPrice,moneyMarkup} from './currency.js';
 import {getAnalystResearch} from './analyst-research.js';
 import {summarizeForecasts} from './forecast-ledger.js';
 
@@ -47,13 +47,22 @@ export function chartGuide(pov,setup,mode,studies=[],studyCatalog={}){
   ?`<span class="chart-outlook-score">Conviction ${out.conviction>0?'+':''}${out.conviction}</span>`:'';
  const breachLine=out?.activeBreach
   ?`<p class="chart-breach-note ${out.activeBreach.kind==='up'?'positive':'negative'}">${out.activeBreach.kind==='up'?'Live breakout test':'Live breakdown test'} · Spot ${pct(out.activeBreach.pct)} ${out.activeBreach.kind==='up'?'above':'below'} prior ${esc(out.activeBreach.label.toLowerCase())} (${moneyMarkup(out.activeBreach.level,quote)})</p>`:'';
+ const inf=out?.inflection??null;
+ const inflectionBanner=inf?.warning
+  ?`<div class="chart-inflection-banner ${inf.kind==='rebound-risk'?'inf-up':inf.kind==='pullback-risk'?'inf-down':'inf-squeeze'}"><strong>${inf.kind==='rebound-risk'?'Reversal / Rebound Watch':inf.kind==='pullback-risk'?'Exhaustion / Pullback Watch':'Volatility Squeeze Watch'}</strong><p>${esc(inf.warning)}</p></div>`:'';
+ const balanceStrip=live&&inf?`<div class="chart-balance-wrap" aria-label="Live upside versus downside pressure balance">
+  <div class="chart-balance-labels"><span class="positive">Upside pressure ${inf.upLeanPct}%</span><span class="chart-balance-pivot">VWAP magnet ${moneyMarkup(inf.meanReversionTarget,quote)}</span><span class="negative">Downside ${inf.downLeanPct}%</span></div>
+  <div class="chart-balance-bar"><span class="bal-up" style="width:${inf.upLeanPct}%"></span><span class="bal-down" style="width:${inf.downLeanPct}%"></span></div>
+ </div>`:'';
  const outlookCard=pov.ready&&out?`<section class="chart-outlook" aria-label="Technical bias and price path">
   <div class="chart-outlook-head">
    <strong class="${out.biasTone==='up'?'positive':out.biasTone==='down'?'negative':''}">${esc(out.bias)}</strong>
    <div class="chart-outlook-badges">${convictionBadge}${shiftBadge}<span class="chart-outlook-score">${out.score>0?'+':''}${out.score} / ${out.maxScore} factors</span></div>
   </div>
+  ${inflectionBanner}
   <p>${esc(out.summary)}</p>
   ${breachLine}
+  ${balanceStrip}
   <dl class="chart-path-grid">
    <div><dt>Upside trigger${out.upsideLabel?' ('+esc(out.upsideLabel)+')':''} → target${Number.isFinite(out.upsideDistPct)?' <small class="path-dist">'+pct(out.upsideDistPct)+'</small>':''}</dt><dd class="positive">${moneyMarkup(out.upsideTrigger,quote)} → ${moneyMarkup(out.upsideTarget,quote)}</dd></div>
    <div><dt>Downside break${out.downsideLabel?' ('+esc(out.downsideLabel)+')':''} → risk${Number.isFinite(out.downsideDistPct)?' <small class="path-dist">'+pct(out.downsideDistPct)+'</small>':''}</dt><dd class="negative">${moneyMarkup(out.downsideTrigger,quote)} → ${moneyMarkup(out.downsideTarget,quote)}</dd></div>
@@ -78,7 +87,48 @@ export function chartGuide(pov,setup,mode,studies=[],studyCatalog={}){
  ${latestSetup?`<p class="setup-event"><b>Last closed-bar event</b><br>${esc(latestSetup.label)} <time datetime="${new Date(latestSetup.confirmedAt*1000).toISOString()}">${esc(new Date(latestSetup.confirmedAt*1000).toISOString().slice(0,16).replace('T',' '))} UTC</time><br><small>${esc(latestSetup.detail)}</small></p>`:''}`;
 }
 
-export function forecastPanel(result,{archive=false,recorded=null,superseded=false}={}){
+function renderForecastFanSvg(corridor,interval,horizon,quote){
+ const pts=corridor?.trajectory;
+ if(!Array.isArray(pts)||pts.length<3)return '';
+ const vals=pts.flatMap(p=>[p.wideLow,p.bear,p.base,p.bull,p.wideHigh]).filter(Number.isFinite);
+ if(!vals.length)return '';
+ const minV=Math.min(...vals),maxV=Math.max(...vals),span=Math.max(maxV-minV,vals[0]*0.002,1e-9);
+ const w=440,h=116,padL=10,padR=74,padT=12,padB=20,plotW=w-padL-padR,plotH=h-padT-padB;
+ const xOf=i=>padL+(i/(pts.length-1))*plotW;
+ const yOf=v=>padT+(1-(v-minV)/span)*plotH;
+ const poly=(upperKey,lowerKey)=>{
+  const top=pts.map((p,i)=>`${xOf(i).toFixed(1)},${yOf(p[upperKey]).toFixed(1)}`).join(' ');
+  const bot=[...pts].reverse().map((p,i)=>`${xOf(pts.length-1-i).toFixed(1)},${yOf(p[lowerKey]).toFixed(1)}`).join(' ');
+  return `${top} ${bot}`;
+ };
+ const baseLine=pts.map((p,i)=>`${i===0?'M':'L'}${xOf(i).toFixed(1)},${yOf(p.base).toFixed(1)}`).join(' ');
+ const startY=yOf(pts[0].base);
+ const last=pts.at(-1);
+ const endX=xOf(pts.length-1);
+ const fmt=v=>displayPrice(v,quote);
+ const rawBullY=yOf(last.bull),rawBaseY=yOf(last.base),rawBearY=yOf(last.bear);
+ const baseY=Math.max(padT+14,Math.min(h-padB-14,rawBaseY));
+ const bullY=Math.min(baseY-12,Math.max(padT+5,rawBullY));
+ const bearY=Math.max(baseY+12,Math.min(h-padB+1,rawBearY));
+ return `<div class="forecast-fan-box">
+  <div class="forecast-fan-head"><span>Projected ${horizon}-${esc(interval)} probability cone</span><small>10–90% outer · 25–75% core · base median</small></div>
+  <svg viewBox="0 0 ${w} ${h}" class="forecast-fan-svg" role="img" aria-label="Projected price trajectory cone">
+   <line x1="${padL}" y1="${startY.toFixed(1)}" x2="${endX.toFixed(1)}" y2="${startY.toFixed(1)}" stroke="currentColor" stroke-opacity="0.18" stroke-dasharray="3 3"/>
+   <polygon points="${poly('wideHigh','wideLow')}" fill="var(--lime)" fill-opacity="0.08"/>
+   <polygon points="${poly('bull','bear')}" fill="var(--lime)" fill-opacity="0.19"/>
+   <path d="${baseLine}" fill="none" stroke="var(--lime)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+   <circle cx="${padL}" cy="${startY.toFixed(1)}" r="3" fill="var(--text)"/>
+   <circle cx="${endX.toFixed(1)}" cy="${yOf(last.base).toFixed(1)}" r="3.6" fill="var(--lime)"/>
+   <text x="${(endX+6).toFixed(1)}" y="${(bullY+3).toFixed(1)}" fill="var(--positive)" font-size="9.5" font-weight="600">${esc(fmt(last.bull))}</text>
+   <text x="${(endX+6).toFixed(1)}" y="${(baseY+3).toFixed(1)}" fill="var(--text)" font-size="9.5" font-weight="700">${esc(fmt(last.base))}</text>
+   <text x="${(endX+6).toFixed(1)}" y="${(bearY+3).toFixed(1)}" fill="var(--negative)" font-size="9.5" font-weight="600">${esc(fmt(last.bear))}</text>
+   <text x="${padL}" y="${h-4}" fill="currentColor" fill-opacity="0.55" font-size="9">Now</text>
+   <text x="${endX.toFixed(1)}" y="${h-4}" fill="currentColor" fill-opacity="0.55" font-size="9" text-anchor="end">+${horizon} ${esc(interval)}</text>
+  </svg>
+ </div>`;
+}
+
+export function forecastPanel(result,{archive=false,recorded=null,superseded=false,macro=null}={}){
  const number=x=>Number.isFinite(x)?x.toFixed(3):'—';
  const percent=x=>Number.isFinite(x)?(100*x).toFixed(1)+'%':'—';
  const timestamp=t=>Number.isFinite(t)?new Date(t*1000).toISOString().slice(0,16).replace('T',' ')+' UTC':'—';
@@ -95,33 +145,52 @@ export function forecastPanel(result,{archive=false,recorded=null,superseded=fal
   ['stability','Improve in at least 3 blocks, including the latest',`${evidence.winningBlocks} / ${evidence.blockCount} time blocks improved`]
  ]:[];
  const blocks=evidence?.blocks??[];
+ const fng=macro?.sentiment,glob=macro?.global;
+ const macroChips=[];
+ if(Number.isFinite(fng?.value)){
+  const note=fng.value<=25?'contrarian rebound zone':fng.value>=75?'crowded euphoria risk':'balanced sentiment';
+  macroChips.push(`Fear & Greed ${fng.value}/100 (${fng.label} · ${note})`);
+ }
+ if(Number.isFinite(glob?.btcDominance)){
+  macroChips.push(`BTC.D ${glob.btcDominance.toFixed(1)}%`);
+ }
+ const macroContextRow=macroChips.length?`<p class="forecast-macro-strip"><strong>Live macro overlay</strong> · ${esc(macroChips.join(' · '))}</p>`:'';
+ const quantStrip=proj?.corridor?`<dl class="forecast-quant-strip">
+  <div><dt>Expected move</dt><dd class="${tone(proj.corridor.expectedReturnPct)}">${pct(proj.corridor.expectedReturnPct)}</dd></div>
+  <div><dt>Payoff skew</dt><dd>${Number.isFinite(proj.corridor.skewRatio)?proj.corridor.skewRatio.toFixed(2)+'× up/dn':'—'}</dd></div>
+  <div><dt>5-expert consensus</dt><dd>${esc(proj.consensus?.agreement??'—')}${proj.consensus?` <small>(${Math.max(proj.consensus.upVotes,proj.consensus.downVotes)}/${proj.consensus.total})</small>`:''}</dd></div>
+  <div><dt>Hurst dynamics</dt><dd>${esc(regime?.dynamics??'—')}</dd></div>
+ </dl>`:'';
  const projectionCard=proj?`<section class="forecast-projection" aria-label="Learned price projection">
   <div class="forecast-proj-head">
    <div>
-    <span class="forecast-badge ${proj.verifiedCall?'forecast-badge-verified':'forecast-badge-context'}">${proj.verifiedCall?'Verified walk-forward call':'Historical context projection'}</span>
+    <span class="forecast-badge ${proj.verifiedCall?'forecast-badge-verified':'forecast-badge-context'}">${proj.verifiedCall?'Verified walk-forward signal':'Calibrated probabilistic outlook'}</span>
     <h4 class="${proj.leanTone==='up'?'positive':proj.leanTone==='down'?'negative':''}">${esc(proj.lean)} · ${percent(proj.probabilityUp)} higher-close probability</h4>
    </div>
    <small>Horizon: ${result.horizon} ${esc(result.interval)} bars (target ${timestamp(result.targetCloseAt)})</small>
   </div>
+  ${quantStrip}
+  ${renderForecastFanSvg(proj.corridor,result.interval,result.horizon,quote)}
   ${proj.corridor?`<dl class="forecast-corridor">
    <div><dt>Bear case (25th %ile)</dt><dd>${moneyMarkup(proj.corridor.bearPrice,quote,'parallel')}<small class="${tone(proj.corridor.bearPct)}">${pct(proj.corridor.bearPct)}</small></dd></div>
    <div class="forecast-corridor-base"><dt>Base median target</dt><dd>${moneyMarkup(proj.corridor.basePrice,quote,'parallel')}<small class="${tone(proj.corridor.basePct)}">${pct(proj.corridor.basePct)}</small></dd></div>
    <div><dt>Bull case (75th %ile)</dt><dd>${moneyMarkup(proj.corridor.bullPrice,quote,'parallel')}<small class="${tone(proj.corridor.bullPct)}">${pct(proj.corridor.bullPct)}</small></dd></div>
   </dl>
-  <p class="forecast-evidence-label">${esc(proj.corridor.source)} · 10th–90th historical band: ${moneyMarkup(proj.corridor.wideLowPrice,quote)} to ${moneyMarkup(proj.corridor.wideHighPrice,quote)}${proj.invalidation?` · Structure support ${moneyMarkup(proj.invalidation.supportLevel,quote)} / resistance ${moneyMarkup(proj.invalidation.resistanceLevel,quote)}`:''}</p>`:''}
-  ${proj.reasons?.length?`<div class="forecast-reasons"><h5>Why this projection</h5><ul>${proj.reasons.map(r=>`<li>${esc(r)}</li>`).join('')}</ul></div>`:''}
+  <p class="forecast-evidence-label">${esc(proj.corridor.source)} · 10th–90th band: ${moneyMarkup(proj.corridor.wideLowPrice,quote)} to ${moneyMarkup(proj.corridor.wideHighPrice,quote)}${proj.invalidation?` · Structure support ${moneyMarkup(proj.invalidation.supportLevel,quote)} / resistance ${moneyMarkup(proj.invalidation.resistanceLevel,quote)}`:''}</p>`:''}
+  ${macroContextRow}
+  ${proj.reasons?.length?`<div class="forecast-reasons"><h5>Quantitative rationale</h5><ul>${proj.reasons.map(r=>`<li>${esc(r)}</li>`).join('')}</ul></div>`:''}
  </section>`:'';
- const driversSection=drivers.length?`<details class="guide-disclosure" data-disclosure="drivers"><summary>Learned coin drivers &amp; ensemble weights</summary>
-  <dl class="forecast-drivers">${drivers.slice(0,6).map(d=>`<div><dt>${esc(d.label)}</dt><dd class="${d.direction==='up'?'positive':d.direction==='down'?'negative':''}">${d.direction==='up'?'Bullish push':d.direction==='down'?'Bearish drag':'Neutral'} <small>(score ${d.contribution>=0?'+':''}${d.contribution.toFixed(3)})</small></dd></div>`).join('')}</dl>
-  ${proj?.expertWeights?.length?`<table class="forecast-comparison"><thead><tr><th>Ensemble model</th><th>Learned weight</th><th>Higher-close est.</th></tr></thead><tbody>${proj.expertWeights.map(w=>`<tr><th scope="row">${esc(w.label)}</th><td>${w.weightPct}%</td><td>${percent(w.probabilityUp)}</td></tr>`).join('')}</tbody></table>`:''}
+ const driversSection=drivers.length?`<details class="guide-disclosure" data-disclosure="drivers"><summary>Learned coin drivers (13 factors) &amp; 5-expert ensemble weights</summary>
+  <dl class="forecast-drivers">${drivers.slice(0,8).map(d=>`<div><dt>${esc(d.label)}</dt><dd class="${d.direction==='up'?'positive':d.direction==='down'?'negative':''}">${d.direction==='up'?'Bullish push':d.direction==='down'?'Bearish drag':'Neutral'} <small>(score ${d.contribution>=0?'+':''}${d.contribution.toFixed(3)})</small></dd></div>`).join('')}</dl>
+  ${proj?.expertWeights?.length?`<table class="forecast-comparison"><thead><tr><th>Ensemble expert</th><th>Learned weight</th><th>Higher-close est.</th></tr></thead><tbody>${proj.expertWeights.map(w=>`<tr><th scope="row">${esc(w.label)}</th><td>${w.weightPct}%</td><td>${percent(w.probabilityUp)}</td></tr>`).join('')}</tbody></table>`:''}
  </details>`:'';
- const analogSection=analogs?`<details class="guide-disclosure" data-disclosure="analogs"><summary>Closest historical coin setups · ${analogs.count} analogs</summary>
-  <p>${analogs.upCount} higher · ${analogs.downCount} flat/lower (${percent(analogs.upRate)} higher-close rate · median move ${pct(analogs.medianReturn*100)}).</p>
+ const analogSection=analogs?`<details class="guide-disclosure" data-disclosure="analogs"><summary>Closest regime-matched historical setups · ${analogs.count} analogs</summary>
+  <p>${analogs.upCount} higher · ${analogs.downCount} flat/lower (${percent(analogs.upRate)} higher-close rate · raw median move ${pct(analogs.medianReturn*100)}).</p>
   <table class="forecast-comparison"><thead><tr><th>Past setup (UTC)</th><th>Similarity</th><th>Start close</th><th>After ${result.horizon} bars</th></tr></thead><tbody>${analogs.topMatches.map(m=>`<tr><th scope="row">${timestamp(m.asOf)}</th><td>${m.similarityPct}%</td><td>${moneyMarkup(m.originClose,quote)}</td><td class="${tone(m.forwardReturn*100)}">${pct(m.forwardReturn*100)}</td></tr>`).join('')}</tbody></table>
  </details>`:'';
- return `<div class="forecast-outcome"><strong>${f?'Study leans '+(f.direction==='up'?'higher':'flat or lower'):archive?'Historical test only':superseded?'New candle available':'No directional call'}</strong><small>${f?`Estimated higher-close score ${percent(f.probabilityUp)} · target ${timestamp(f.targetCloseAt)}.${matchingRecord?' Recorded in this browser.':recorded?' The journal retains the original result for this window.':''}`:`${archive?'Use Reset view to return to live candles for a current study.':superseded?'Run a new study for the latest confirmed candle.':esc(result.reason??'Insufficient evidence.')}`}</small></div>
+ return `<div class="forecast-outcome"><strong>${f?'Verified walk-forward signal · leans '+(f.direction==='up'?'higher':'flat or lower'):archive?'Historical test only':superseded?'New candle available':'Walk-forward edge gate unconfirmed'}</strong><small>${f?`Calibrated higher-close probability ${percent(f.probabilityUp)} · target ${timestamp(f.targetCloseAt)}.${matchingRecord?' Recorded in this browser.':recorded?' The journal retains the original result for this window.':''}`:`${archive?'Use Reset view to return to live candles for a current study.':superseded?'Run a new study for the latest confirmed candle.':esc(result.reason??'Insufficient evidence.')}`}</small></div>
  ${projectionCard}
- ${result.closedCount?`<p>${result.closedCount.toLocaleString()} consecutive closed candles · ${timestamp(result.sampleStart)} to ${timestamp(result.asOf)} · ${result.horizon} candles ahead at ${esc(result.interval)} each${regime?` · Regime: ${esc(regime.structure)}, ${esc(regime.volatility.toLowerCase())} volatility`:''}.</p>`:''}
+ ${result.closedCount?`<p>${result.closedCount.toLocaleString()} consecutive closed candles · ${timestamp(result.sampleStart)} to ${timestamp(result.asOf)} · ${result.horizon} candles ahead at ${esc(result.interval)} each${regime?` · Regime: ${esc(regime.structure)}, ${esc(regime.dynamics.toLowerCase())}, ${esc(regime.stretch.toLowerCase())}`:''}.</p>`:''}
  ${result.incompleteHistory?'<p class="forecast-evidence-label">The requested window could not be filled. The results below use the available contiguous sample.</p>':result.gap?'<p class="forecast-evidence-label">A gap limits the sample to the latest consecutive candles.</p>':''}
  ${evidence?`<dl class="forecast-metrics"><div><dt>Training examples in latest fit</dt><dd>${evidence.trainingCount}</dd></div><div><dt>Historical tests</dt><dd>${evidence.count}</dd></div><div><dt>Model probability error</dt><dd>${number(evidence.modelBrier)}</dd></div><div><dt>Best baseline error</dt><dd>${number(baseline?.brier??evidence.baselineBrier)}</dd></div></dl>
  <p class="forecast-interpretation">The strongest comparison is ${esc(baseline?.label??'Historical up rate')}. A lower probability error means scores were closer to what happened in the historical tests.</p>
